@@ -1,0 +1,1747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Website X — Admin Control Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<!-- ══ FIREBASE v10 ══ Module script runs before DOMContentLoaded (before Babel processes text/babel) -->
+<script type="module">
+  import { initializeApp }                                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, doc, getDocs, setDoc,
+           onSnapshot, deleteDoc }                                  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ─── REPLACE with your Firebase project config ───────────────────────────
+  const firebaseConfig = {
+    apiKey:            "REPLACE_ME",
+    authDomain:        "REPLACE_ME.firebaseapp.com",
+    projectId:         "REPLACE_ME",
+    storageBucket:     "REPLACE_ME.appspot.com",
+    messagingSenderId: "REPLACE_ME",
+    appId:             "REPLACE_ME",
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
+  window.__wxFirebaseConfig = firebaseConfig;
+
+  if (firebaseConfig.apiKey === "REPLACE_ME") {
+    window.__wxFirebaseUnconfigured = true;
+    window.__wxFirebaseReady        = false;
+  } else {
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      window.__wxDB  = db;
+      window.__wxFS  = { collection, doc, getDocs, setDoc, onSnapshot, deleteDoc };
+      window.__wxFirebaseReady = true;
+    } catch(e) {
+      console.error("[League Hunter] Firebase init failed:", e);
+      window.__wxFirebaseReady  = false;
+      window.__wxFirebaseOffline = true;
+    }
+  }
+</script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #08080f; font-family: 'Segoe UI', system-ui, sans-serif; }
+  input, select, button { font-family: inherit; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #111120; }
+  ::-webkit-scrollbar-thumb { background: #23233a; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── FIREBASE GLOBALS (set by module script above) ──
+const __fbReady = window.__wxFirebaseReady        || false;
+const __fbUncfg = window.__wxFirebaseUnconfigured  || false;
+const __fbCfg   = window.__wxFirebaseConfig        || null;
+const _db       = window.__wxDB                    || null;
+const _FS       = window.__wxFS                    || {};
+
+// ── SUPER ADMIN (hardcoded, never stored in localStorage) ──
+const SUPERADMIN = { email: "leaguehunter.project@gmail.com", password: "LeagueX#2025!", role: "superadmin" };
+
+// ── DYNAMIC OWNER ACCOUNTS (localStorage key: wxusers) ──
+function loadUsers() {
+  try { const s = localStorage.getItem("wxusers"); return s ? JSON.parse(s) : []; }
+  catch { return []; }
+}
+function saveUsers(arr) {
+  localStorage.setItem("wxusers", JSON.stringify(arr));
+}
+
+const DEMO_LEAGUES = [
+  {
+    id: 1, name: "Hockey Summer League", sport: "Hockey",
+    domain: "hockeysummer.com", color: "#38bdf8",
+    teams: [
+      { id: 1, name: "Ice Bears", emoji: "🐻‍❄️" },
+      { id: 2, name: "Fire Hawks", emoji: "🦅" },
+    ],
+    players: [
+      { id: 1, team: "Ice Bears", name: "Marc Tremblay", number: "11", position: "Center" },
+      { id: 2, team: "Fire Hawks", name: "Jean Lafleur", number: "7", position: "Forward" },
+    ],
+    schedule: [
+      { id: 1, date: "2025-06-10", home: "Ice Bears", away: "Fire Hawks", time: "7:00 PM", venue: "Arena Nord", played: false },
+    ],
+  },
+  {
+    id: 2, name: "Basketball Winter League", sport: "Basketball",
+    domain: "bballwinter.com", color: "#f97316",
+    teams: [], players: [], schedule: [],
+  },
+];
+
+const BG = "#08080f", SURF = "#111120", CARD = "#16162a", BORDER = "#23233a";
+const ACC = "#f97316", T1 = "#e8e8f5", T2 = "#6868a0";
+
+const inp = { background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "10px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box" };
+const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 8, color: "#fff", padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" });
+const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px" };
+const lbl = { fontSize: 12, color: T2, fontWeight: 600, display: "block", marginBottom: 6 };
+
+// ── HELPERS ──
+function isGoalie(p) {
+  const pos = (p.position || "").toLowerCase().trim();
+  return pos === "goalie" || pos === "g" || pos === "gk" || pos === "goalkeeper" || pos === "goaltender";
+}
+
+function fmtAvg(val, gp) {
+  if (!gp || gp === 0) return "—";
+  return (val / gp).toFixed(2);
+}
+
+function getDefaultToggles(sport) {
+  if (sport === "Hockey")     return { goals: true, assists: true, points: true, goalieStats: true };
+  if (sport === "Basketball") return { points: true, assists: true, rebounds: true, blocks: true, steals: true };
+  return { goals: true, assists: true, points: true };
+}
+
+function getToggles(league) {
+  return { ...getDefaultToggles(league.sport), ...(league.statToggles || {}) };
+}
+
+function initNPS(players, sport) {
+  const s = {};
+  players.forEach(p => {
+    if (sport === "Hockey") {
+      s[p.id] = isGoalie(p) ? { saves: "", goalsAgainst: "" } : { goals: "", assists: "" };
+    } else if (sport === "Basketball") {
+      s[p.id] = { points: "", assists: "", rebounds: "", blocks: "", steals: "" };
+    } else {
+      s[p.id] = { goals: "", assists: "" };
+    }
+  });
+  return s;
+}
+
+// ── TOGGLE SWITCH ──
+function Toggle({ on, onChange }) {
+  return (
+    <div onClick={onChange} style={{ width: 44, height: 24, borderRadius: 12, background: on ? "#22c55e" : BORDER, cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+      <div style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+    </div>
+  );
+}
+
+// ── LEADER CARD ──
+function LeaderCard({ title, icon, data, statKey, color, lowerBetter, fmtFn }) {
+  const sorted = [...data].filter(p => p[statKey] !== undefined && p[statKey] !== null && p.gp > 0)
+    .sort((a, b) => lowerBetter ? (a[statKey] - b[statKey]) : (b[statKey] - a[statKey]));
+  const top = sorted.slice(0, 3);
+  if (!top.length) return null;
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <div style={{ ...card, minWidth: 200, flex: "1 1 200px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.06em", marginBottom: 14 }}>{icon} {title.toUpperCase()}</div>
+      {top.map((p, i) => (
+        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: i < top.length - 1 ? 10 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14, minWidth: 20 }}>{medals[i]}</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
+              <div style={{ fontSize: 11, color: T2 }}>{p.team}</div>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 800, fontSize: 18, color: i === 0 ? color : T1 }}>
+              {fmtFn ? fmtFn(p) : p[statKey]}
+            </div>
+            {p.gp > 0 && !lowerBetter && !fmtFn && (
+              <div style={{ fontSize: 10, color: T2 }}>{fmtAvg(p[statKey], p.gp)}/g</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── BOX SCORE ──
+function BoxScore({ game, players, sport }) {
+  if (!game.playerStats) return null;
+
+  if (sport === "Basketball") {
+    const active = players.filter(p => {
+      const ps = game.playerStats[p.id];
+      return ps && (ps.points > 0 || ps.assists > 0 || ps.rebounds > 0 || ps.blocks > 0 || ps.steals > 0);
+    });
+    if (!active.length) return null;
+    return (
+      <div style={{ marginTop: 14, borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.06em", marginBottom: 8 }}>BOX SCORE</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr>
+                {["Player","Team","PTS","AST","REB","BLK","STL"].map(h => (
+                  <th key={h} style={{ textAlign: h==="Player"||h==="Team"?"left":"center", color: T2, fontSize: 11, fontWeight: 600, padding: "3px 6px" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {active.map(p => {
+                const ps = game.playerStats[p.id];
+                return (
+                  <tr key={p.id}>
+                    <td style={{ padding: "4px 6px", fontWeight: 600 }}>{p.name}</td>
+                    <td style={{ padding: "4px 6px", color: T2 }}>{p.team}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "center", color: ACC, fontWeight: 700 }}>{ps.points||0}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#38bdf8", fontWeight: 700 }}>{ps.assists||0}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{ps.rebounds||0}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#a78bfa", fontWeight: 700 }}>{ps.blocks||0}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "center", color: "#f472b6", fontWeight: 700 }}>{ps.steals||0}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Hockey (default)
+  const skaters = players.filter(p => !isGoalie(p) && game.playerStats[p.id] && (game.playerStats[p.id].goals > 0 || game.playerStats[p.id].assists > 0));
+  const goalies = players.filter(p => isGoalie(p) && game.playerStats[p.id]);
+  if (!skaters.length && !goalies.length) return null;
+  return (
+    <div style={{ marginTop: 14, borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.06em", marginBottom: 8 }}>BOX SCORE</div>
+      {skaters.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: goalies.length ? 10 : 0 }}>
+          <thead>
+            <tr>
+              {["Player","Team","G","A","PTS"].map(h => (
+                <th key={h} style={{ textAlign: h==="Player"||h==="Team"?"left":"center", color: T2, fontSize: 11, fontWeight: 600, padding: "3px 8px" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {skaters.map(p => {
+              const ps = game.playerStats[p.id];
+              const g = ps.goals||0, a = ps.assists||0;
+              return (
+                <tr key={p.id}>
+                  <td style={{ padding: "4px 8px", fontWeight: 600 }}>{p.name}</td>
+                  <td style={{ padding: "4px 8px", color: T2, fontSize: 12 }}>{p.team}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{g}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "center", color: "#38bdf8", fontWeight: 700 }}>{a}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "center", fontWeight: 800, color: ACC }}>{g+a}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {goalies.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr>
+              {["Goalie","Team","SV","GA"].map(h => (
+                <th key={h} style={{ textAlign: h==="Goalie"||h==="Team"?"left":"center", color: T2, fontSize: 11, fontWeight: 600, padding: "3px 8px" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {goalies.map(p => {
+              const ps = game.playerStats[p.id];
+              return (
+                <tr key={p.id}>
+                  <td style={{ padding: "4px 8px", fontWeight: 600 }}>{p.name}</td>
+                  <td style={{ padding: "4px 8px", color: T2, fontSize: 12 }}>{p.team}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{ps.saves||0}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "center", color: "#ef4444", fontWeight: 700 }}>{ps.goalsAgainst||0}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ── CONFIRM MODAL ──
+function ConfirmModal({ icon, title, body, confirmLabel, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}>
+      <div style={{ width: 400, ...card, padding: 32, textAlign: "center" }}>
+        <div style={{ fontSize: 36, marginBottom: 14 }}>{icon}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{title}</div>
+        <div style={{ fontSize: 14, color: T2, marginBottom: 24 }}>{body}</div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button style={{ ...btn("#ef4444"), flex: 1 }} onClick={onConfirm}>{confirmLabel || "Confirm"}</button>
+          <button style={{ ...btn("#252540"), flex: 1 }} onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── STAT CELL (total + avg stacked) ──
+function StatCell({ val, gp, color }) {
+  return (
+    <td style={{ padding: "10px 8px", textAlign: "center" }}>
+      <div style={{ fontWeight: 700, color: color || T1, fontSize: 15 }}>{val}</div>
+      <div style={{ fontSize: 10, color: T2, marginTop: 1 }}>{fmtAvg(val, gp)}/g</div>
+    </td>
+  );
+}
+
+// ═══════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════
+function App() {
+  const [page, setPage] = useState("login");
+  const [user, setUser] = useState(null);
+  const [leagues, setLeagues] = useState(DEMO_LEAGUES);
+  const [loading, setLoading]   = useState(true);
+  const [fbError, setFbError]   = useState(null);
+  const leaguesRef = useRef(DEMO_LEAGUES);
+  const [selId, setSelId] = useState(null);
+  const [tab, setTab] = useState("teams");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [nL, setNL] = useState({ name: "", sport: "Basketball", domain: "", color: "#6366f1" });
+  const [nT, setNT] = useState({ name: "", emoji: "⭐" });
+  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "" });
+  const [nG, setNG] = useState({ date: "", home: "", away: "", time: "", venue: "" });
+  const [nS, setNS] = useState({ gameId: "", homeScore: "", awayScore: "" });
+  const [nPS, setNPS] = useState({});
+  const [editGame, setEditGame] = useState(null);
+  const [deleteGameId, setDeleteGameId] = useState(null);
+  const [editScore, setEditScore] = useState(null);
+  const [deleteScoreId, setDeleteScoreId] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
+  const [pendingNavTab, setPendingNavTab] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [showConnGuide, setShowConnGuide] = useState(false);
+  const [users, setUsers] = useState(loadUsers);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [ownerModal, setOwnerModal] = useState(null);
+  const [newOwner, setNewOwner] = useState({ email: "", password: "", confirm: "" });
+  const [ownerError, setOwnerError] = useState("");
+  const [createdCreds, setCreatedCreds] = useState(null);
+  const [manageOwnerId, setManageOwnerId] = useState(null);
+  const [deleteOwnerId, setDeleteOwnerId] = useState(null);
+  const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
+
+  // Keep ref in sync so async functions always write the latest state
+  useEffect(() => { leaguesRef.current = leagues; }, [leagues]);
+
+  // ── INITIAL DATA LOAD ──
+  useEffect(() => {
+    if (__fbReady) {
+      const { getDocs, collection } = _FS;
+      getDocs(collection(_db, "leagues"))
+        .then(snap => {
+          if (!snap.empty) setLeagues(snap.docs.map(d => d.data()));
+          else {
+            try { const s = localStorage.getItem("wxLeagues"); if (s) setLeagues(JSON.parse(s)); } catch {}
+          }
+          setLoading(false);
+        })
+        .catch(e => {
+          console.error("Firestore load:", e);
+          setFbError("Firebase connection failed — running in local mode.");
+          try { const s = localStorage.getItem("wxLeagues"); if (s) setLeagues(JSON.parse(s)); } catch {}
+          setLoading(false);
+        });
+    } else {
+      try { const s = localStorage.getItem("wxLeagues"); if (s) setLeagues(JSON.parse(s)); } catch {}
+      setLoading(false);
+    }
+  }, []);
+
+  // ── USERS LOAD FROM FIRESTORE ──
+  useEffect(() => {
+    if (!__fbReady) return;
+    const { getDocs, collection } = _FS;
+    getDocs(collection(_db, "users"))
+      .then(snap => { if (!snap.empty) setUsers(snap.docs.map(d => d.data())); })
+      .catch(e => console.error("Users load:", e));
+  }, []);
+
+  useEffect(() => {
+    if (!dirty) return;
+    function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ""; }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  const league = leagues.find(l => l.id === selId);
+
+  async function login() {
+    if (email === SUPERADMIN.email && pass === SUPERADMIN.password) {
+      setUser(SUPERADMIN); setErr(""); setPage("dashboard"); return;
+    }
+    let allUsers = users;
+    if (__fbReady) {
+      try {
+        const { getDocs, collection } = _FS;
+        const snap = await getDocs(collection(_db, "users"));
+        allUsers = snap.docs.map(d => d.data());
+        setUsers(allUsers);
+      } catch(e) {
+        allUsers = loadUsers();
+        if (JSON.stringify(allUsers) !== JSON.stringify(users)) setUsers(allUsers);
+      }
+    } else {
+      allUsers = loadUsers();
+      if (JSON.stringify(allUsers) !== JSON.stringify(users)) setUsers(allUsers);
+    }
+    const owner = allUsers.find(u => u.email === email && u.password === pass);
+    if (owner) {
+      setUser(owner); setErr("");
+      setSelId(owner.leagueId); setTab("teams"); setPage("league"); return;
+    }
+    setErr("Invalid email or password.");
+  }
+  function logout() { setPage("login"); setUser(null); setEmail(""); setPass(""); setSelId(null); setDirty(false); setLastSaved(null); }
+  function upd(updated) { setLeagues(prev => prev.map(l => l.id === updated.id ? updated : l)); setDirty(true); }
+
+  function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 3000); }
+  function handleTabSwitch(t) { if (dirty) { setPendingNavTab(t); } else { setTab(t); } }
+  function handleBack() { if (dirty) { setPendingNavTab("__dashboard__"); } else { setPage("dashboard"); setSelId(null); } }
+  function handleLogout() { if (dirty) { setPendingNavTab("__logout__"); } else { logout(); } }
+  function handleSave() { setPendingSave(true); }
+  async function confirmSave() {
+    // leaguesRef.current always holds latest state (no stale closure)
+    const current = leaguesRef.current;
+    // Always write to localStorage (cache + fallback for discard)
+    localStorage.setItem("wxLeagues", JSON.stringify(current));
+    localStorage.setItem("wxLeagues_updated", Date.now().toString());
+    // Also write to Firestore if configured
+    if (__fbReady) {
+      try {
+        const { setDoc, doc } = _FS;
+        const lg = current.find(l => l.id === selId);
+        if (lg) {
+          await setDoc(doc(_db, "leagues", String(lg.id)), lg);
+          await setDoc(doc(_db, "meta", "sync"), { updatedAt: Date.now() });
+        }
+      } catch(e) { console.error("Firestore save:", e); }
+    }
+    const ts = new Date().toLocaleTimeString();
+    setLastSaved(ts);
+    setDirty(false); setPendingSave(false);
+    showToast("Saved at " + ts);
+  }
+  function discardDirty() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("wxLeagues") || "null") || DEMO_LEAGUES;
+      const savedLeague = saved.find(l => l.id === selId);
+      if (savedLeague) setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
+    } catch {}
+    setDirty(false);
+  }
+  function leaveWithoutSaving() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("wxLeagues") || "null") || DEMO_LEAGUES;
+      const savedLeague = saved.find(l => l.id === selId);
+      if (savedLeague) setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
+    } catch {}
+    setDirty(false);
+    const dest = pendingNavTab;
+    setPendingNavTab(null);
+    if (dest === "__dashboard__") { setPage("dashboard"); setSelId(null); }
+    else if (dest === "__logout__") { logout(); }
+    else { setTab(dest); }
+  }
+  function copyPublicSnippet() {
+    const cfg = __fbCfg;
+    if (!cfg || cfg.apiKey === "REPLACE_ME") {
+      showToast("Add your Firebase config to index.html first.");
+      return;
+    }
+    const snippet = `<!-- League Hunter — paste into your public site <head> -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = ${JSON.stringify(cfg, null, 2)};
+  const LEAGUE_ID = "${String(selId)}"; // ${league?.name || ""}
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  window.__wxDB         = db;
+  window.__wxFS         = { doc, onSnapshot };
+  window.__wxLeagueId   = LEAGUE_ID;
+  window.__wxFirebaseReady = true;
+<\/script>`;
+    navigator.clipboard.writeText(snippet)
+      .then(() => showToast("Snippet copied! Paste into your public site <head>."))
+      .catch(() => showToast("Copy failed — check browser permissions."));
+  }
+
+  async function forceSync() {
+    localStorage.setItem("wxLeagues_updated", Date.now().toString());
+    if (__fbReady) {
+      try {
+        const { setDoc, doc } = _FS;
+        await setDoc(doc(_db, "meta", "sync"), { updatedAt: Date.now() });
+      } catch(e) { console.error("Firestore forceSync:", e); }
+    }
+    showToast("Force sync triggered! Public site will refresh.");
+  }
+
+  async function createOwner() {
+    const { email: e, password: p, confirm: c } = newOwner;
+    if (!e.trim() || !p) { setOwnerError("Email and password are required."); return; }
+    if (p !== c) { setOwnerError("Passwords do not match."); return; }
+    if (e.trim() === SUPERADMIN.email) { setOwnerError("That email is already in use."); return; }
+    let fresh = loadUsers();
+    if (__fbReady) {
+      try {
+        const { getDocs, collection } = _FS;
+        const snap = await getDocs(collection(_db, "users"));
+        fresh = snap.docs.map(d => d.data());
+      } catch(e2) { /* use localStorage list */ }
+    }
+    if (JSON.stringify(fresh) !== JSON.stringify(users)) setUsers(fresh);
+    if (fresh.find(u => u.email === e.trim())) { setOwnerError("An account with that email already exists."); return; }
+    const lg = leagues.find(l => l.id === ownerModal);
+    const newUser = {
+      id: "user_" + Date.now(), email: e.trim(), password: p,
+      role: "owner", leagueId: ownerModal,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const updated = [...fresh, newUser];
+    saveUsers(updated);
+    if (__fbReady) {
+      try {
+        const { setDoc, doc } = _FS;
+        await setDoc(doc(_db, "users", newUser.id), newUser);
+      } catch(e2) { console.error("Firestore createOwner:", e2); }
+    }
+    setUsers(updated);
+    setOwnerModal(null);
+    setNewOwner({ email: "", password: "", confirm: "" });
+    setOwnerError("");
+    setCreatedCreds({ email: newUser.email, password: p, leagueName: lg?.name || "League" });
+  }
+
+  async function deleteOwner(userId) {
+    const updated = users.filter(u => u.id !== userId);
+    saveUsers(updated);
+    if (__fbReady) {
+      try {
+        const { deleteDoc, doc } = _FS;
+        await deleteDoc(doc(_db, "users", userId));
+      } catch(e) { console.error("Firestore deleteOwner:", e); }
+    }
+    setUsers(updated);
+    setDeleteOwnerId(null);
+    showToast("Owner account deleted.");
+  }
+
+  async function resetOwnerPassword() {
+    const { userId, password, confirm } = resetPwForm;
+    if (!password) { setOwnerError("Password cannot be empty."); return; }
+    if (password !== confirm) { setOwnerError("Passwords do not match."); return; }
+    const updated = users.map(u => u.id === userId ? { ...u, password } : u);
+    saveUsers(updated);
+    if (__fbReady) {
+      try {
+        const { setDoc, doc } = _FS;
+        const userToUpdate = updated.find(u => u.id === userId);
+        if (userToUpdate) await setDoc(doc(_db, "users", userId), userToUpdate);
+      } catch(e) { console.error("Firestore resetPassword:", e); }
+    }
+    setUsers(updated);
+    setResetPwForm({ userId: null, password: "", confirm: "" });
+    setOwnerError(""); showToast("Password updated!");
+  }
+
+  async function addLeague() {
+    if (!nL.name) return;
+    const newLeague = { ...nL, id: Date.now(), teams: [], players: [], schedule: [], statToggles: getDefaultToggles(nL.sport) };
+    const updated = [...leagues, newLeague];
+    setLeagues(updated);
+    localStorage.setItem("wxLeagues", JSON.stringify(updated));
+    if (__fbReady) {
+      try {
+        const { setDoc, doc } = _FS;
+        await setDoc(doc(_db, "leagues", String(newLeague.id)), newLeague);
+      } catch(e) { console.error("Firestore addLeague:", e); }
+    }
+    setNL({ name: "", sport: "Basketball", domain: "", color: "#6366f1" }); setShowAdd(false);
+  }
+  function addTeam() { if (!nT.name || !league) return; upd({ ...league, teams: [...league.teams, { id: Date.now(), ...nT }] }); setNT({ name: "", emoji: "⭐" }); }
+  function delTeam(id) { if (league) upd({ ...league, teams: league.teams.filter(t => t.id !== id) }); }
+  function addPlayer() { if (!nP.name || !league) return; upd({ ...league, players: [...league.players, { id: Date.now(), ...nP }] }); setNP({ name: "", team: "", number: "", position: "" }); }
+  function delPlayer(id) { if (league) upd({ ...league, players: league.players.filter(p => p.id !== id) }); }
+  function addGame() {
+    if (!nG.date || !nG.home || !nG.away || !league) return;
+    upd({ ...league, schedule: [...league.schedule, { id: Date.now(), ...nG, played: false }] });
+    setNG({ date: "", home: "", away: "", time: "", venue: "" });
+  }
+  function saveEditGame() { if (!editGame || !league) return; upd({ ...league, schedule: league.schedule.map(g => g.id === editGame.id ? { ...g, ...editGame } : g) }); setEditGame(null); }
+  function deleteGame(id) { if (!league) return; upd({ ...league, schedule: league.schedule.filter(g => g.id !== id) }); setDeleteGameId(null); }
+
+  function doInitPlayerStats(gameObj) {
+    if (!gameObj || !league) return;
+    const players = league.players.filter(p => p.team === gameObj.home || p.team === gameObj.away);
+    setNPS(initNPS(players, league.sport));
+  }
+
+  function submitScore() {
+    if (!nS.gameId || !league) return;
+    const gId = parseInt(nS.gameId);
+    const psForGame = {};
+    Object.keys(nPS).forEach(pid => {
+      const raw = nPS[pid];
+      const entry = {};
+      Object.keys(raw).forEach(k => { entry[k] = parseInt(raw[k]) || 0; });
+      psForGame[pid] = entry;
+    });
+    upd({ ...league, schedule: league.schedule.map(g => g.id === gId ? { ...g, played: true, homeScore: nS.homeScore, awayScore: nS.awayScore, playerStats: psForGame } : g) });
+    setNS({ gameId: "", homeScore: "", awayScore: "" }); setNPS({});
+  }
+
+  function saveEditScore() { if (!editScore || !league) return; upd({ ...league, schedule: league.schedule.map(g => g.id === editScore.id ? { ...g, homeScore: editScore.homeScore, awayScore: editScore.awayScore } : g) }); setEditScore(null); }
+  function deleteScore(id) { if (!league) return; upd({ ...league, schedule: league.schedule.map(g => g.id === id ? { ...g, played: false, homeScore: undefined, awayScore: undefined, playerStats: undefined } : g) }); setDeleteScoreId(null); }
+  function setToggle(key, val) { if (!league) return; upd({ ...league, statToggles: { ...getToggles(league), [key]: val } }); }
+
+  // ── LOADING SCREEN ──
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px", marginBottom: 12 }}>WEBSITE X</div>
+        <div style={{ fontSize: 14, color: T2 }}>{__fbReady ? "Connecting to Firebase…" : "Loading…"}</div>
+      </div>
+    </div>
+  );
+
+  // ── LOGIN ──
+  if (page === "login") return (
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 380, padding: 40, ...card }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>WEBSITE X</div>
+          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin Control Center</div>
+        </div>
+        {__fbUncfg && (
+          <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
+            🔴 <strong>Firebase not configured.</strong> Open index.html and replace the <code>REPLACE_ME</code> values in the Firebase module script. Data is saving to localStorage only.
+          </div>
+        )}
+        {fbError && (
+          <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#f59e0b", lineHeight: 1.6 }}>
+            ⚠️ {fbError}
+          </div>
+        )}
+        {__fbReady && (
+          <div style={{ background: "#22c55e15", border: "1px solid #22c55e40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#22c55e", lineHeight: 1.6 }}>
+            🟢 <strong>Firebase connected.</strong> Data syncs across all devices and public sites in real time.
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div><label style={lbl}>Email</label><input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key==="Enter"&&login()} placeholder="your@email.com" /></div>
+          <div><label style={lbl}>Password</label><input style={inp} type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key==="Enter"&&login()} placeholder="••••••••" /></div>
+          {err && <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}>{err}</div>}
+          <button style={{ ...btn(), width: "100%", padding: "12px 20px", fontSize: 15, marginTop: 4 }} onClick={login}>Sign In</button>
+        </div>
+        <div style={{ marginTop: 24, padding: "12px 16px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
+          Admin access only — unauthorized entry prohibited<br/>
+          <span style={{ color: "#f59e0b", fontSize: 11 }}>⚠️ Local admin tool — do not use sensitive passwords</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── DASHBOARD ──
+  if (page === "dashboard") return (
+    <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
+      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
+        <div style={{ fontSize: 20, fontWeight: 900, color: ACC }}>WEBSITE X</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ fontSize: 13, color: T2 }}>Super Admin</span>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: ACC+"30", border: `2px solid ${ACC}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: ACC }}>A</div>
+          <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
+        </div>
+      </div>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
+        <div style={{ display: "flex", gap: 16, marginBottom: 36 }}>
+          {[["Total Leagues",leagues.length],["Total Teams",leagues.reduce((a,l)=>a+l.teams.length,0)],["Total Players",leagues.reduce((a,l)=>a+l.players.length,0)],["Games Scheduled",leagues.reduce((a,l)=>a+l.schedule.length,0)]].map(([label,val]) => (
+            <div key={label} style={{ flex: 1, ...card, textAlign: "center" }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: ACC }}>{val}</div>
+              <div style={{ fontSize: 12, color: T2, marginTop: 4 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div><div style={{ fontSize: 20, fontWeight: 700 }}>All Leagues</div><div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{leagues.length} leagues in your network</div></div>
+          <button style={btn()} onClick={() => setShowAdd(true)}>+ Add League</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {leagues.map(l => {
+            const lOwners = users.filter(u => u.leagueId === l.id && u.role === "owner");
+            return (
+              <div key={l.id} style={{ ...card, transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor=l.color; e.currentTarget.style.background="#1a1a2e"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor=BORDER; e.currentTarget.style.background=CARD; }}>
+                {/* Clickable main row */}
+                <div onClick={() => { setSelId(l.id); setPage("league"); setTab("teams"); }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: l.color+"25", border: `2px solid ${l.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                      {l.sport==="Hockey"?"🏒":l.sport==="Basketball"?"🏀":"🏆"}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{l.name}</div>
+                      <div style={{ fontSize: 13, color: T2, marginTop: 3 }}><span style={{ color: l.color }}>●</span> {l.domain} · {l.sport}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+                    {[["Teams",l.teams.length],["Players",l.players.length],["Games",l.schedule.length]].map(([lbl2,val]) => (
+                      <div key={lbl2} style={{ textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 800 }}>{val}</div><div style={{ fontSize: 11, color: T2 }}>{lbl2}</div></div>
+                    ))}
+                    <div style={{ color: T2, fontSize: 20 }}>›</div>
+                  </div>
+                </div>
+                {/* Owner row — not clickable */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${BORDER}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
+                    {lOwners.length > 0 ? lOwners.map(o => (
+                      <span key={o.id} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5, marginRight: 12 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block", flexShrink: 0 }} />
+                        <span style={{ color: T2 }}>Owner:</span>
+                        <strong style={{ color: T1 }}>{o.email}</strong>
+                      </span>
+                    )) : (
+                      <span style={{ fontSize: 12, color: T2 }}>No owner assigned</span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                    {lOwners.length > 0 && (
+                      <button onClick={() => { setManageOwnerId(l.id); setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}
+                        style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
+                        Manage
+                      </button>
+                    )}
+                    <button onClick={() => { setOwnerModal(l.id); setNewOwner({ email: "", password: "", confirm: "" }); setOwnerError(""); }}
+                      style={{ background: "none", border: `1px solid ${l.color}60`, borderRadius: 6, color: l.color, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+                      👤 {lOwners.length > 0 ? "Add Another" : "Assign Owner"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── ASSIGN OWNER MODAL ── */}
+      {ownerModal && (() => {
+        const lg = leagues.find(l => l.id === ownerModal);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+            <div style={{ width: 460, ...card, padding: 32 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Assign Owner Account</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>{lg?.name}</div>
+              <div style={{ fontSize: 12, color: "#f59e0b", background: "#f59e0b12", border: "1px solid #f59e0b30", borderRadius: 8, padding: "10px 14px", marginBottom: 20, lineHeight: 1.6 }}>
+                ⚠️ This is a local admin tool. Do not use sensitive passwords — credentials are stored in plain text in localStorage.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div><label style={lbl}>Email</label><input style={inp} value={newOwner.email} onChange={e=>setNewOwner({...newOwner,email:e.target.value})} placeholder="owner@example.com" autoComplete="off" /></div>
+                <div><label style={lbl}>Password</label><input type="password" style={inp} value={newOwner.password} onChange={e=>setNewOwner({...newOwner,password:e.target.value})} placeholder="Choose a password" autoComplete="new-password" /></div>
+                <div><label style={lbl}>Confirm Password</label><input type="password" style={inp} value={newOwner.confirm} onChange={e=>setNewOwner({...newOwner,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&createOwner()} placeholder="Repeat password" autoComplete="new-password" /></div>
+                {ownerError && <div style={{ color: "#ef4444", fontSize: 13 }}>{ownerError}</div>}
+                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                  <button style={{ ...btn(), flex: 1 }} onClick={createOwner}>Create Account</button>
+                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setOwnerModal(null); setOwnerError(""); }}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── CREDENTIALS CARD ── */}
+      {createdCreds && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+          <div style={{ width: 460, ...card, padding: 32 }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🎉</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>Owner Account Created</div>
+              <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials with the league owner. Screenshot or copy them now — the password will not be shown again.</div>
+            </div>
+            <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "20px 22px", marginBottom: 20, fontFamily: "monospace", fontSize: 13 }}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>LOGIN URL</div>
+                <div style={{ color: T1, wordBreak: "break-all" }}>{window.location.href}</div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>EMAIL</div>
+                <div style={{ color: T1, fontWeight: 700 }}>{createdCreds.email}</div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>PASSWORD</div>
+                <div style={{ color: ACC, fontWeight: 800, fontSize: 15 }}>{createdCreds.password}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>LEAGUE</div>
+                <div style={{ color: T1 }}>{createdCreds.leagueName}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => {
+                const txt = `Login: ${window.location.href}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nLeague: ${createdCreds.leagueName}`;
+                navigator.clipboard.writeText(txt).then(() => showToast("Credentials copied!")).catch(() => showToast("Copy failed."));
+              }}>📋 Copy All</button>
+              <button style={{ ...btn(), flex: 1 }} onClick={() => setCreatedCreds(null)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MANAGE OWNERS MODAL ── */}
+      {manageOwnerId && (() => {
+        const lg = leagues.find(l => l.id === manageOwnerId);
+        const ownersForLeague = users.filter(u => u.leagueId === manageOwnerId && u.role === "owner");
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+            <div style={{ width: 480, ...card, padding: 32, maxHeight: "80vh", overflowY: "auto" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Manage Owners</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 24 }}>{lg?.name}</div>
+              {ownersForLeague.length === 0 && <div style={{ color: T2, fontSize: 14, marginBottom: 20 }}>No owners assigned yet.</div>}
+              {ownersForLeague.map(owner => (
+                <div key={owner.id} style={{ background: SURF, borderRadius: 10, padding: "16px 18px", marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.email}</div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Created {owner.createdAt} · ID {owner.id}</div>
+                    </div>
+                    <button onClick={() => setDeleteOwnerId(owner.id)}
+                      style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Delete</button>
+                  </div>
+                  {resetPwForm.userId === owner.id ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.password} onChange={e=>setResetPwForm({...resetPwForm,password:e.target.value})} placeholder="New password" autoComplete="new-password" />
+                      <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.confirm} onChange={e=>setResetPwForm({...resetPwForm,confirm:e.target.value})} placeholder="Confirm new password" autoComplete="new-password" />
+                      {ownerError && <div style={{ color: "#ef4444", fontSize: 12 }}>{ownerError}</div>}
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button style={{ ...btn(), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={resetOwnerPassword}>Save</button>
+                        <button style={{ ...btn("#252540"), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={() => { setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setResetPwForm({ userId: owner.id, password: "", confirm: "" }); setOwnerError(""); }}
+                      style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>
+                      🔑 Reset Password
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button style={{ ...btn("#252540"), width: "100%", marginTop: 8 }} onClick={() => { setManageOwnerId(null); setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}>Close</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── DELETE OWNER CONFIRM ── */}
+      {deleteOwnerId && (
+        <ConfirmModal icon="🗑️" title="Delete Owner Account?" body={`This will permanently remove the login credentials for ${users.find(u=>u.id===deleteOwnerId)?.email}. The league data is unaffected.`} confirmLabel="Yes, Delete Account" onConfirm={() => deleteOwner(deleteOwnerId)} onCancel={() => setDeleteOwnerId(null)} />
+      )}
+
+      {showAdd && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ width: 460, ...card, padding: 32 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>Add New League</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div><label style={lbl}>League Name</label><input style={inp} value={nL.name} onChange={e => setNL({...nL,name:e.target.value})} placeholder="e.g. Hockey Summer League" /></div>
+              <div><label style={lbl}>Sport</label>
+                <select style={inp} value={nL.sport} onChange={e => setNL({...nL,sport:e.target.value})}>
+                  {["Basketball","Hockey","Soccer","Baseball","Other"].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div><label style={lbl}>Public Domain</label><input style={inp} value={nL.domain} onChange={e => setNL({...nL,domain:e.target.value})} placeholder="e.g. hockeyleague.com" /></div>
+              <div><label style={lbl}>League Color</label>
+                <input type="color" value={nL.color} onChange={e => setNL({...nL,color:e.target.value})} style={{ height: 44, width: "100%", borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 4 }} />
+              </div>
+              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                <button style={{ ...btn(), flex: 1 }} onClick={addLeague}>Create League</button>
+                <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setShowAdd(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── LEAGUE ──
+  if (page === "league" && league) {
+    const toggles = getToggles(league);
+    const sport = league.sport;
+    const unplayed = league.schedule.filter(g => !g.played);
+    const played = league.schedule.filter(g => g.played);
+    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["settings","⚙️ Settings"]];
+
+    const standings = league.teams.map(t => {
+      const hg = played.filter(g => g.home===t.name), ag = played.filter(g => g.away===t.name);
+      const wins = hg.filter(g=>parseInt(g.homeScore)>parseInt(g.awayScore)).length + ag.filter(g=>parseInt(g.awayScore)>parseInt(g.homeScore)).length;
+      const losses = hg.filter(g=>parseInt(g.homeScore)<parseInt(g.awayScore)).length + ag.filter(g=>parseInt(g.awayScore)<parseInt(g.homeScore)).length;
+      return { name: t.name, emoji: t.emoji, gp: wins+losses, wins, losses };
+    }).sort((a,b) => b.wins-a.wins);
+
+    // ── COMPUTE TOTALS ──
+    let skaterTotals=[], goalieTotals=[], bballTotals=[];
+    if (sport === "Hockey") {
+      skaterTotals = league.players.filter(p => !isGoalie(p)).map(p => {
+        const gs = played.filter(g => g.playerStats && g.playerStats[p.id] !== undefined);
+        const goals = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.goals||0),0);
+        const assists = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.assists||0),0);
+        return { ...p, gp: gs.length, goals, assists, points: goals+assists };
+      }).sort((a,b) => b.points-a.points || b.goals-a.goals);
+
+      goalieTotals = league.players.filter(p => isGoalie(p)).map(p => {
+        const gs = played.filter(g => g.playerStats && g.playerStats[p.id] !== undefined);
+        const saves = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.saves||0),0);
+        const goalsAgainst = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.goalsAgainst||0),0);
+        const cleanSheets = gs.filter(g=>(g.playerStats[p.id]?.goalsAgainst||0)===0).length;
+        const gaa = gs.length>0 ? goalsAgainst/gs.length : null;
+        return { ...p, gp: gs.length, saves, goalsAgainst, cleanSheets, gaa };
+      }).sort((a,b) => (a.gaa??99)-(b.gaa??99));
+    }
+    if (sport === "Basketball") {
+      bballTotals = league.players.map(p => {
+        const gs = played.filter(g => g.playerStats && g.playerStats[p.id] !== undefined);
+        const points  = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.points||0),0);
+        const assists  = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.assists||0),0);
+        const rebounds = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.rebounds||0),0);
+        const blocks   = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.blocks||0),0);
+        const steals   = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.steals||0),0);
+        return { ...p, gp: gs.length, points, assists, rebounds, blocks, steals };
+      }).sort((a,b) => b.points-a.points || b.assists-a.assists);
+    }
+
+    // player stat entry helpers
+    function getGamePlayers(g) { return league.players.filter(p => p.team===g.home||p.team===g.away); }
+
+    return (
+      <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
+
+        {/* HEADER */}
+        <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {user?.role==="superadmin" && <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← Back</button>}
+            <div style={{ width: 1, height: 24, background: BORDER }} />
+            <div style={{ fontSize: 18, fontWeight: 900, color: ACC }}>WEBSITE X</div>
+            <div style={{ fontSize: 14, color: T2 }}>/ {league.name}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {lastSaved && !dirty && (
+              <span style={{ fontSize: 11, color: "#22c55e", display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+                Saved {lastSaved}
+              </span>
+            )}
+            <span style={{ fontSize: 12, padding: "4px 10px", background: user?.role==="superadmin"?ACC+"20":"#6366f120", borderRadius: 6, fontWeight: 600, color: user?.role==="superadmin"?ACC:"#818cf8" }}>
+              {user?.role==="superadmin"?"Super Admin":"League Owner"}
+            </span>
+            <button onClick={handleLogout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
+          </div>
+        </div>
+
+        {/* TAB BAR */}
+        <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
+          {TABS.map(([t,label]) => (
+            <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "16px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: tab===t?ACC:T2, borderBottom: tab===t?`2px solid ${ACC}`:"2px solid transparent" }}>{label}</button>
+          ))}
+        </div>
+
+        <div style={{ maxWidth: 860, margin: "0 auto", padding: "36px 24px" }}>
+
+          {/* ── TEAMS ── */}
+          {tab==="teams" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Teams</div>
+              <div style={{ ...card, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add New Team</div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <input style={{ ...inp, flex: 2, minWidth: 160 }} value={nT.name} onChange={e=>setNT({...nT,name:e.target.value})} placeholder="Team name" />
+                  <input style={{ ...inp, flex: 1, minWidth: 80, textAlign: "center" }} value={nT.emoji} onChange={e=>setNT({...nT,emoji:e.target.value})} placeholder="🏒" />
+                  <button style={btn()} onClick={addTeam}>Add Team</button>
+                </div>
+              </div>
+              {league.teams.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No teams yet.</div> :
+                league.teams.map(t => (
+                  <div key={t.id} style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <span style={{ fontSize: 28 }}>{t.emoji}</span>
+                      <div><div style={{ fontWeight: 700 }}>{t.name}</div><div style={{ fontSize: 12, color: T2 }}>{league.players.filter(p=>p.team===t.name).length} players</div></div>
+                    </div>
+                    <button onClick={() => delTeam(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {/* ── PLAYERS ── */}
+          {tab==="players" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Players</div>
+              <div style={{ ...card, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add New Player</div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <input style={{ ...inp, flex: 2, minWidth: 140 }} value={nP.name} onChange={e=>setNP({...nP,name:e.target.value})} placeholder="Full name" />
+                  <input style={{ ...inp, flex: 0.5, minWidth: 64 }} value={nP.number} onChange={e=>setNP({...nP,number:e.target.value})} placeholder="#" />
+                  <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nP.position} onChange={e=>setNP({...nP,position:e.target.value})} placeholder={sport==="Hockey"?"Center / Goalie":"Guard / Forward"} />
+                  <select style={{ ...inp, flex: 1, minWidth: 130 }} value={nP.team} onChange={e=>setNP({...nP,team:e.target.value})}>
+                    <option value="">Select team</option>
+                    {league.teams.map(t => <option key={t.id}>{t.name}</option>)}
+                  </select>
+                  <button style={btn()} onClick={addPlayer}>Add Player</button>
+                </div>
+                {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
+              </div>
+              {league.players.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players yet.</div> :
+                league.teams.map(t => {
+                  const tp = league.players.filter(p => p.team===t.name);
+                  if (!tp.length) return null;
+                  return (
+                    <div key={t.id} style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>{t.emoji} {t.name}</div>
+                      {tp.map(p => (
+                        <div key={p.id} style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, background: "#23233a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: ACC }}>#{p.number}</div>
+                            <div><div style={{ fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 12, color: T2 }}>{p.position}{isGoalie(p)?" 🥅":""}</div></div>
+                          </div>
+                          <button onClick={() => delPlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })
+              }
+            </div>
+          )}
+
+          {/* ── SCHEDULE ── */}
+          {tab==="schedule" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Schedule</div>
+              <div style={{ ...card, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add Game</div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <input type="date" style={{ ...inp, flex: 1, minWidth: 130 }} value={nG.date} onChange={e=>setNG({...nG,date:e.target.value})} />
+                  <select style={{ ...inp, flex: 1, minWidth: 130 }} value={nG.home} onChange={e=>setNG({...nG,home:e.target.value})}>
+                    <option value="">Home team</option>{league.teams.map(t=><option key={t.id}>{t.name}</option>)}
+                  </select>
+                  <select style={{ ...inp, flex: 1, minWidth: 130 }} value={nG.away} onChange={e=>setNG({...nG,away:e.target.value})}>
+                    <option value="">Away team</option>{league.teams.map(t=><option key={t.id}>{t.name}</option>)}
+                  </select>
+                  <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nG.time} onChange={e=>setNG({...nG,time:e.target.value})} placeholder="7:00 PM" />
+                  <input style={{ ...inp, flex: 2, minWidth: 140 }} value={nG.venue} onChange={e=>setNG({...nG,venue:e.target.value})} placeholder="Venue / Arena" />
+                  <button style={btn()} onClick={addGame}>Add Game</button>
+                </div>
+              </div>
+              {league.schedule.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No games scheduled.</div> : (
+                <div>
+                  {unplayed.length>0 && <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>Upcoming</div>}
+                  {unplayed.map(g => (
+                    <div key={g.id} style={{ ...card, marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div><div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div><div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{g.date} · {g.time} · {g.venue}</div></div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, color: "#f97316", padding: "4px 12px", background: "#f9731615", borderRadius: 6, fontWeight: 600 }}>Upcoming</span>
+                          <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
+                          <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {played.length>0 && <div style={{ fontSize: 13, fontWeight: 700, color: T2, margin: "16px 0 10px" }}>Completed</div>}
+                  {played.map(g => (
+                    <div key={g.id} style={{ ...card, marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div><div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div><div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{g.date} · {g.venue}</div></div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: "#22c55e" }}>{g.homeScore} – {g.awayScore}</div>
+                          <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
+                          <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                        </div>
+                      </div>
+                      <BoxScore game={g} players={league.players} sport={sport} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── SCORES ── */}
+          {tab==="scores" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Enter Scores</div>
+              <div style={{ ...card, marginBottom: 28 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Submit Result</div>
+                {unplayed.length===0 ? <div style={{ fontSize: 14, color: T2 }}>No upcoming games. Add games in Schedule first.</div> : (
+                  <div>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
+                      <div style={{ flex: 2, minWidth: 200 }}>
+                        <label style={lbl}>Select Game</label>
+                        <select style={inp} value={nS.gameId} onChange={e => {
+                          const gId = e.target.value;
+                          setNS({ ...nS, gameId: gId, homeScore: "", awayScore: "" });
+                          if (gId) { const g = league.schedule.find(x => x.id===parseInt(gId)); doInitPlayerStats(g); }
+                          else setNPS({});
+                        }}>
+                          <option value="">Choose a game...</option>
+                          {unplayed.map(g => <option key={g.id} value={g.id}>{g.home} vs {g.away} ({g.date})</option>)}
+                        </select>
+                      </div>
+                      {nS.gameId && (() => {
+                        const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
+                        return (<>
+                          <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.home} Score</label><input type="number" style={inp} value={nS.homeScore} onChange={e=>setNS({...nS,homeScore:e.target.value})} placeholder="0" /></div>
+                          <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.away} Score</label><input type="number" style={inp} value={nS.awayScore} onChange={e=>setNS({...nS,awayScore:e.target.value})} placeholder="0" /></div>
+                        </>);
+                      })()}
+                    </div>
+
+                    {/* Player stats entry — Hockey */}
+                    {nS.gameId && sport==="Hockey" && (() => {
+                      const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
+                      const gPlayers = getGamePlayers(g);
+                      if (!gPlayers.length) return null;
+                      const skaters = gPlayers.filter(p => !isGoalie(p));
+                      const goalies = gPlayers.filter(p => isGoalie(p));
+                      return (
+                        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional — points auto-calculated)</span></div>
+                          {skaters.length > 0 && (
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
+                                <span style={{ flex: 3 }}>SKATER</span><span style={{ flex: 1, textAlign: "center" }}>GOALS</span><span style={{ flex: 1, textAlign: "center" }}>ASSISTS</span><span style={{ flex: 1, textAlign: "center" }}>PTS</span>
+                              </div>
+                              {[g.home, g.away].map(tn => {
+                                const tp = skaters.filter(p => p.team===tn);
+                                if (!tp.length) return null;
+                                return (
+                                  <div key={tn} style={{ marginBottom: 12 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: T2, marginBottom: 6, paddingLeft: 4 }}>{tn}</div>
+                                    {tp.map(p => {
+                                      const ps = nPS[p.id]||{goals:"",assists:""};
+                                      const g2=parseInt(ps.goals)||0, a=parseInt(ps.assists)||0;
+                                      return (
+                                        <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                          <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span style={{ color: ACC, fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name}
+                                          </div>
+                                          <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goals} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goals:e.target.value}}))} placeholder="0" />
+                                          <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.assists} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],assists:e.target.value}}))} placeholder="0" />
+                                          <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: (g2+a)>0?ACC:T2, fontSize: 16 }}>{g2+a||"—"}</div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {goalies.length > 0 && (
+                            <div>
+                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
+                                <span style={{ flex: 3 }}>GOALIE</span><span style={{ flex: 1, textAlign: "center" }}>SAVES</span><span style={{ flex: 1, textAlign: "center" }}>GA</span><span style={{ flex: 1 }}></span>
+                              </div>
+                              {goalies.map(p => {
+                                const ps = nPS[p.id]||{saves:"",goalsAgainst:""};
+                                return (
+                                  <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                    <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                                      <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name} <span style={{ fontSize: 11, color: T2 }}>({p.team})</span>
+                                    </div>
+                                    <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.saves} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],saves:e.target.value}}))} placeholder="0" />
+                                    <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goalsAgainst} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goalsAgainst:e.target.value}}))} placeholder="0" />
+                                    <div style={{ flex: 1 }}></div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Player stats entry — Basketball */}
+                    {nS.gameId && sport==="Basketball" && (() => {
+                      const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
+                      const gPlayers = getGamePlayers(g);
+                      if (!gPlayers.length) return null;
+                      return (
+                        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional)</span></div>
+                          <div style={{ overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: "left", color: T2, fontSize: 11, fontWeight: 700, padding: "4px 8px", minWidth: 160 }}>PLAYER</th>
+                                  {["PTS","AST","REB","BLK","STL"].map(h => (
+                                    <th key={h} style={{ color: T2, fontSize: 11, fontWeight: 700, padding: "4px 6px", textAlign: "center", minWidth: 60 }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {[g.home, g.away].map(tn => {
+                                  const tp = gPlayers.filter(p => p.team===tn);
+                                  if (!tp.length) return null;
+                                  return [
+                                    <tr key={tn+"hdr"}>
+                                      <td colSpan={6} style={{ padding: "8px 8px 4px", fontSize: 12, fontWeight: 700, color: T2 }}>{tn}</td>
+                                    </tr>,
+                                    ...tp.map(p => {
+                                      const ps = nPS[p.id]||{points:"",assists:"",rebounds:"",blocks:"",steals:""};
+                                      return (
+                                        <tr key={p.id}>
+                                          <td style={{ padding: "4px 8px" }}>
+                                            <span style={{ color: ACC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}
+                                          </td>
+                                          {["points","assists","rebounds","blocks","steals"].map(k => (
+                                            <td key={k} style={{ padding: "4px 4px" }}>
+                                              <input type="number" min="0" style={{ ...inp, padding: "6px 4px", textAlign: "center", fontSize: 13 }} value={ps[k]} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],[k]:e.target.value}}))} placeholder="0" />
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      );
+                                    })
+                                  ];
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <button style={btn()} onClick={submitScore}>Submit Score</button>
+                  </div>
+                )}
+              </div>
+
+              {played.length>0 && (
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Results</div>
+                  {played.map(g => {
+                    const hw = parseInt(g.homeScore)>parseInt(g.awayScore);
+                    return (
+                      <div key={g.id} style={{ ...card, marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div><div style={{ fontWeight: 700 }}>{g.home} vs {g.away}</div><div style={{ fontSize: 12, color: T2 }}>{g.date}</div></div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontWeight: 800, fontSize: 20, color: hw?"#22c55e":T2 }}>{g.homeScore}</span>
+                            <span style={{ color: T2 }}>–</span>
+                            <span style={{ fontWeight: 800, fontSize: 20, color: !hw?"#22c55e":T2 }}>{g.awayScore}</span>
+                            <button onClick={() => setEditScore({id:g.id,homeScore:g.homeScore,awayScore:g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
+                            <button onClick={() => setDeleteScoreId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                          </div>
+                        </div>
+                        <BoxScore game={g} players={league.players} sport={sport} />
+                      </div>
+                    );
+                  })}
+                  {standings.length>0 && (
+                    <div style={{ marginTop: 28 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Standings <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 400 }}>● Auto-calculated</span></div>
+                      <div style={card}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                          <thead><tr style={{ borderBottom: `1px solid ${BORDER}` }}>{["#","Team","GP","W","L","PTS"].map(h=><th key={h} style={{ padding: "8px 12px", textAlign: h==="Team"?"left":"center", color: T2, fontSize: 12, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+                          <tbody>
+                            {standings.map((t,i) => (
+                              <tr key={t.name} style={{ borderBottom: i<standings.length-1?`1px solid ${BORDER}`:"none" }}>
+                                <td style={{ padding: 12, textAlign: "center", color: i===0?ACC:T2, fontWeight: i===0?700:400 }}>{i+1}</td>
+                                <td style={{ padding: 12, fontWeight: 600 }}>{t.emoji} {t.name}</td>
+                                <td style={{ padding: 12, textAlign: "center", color: T2 }}>{t.gp}</td>
+                                <td style={{ padding: 12, textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{t.wins}</td>
+                                <td style={{ padding: 12, textAlign: "center", color: "#ef4444" }}>{t.losses}</td>
+                                <td style={{ padding: 12, textAlign: "center", fontWeight: 800, color: ACC }}>{t.wins*2}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {played.length===0 && <div style={{ textAlign: "center", color: T2, padding: 48 }}>No results yet.</div>}
+            </div>
+          )}
+
+          {/* ── STATS ── */}
+          {tab==="stats" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Player Statistics</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Season totals &amp; averages — auto-calculated, ranked by category</div>
+
+              {/* HOCKEY STATS */}
+              {sport==="Hockey" && (
+                <div>
+                  {/* Leader cards */}
+                  {played.length>0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
+                      {toggles.goals     && <LeaderCard title="Goals Leader"   icon="🎯" data={skaterTotals}  statKey="goals"       color="#22c55e" />}
+                      {toggles.assists   && <LeaderCard title="Assists Leader" icon="🍎" data={skaterTotals}  statKey="assists"     color="#38bdf8" />}
+                      {toggles.points    && <LeaderCard title="Points Leader"  icon="⭐" data={skaterTotals}  statKey="points"      color={ACC} />}
+                      {toggles.goalieStats && goalieTotals.length>0 && (
+                        <LeaderCard title="Clean Sheets" icon="🥅" data={goalieTotals} statKey="cleanSheets" color="#a78bfa" />
+                      )}
+                      {toggles.goalieStats && goalieTotals.filter(g=>g.gp>0).length>0 && (
+                        <LeaderCard title="Best GAA" icon="🛡️" data={goalieTotals.filter(g=>g.gp>0)} statKey="gaa" color="#38bdf8" lowerBetter={true} fmtFn={p=>p.gaa!==null?p.gaa.toFixed(2):"—"} />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Skater table */}
+                  {skaterTotals.length>0 && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Skater Stats</div>
+                      <div style={{ ...card, overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                          <thead>
+                            <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                              <th style={{ padding: "10px 12px", textAlign: "center", color: T2, fontSize: 12, fontWeight: 600, width: 32 }}>#</th>
+                              <th style={{ padding: "10px 12px", textAlign: "left",   color: T2, fontSize: 12, fontWeight: 600 }}>Player</th>
+                              <th style={{ padding: "10px 12px", textAlign: "left",   color: T2, fontSize: 12, fontWeight: 600 }}>Team</th>
+                              <th style={{ padding: "10px 12px", textAlign: "center", color: T2, fontSize: 12, fontWeight: 600 }}>GP</th>
+                              {toggles.goals   && <th style={{ padding: "10px 8px", textAlign: "center", color: "#22c55e", fontSize: 12, fontWeight: 600 }}>G</th>}
+                              {toggles.assists && <th style={{ padding: "10px 8px", textAlign: "center", color: "#38bdf8", fontSize: 12, fontWeight: 600 }}>A</th>}
+                              {toggles.points  && <th style={{ padding: "10px 8px", textAlign: "center", color: ACC,      fontSize: 12, fontWeight: 600 }}>PTS</th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {skaterTotals.map((p,i) => (
+                              <tr key={p.id} style={{ borderBottom: i<skaterTotals.length-1?`1px solid ${BORDER}`:"none", background: i===0?ACC+"08":"transparent" }}>
+                                <td style={{ padding: "10px 12px", textAlign: "center", color: i===0?ACC:T2, fontWeight: i===0?700:400 }}>{i+1}</td>
+                                <td style={{ padding: "10px 12px", fontWeight: 600 }}><span style={{ color: ACC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}</td>
+                                <td style={{ padding: "10px 12px", color: T2, fontSize: 13 }}>{p.team}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "center", color: T2 }}>{p.gp}</td>
+                                {toggles.goals   && <StatCell val={p.goals}   gp={p.gp} color="#22c55e" />}
+                                {toggles.assists && <StatCell val={p.assists} gp={p.gp} color="#38bdf8" />}
+                                {toggles.points  && <StatCell val={p.points}  gp={p.gp} color={ACC} />}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Goalie table */}
+                  {toggles.goalieStats && goalieTotals.length>0 && (
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Goalie Stats</div>
+                      <div style={{ ...card, overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                          <thead>
+                            <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                              {["#","Goalie","Team","GP","SV","GA","CS","GAA"].map(h=>(
+                                <th key={h} style={{ padding: "10px 10px", textAlign: h==="Goalie"||h==="Team"?"left":"center", color: T2, fontSize: 12, fontWeight: 600 }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {goalieTotals.map((p,i) => (
+                              <tr key={p.id} style={{ borderBottom: i<goalieTotals.length-1?`1px solid ${BORDER}`:"none" }}>
+                                <td style={{ padding: "10px 10px", textAlign: "center", color: i===0?ACC:T2 }}>{i+1}</td>
+                                <td style={{ padding: "10px 10px", fontWeight: 600 }}><span style={{ color: "#38bdf8", fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}</td>
+                                <td style={{ padding: "10px 10px", color: T2, fontSize: 13 }}>{p.team}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "center", color: T2 }}>{p.gp}</td>
+                                <StatCell val={p.saves}       gp={p.gp} color="#22c55e" />
+                                <StatCell val={p.goalsAgainst} gp={p.gp} color="#ef4444" />
+                                <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 700, color: "#a78bfa" }}>{p.cleanSheets}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "center", fontWeight: 700, color: "#38bdf8" }}>{p.gaa!==null?p.gaa.toFixed(2):"—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {skaterTotals.length===0 && goalieTotals.length===0 && <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players yet.</div>}
+                </div>
+              )}
+
+              {/* BASKETBALL STATS */}
+              {sport==="Basketball" && (
+                <div>
+                  {played.length>0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
+                      {toggles.points   && <LeaderCard title="Points Leader"   icon="🏀" data={bballTotals} statKey="points"   color={ACC} />}
+                      {toggles.assists  && <LeaderCard title="Assists Leader"  icon="🎯" data={bballTotals} statKey="assists"  color="#38bdf8" />}
+                      {toggles.rebounds && <LeaderCard title="Rebounds Leader" icon="💪" data={bballTotals} statKey="rebounds" color="#22c55e" />}
+                      {toggles.blocks   && <LeaderCard title="Blocks Leader"   icon="🛡️" data={bballTotals} statKey="blocks"   color="#a78bfa" />}
+                      {toggles.steals   && <LeaderCard title="Steals Leader"   icon="⚡" data={bballTotals} statKey="steals"   color="#f472b6" />}
+                    </div>
+                  )}
+                  {bballTotals.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players yet.</div> : (
+                    <div style={{ ...card, overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                        <thead>
+                          <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                            <th style={{ padding: "10px 10px", textAlign: "center", color: T2, fontSize: 12, fontWeight: 600, width: 32 }}>#</th>
+                            <th style={{ padding: "10px 10px", textAlign: "left", color: T2, fontSize: 12, fontWeight: 600 }}>Player</th>
+                            <th style={{ padding: "10px 10px", textAlign: "left", color: T2, fontSize: 12, fontWeight: 600 }}>Team</th>
+                            <th style={{ padding: "10px 10px", textAlign: "center", color: T2, fontSize: 12, fontWeight: 600 }}>GP</th>
+                            {toggles.points   && <th style={{ padding: "10px 8px", textAlign: "center", color: ACC,      fontSize: 12, fontWeight: 600 }}>PTS</th>}
+                            {toggles.assists  && <th style={{ padding: "10px 8px", textAlign: "center", color: "#38bdf8", fontSize: 12, fontWeight: 600 }}>AST</th>}
+                            {toggles.rebounds && <th style={{ padding: "10px 8px", textAlign: "center", color: "#22c55e", fontSize: 12, fontWeight: 600 }}>REB</th>}
+                            {toggles.blocks   && <th style={{ padding: "10px 8px", textAlign: "center", color: "#a78bfa", fontSize: 12, fontWeight: 600 }}>BLK</th>}
+                            {toggles.steals   && <th style={{ padding: "10px 8px", textAlign: "center", color: "#f472b6", fontSize: 12, fontWeight: 600 }}>STL</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bballTotals.map((p,i) => (
+                            <tr key={p.id} style={{ borderBottom: i<bballTotals.length-1?`1px solid ${BORDER}`:"none", background: i===0?ACC+"08":"transparent" }}>
+                              <td style={{ padding: "10px 10px", textAlign: "center", color: i===0?ACC:T2, fontWeight: i===0?700:400 }}>{i+1}</td>
+                              <td style={{ padding: "10px 10px", fontWeight: 600 }}><span style={{ color: ACC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}</td>
+                              <td style={{ padding: "10px 10px", color: T2, fontSize: 13 }}>{p.team}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "center", color: T2 }}>{p.gp}</td>
+                              {toggles.points   && <StatCell val={p.points}   gp={p.gp} color={ACC} />}
+                              {toggles.assists  && <StatCell val={p.assists}  gp={p.gp} color="#38bdf8" />}
+                              {toggles.rebounds && <StatCell val={p.rebounds} gp={p.gp} color="#22c55e" />}
+                              {toggles.blocks   && <StatCell val={p.blocks}   gp={p.gp} color="#a78bfa" />}
+                              {toggles.steals   && <StatCell val={p.steals}   gp={p.gp} color="#f472b6" />}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Other sports — generic */}
+              {sport!=="Hockey" && sport!=="Basketball" && (
+                <div style={{ textAlign: "center", color: T2, padding: 48 }}>Stats tracking is available for Hockey and Basketball leagues.</div>
+              )}
+            </div>
+          )}
+
+          {/* ── SETTINGS ── */}
+          {tab==="settings" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>League Settings</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 28 }}>Toggle stat categories and manage your public site connection. Click <strong style={{ color: T1 }}>Save Changes</strong> to apply.</div>
+
+              <div style={{ ...card, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 18 }}>Stat Categories — {sport}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {sport==="Hockey" && [
+                    { key: "goals",      label: "Goals",       desc: "Track skater goals and goal leaders",         color: "#22c55e" },
+                    { key: "assists",    label: "Assists",      desc: "Track skater assists and assist leaders",     color: "#38bdf8" },
+                    { key: "points",     label: "Points",       desc: "Goals + Assists combined points leaderboard", color: ACC },
+                    { key: "goalieStats",label: "Goalie Stats", desc: "Saves, goals against, GAA, clean sheets",    color: "#a78bfa" },
+                  ].map(({ key, label, desc, color }) => (
+                    <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 0", borderBottom: `1px solid ${BORDER}` }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: toggles[key] ? T1 : T2 }}>
+                          <span style={{ color: toggles[key] ? color : T2, marginRight: 8, fontSize: 12 }}>●</span>{label}
+                        </div>
+                        <div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{desc}</div>
+                      </div>
+                      <Toggle on={toggles[key]} onChange={() => setToggle(key, !toggles[key])} />
+                    </div>
+                  ))}
+                  {sport==="Basketball" && [
+                    { key: "points",   label: "Points",   desc: "Track scoring and points leaders",          color: ACC },
+                    { key: "assists",  label: "Assists",  desc: "Track assists and assist leaders",          color: "#38bdf8" },
+                    { key: "rebounds", label: "Rebounds", desc: "Track rebounds and rebounding leaders",     color: "#22c55e" },
+                    { key: "blocks",   label: "Blocks",   desc: "Track blocks and shot-blocking leaders",    color: "#a78bfa" },
+                    { key: "steals",   label: "Steals",   desc: "Track steals and steal leaders",           color: "#f472b6" },
+                  ].map(({ key, label, desc, color }) => (
+                    <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 0", borderBottom: `1px solid ${BORDER}` }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: toggles[key] ? T1 : T2 }}>
+                          <span style={{ color: toggles[key] ? color : T2, marginRight: 8, fontSize: 12 }}>●</span>{label}
+                        </div>
+                        <div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{desc}</div>
+                      </div>
+                      <Toggle on={toggles[key]} onChange={() => setToggle(key, !toggles[key])} />
+                    </div>
+                  ))}
+                  {sport!=="Hockey" && sport!=="Basketball" && (
+                    <div style={{ padding: "20px 0", color: T2, fontSize: 14 }}>No configurable stat categories for {sport} yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ ...card, background: SURF }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 4 }}>How toggles work</div>
+                <div style={{ fontSize: 13, color: T2, lineHeight: 1.6 }}>
+                  When a stat category is turned <strong style={{ color: "#ef4444" }}>OFF</strong>, it disappears from the Stats tab — including leader cards, columns in the rankings table, and per-game averages for that category. Toggle it back <strong style={{ color: "#22c55e" }}>ON</strong> at any time to restore it. All data is preserved regardless of toggle state. Settings are saved per-league and persist across sessions.
+                </div>
+              </div>
+
+              {/* CONNECTION STATUS */}
+              {(() => {
+                const hb = localStorage.getItem("wxLeagues_pubHeartbeat");
+                const lastUpdated = localStorage.getItem("wxLeagues_updated");
+                let hbColor = T2, hbLabel = "No heartbeat", hbDesc = "Public site heartbeat not detected.";
+                if (hb) {
+                  const diff = Date.now() - parseInt(hb);
+                  if (diff < 5*60000)  { hbColor="#22c55e"; hbLabel="Active";   hbDesc=`Public site active ${Math.round(diff/1000)}s ago`; }
+                  else if (diff < 60*60000) { hbColor="#f59e0b"; hbLabel="Idle"; hbDesc=`Public site last seen ${Math.round(diff/60000)}m ago`; }
+                  else                 { hbColor="#ef4444"; hbLabel="Stale";  hbDesc=`Public site last seen ${Math.round(diff/3600000)}h ago`; }
+                }
+                const fbColor = __fbReady ? "#22c55e" : __fbUncfg ? "#ef4444" : "#f59e0b";
+                const fbLabel = __fbReady ? "Firebase Connected" : __fbUncfg ? "Firebase Not Configured" : "Firebase Offline";
+                const devRules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true; // DEV ONLY — open access
+    }
+  }
+}`;
+                const prodRules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public sites can read leagues
+    match /leagues/{leagueId} {
+      allow read: if true;
+      allow write: if false; // write via admin SDK or auth
+    }
+    // meta/sync readable by public sites
+    match /meta/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Users only readable/writable server-side
+    match /users/{userId} {
+      allow read, write: if false;
+    }
+  }
+}`;
+                return (
+                  <div style={{ ...card, marginTop: 20 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 18 }}>Firebase / Public Site Connection</div>
+
+                    {/* Firebase status */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "12px 16px", background: SURF, borderRadius: 8 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: fbColor, boxShadow: `0 0 6px ${fbColor}`, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: fbColor }}>{fbLabel}</div>
+                        {__fbUncfg && <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>Replace REPLACE_ME values in the Firebase module script at the top of index.html</div>}
+                        {__fbReady && <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>Firestore doc: <code style={{ color: T1 }}>leagues/{String(selId)}</code></div>}
+                        {fbError && <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 2 }}>{fbError}</div>}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: hbColor }} />
+                        <div style={{ fontSize: 11, color: hbColor }}>{hbLabel}</div>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+                      <button onClick={copyPublicSnippet} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>📋 Copy Public Site Snippet</button>
+                      <button onClick={forceSync} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>⚡ Force Sync</button>
+                    </div>
+                    {lastUpdated && <div style={{ fontSize: 11, color: T2, marginTop: -14, marginBottom: 16 }}>Last sync: {new Date(parseInt(lastUpdated)).toLocaleTimeString()}</div>}
+
+                    {/* Setup guide */}
+                    <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 12 }}>
+                      <button onClick={() => setShowConnGuide(v => !v)} style={{ background: "none", border: "none", color: ACC, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                        {showConnGuide ? "▾" : "▸"} Firebase Setup Guide
+                      </button>
+                      {showConnGuide && (
+                        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                          {[
+                            ["1. Create a Firebase project", "Go to console.firebase.google.com → Add project. Give it a name (e.g. league-hunter)."],
+                            ["2. Enable Firestore", "In the Firebase console → Build → Firestore Database → Create database → Start in test mode."],
+                            ["3. Get your config", "Project Settings → Your apps → Add app (Web) → Copy the firebaseConfig object."],
+                            ["4. Paste config into index.html", `Find the Firebase module script near the top of index.html and replace all six REPLACE_ME values with your real config values.`],
+                            ["5. Connect your public site", `In Website X → Settings → Connection, click 📋 Copy Public Site Snippet. Paste it into the <head> of your public HTML file (basketball-public.html or any custom site). It auto-fills your Firebase config and this league's ID (${selId}).`],
+                            ["6. Deploy security rules", "In Firebase console → Firestore → Rules, paste the production rules shown below. This lets public sites read league data while keeping writes server-side."],
+                          ].map(([title, body]) => (
+                            <div key={title} style={{ background: SURF, borderRadius: 8, padding: "12px 14px" }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{title}</div>
+                              <div style={{ fontSize: 12, color: T2, lineHeight: 1.6 }}>{body}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Security rules */}
+                    <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T2, marginBottom: 12 }}>FIRESTORE SECURITY RULES</div>
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b", marginBottom: 6 }}>Dev rules (open access — for testing only):</div>
+                        <pre style={{ background: "#0a0a18", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "#a0a0c8", fontFamily: "monospace", whiteSpace: "pre-wrap", margin: 0, overflowX: "auto" }}>{devRules}</pre>
+                        <button onClick={() => navigator.clipboard.writeText(devRules).then(()=>showToast("Dev rules copied!")).catch(()=>{})} style={{ ...btn("#252540"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Dev Rules</button>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#22c55e", marginBottom: 6 }}>Production rules (read-only for public, no user data exposed):</div>
+                        <pre style={{ background: "#0a0a18", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "#a0a0c8", fontFamily: "monospace", whiteSpace: "pre-wrap", margin: 0, overflowX: "auto" }}>{prodRules}</pre>
+                        <button onClick={() => navigator.clipboard.writeText(prodRules).then(()=>showToast("Prod rules copied!")).catch(()=>{})} style={{ ...btn("#252540"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Prod Rules</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+        </div>{/* end content */}
+
+        {/* ── STICKY SAVE BAR ── */}
+        {dirty && (
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0f0f1f", borderTop: `1px solid ${BORDER}`, padding: "12px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 150, boxShadow: "0 -4px 20px #00000060" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", boxShadow: "0 0 6px #f59e0b", flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: 14, color: T1, fontWeight: 600 }}>Unsaved changes</div>
+                {lastSaved && <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>Last saved: {lastSaved}</div>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={discardDirty} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "9px 18px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>Discard</button>
+              <button onClick={handleSave} style={{ ...btn("#22c55e"), padding: "9px 20px", fontSize: 14 }}>💾 Save Changes</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── TOAST ── */}
+        {toast && (
+          <div style={{ position: "fixed", bottom: dirty ? 76 : 24, left: "50%", transform: "translateX(-50%)", background: "#1a2e1a", border: "1px solid #22c55e40", borderRadius: 10, padding: "12px 22px", fontSize: 13, fontWeight: 600, color: "#22c55e", zIndex: 400, whiteSpace: "nowrap", boxShadow: "0 4px 20px #00000080" }}>
+            ✓ {toast}
+          </div>
+        )}
+
+        {/* ── MODALS ── */}
+        {editGame && (
+          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+            <div style={{ width: 500, ...card, padding: 32 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>Edit Game</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div><label style={lbl}>Date</label><input type="date" style={inp} value={editGame.date} onChange={e=>setEditGame({...editGame,date:e.target.value})} /></div>
+                <div><label style={lbl}>Time</label><input style={inp} value={editGame.time} onChange={e=>setEditGame({...editGame,time:e.target.value})} placeholder="7:00 PM" /></div>
+                <div><label style={lbl}>Venue</label><input style={inp} value={editGame.venue} onChange={e=>setEditGame({...editGame,venue:e.target.value})} placeholder="Arena / Venue" /></div>
+                <div><label style={lbl}>Home Team</label>
+                  <select style={inp} value={editGame.home} onChange={e=>setEditGame({...editGame,home:e.target.value})}>
+                    {league.teams.map(t=><option key={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div><label style={lbl}>Away Team</label>
+                  <select style={inp} value={editGame.away} onChange={e=>setEditGame({...editGame,away:e.target.value})}>
+                    {league.teams.map(t=><option key={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                  <button style={{ ...btn(), flex: 1 }} onClick={saveEditGame}>Save Changes</button>
+                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditGame(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {deleteGameId && (
+          <ConfirmModal icon="🗑️" title="Delete this game?" body="This action cannot be undone. The game and all associated data will be permanently removed." confirmLabel="Yes, Delete" onConfirm={() => deleteGame(deleteGameId)} onCancel={() => setDeleteGameId(null)} />
+        )}
+
+        {editScore && (() => {
+          const g = league.schedule.find(x => x.id===editScore.id);
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+              <div style={{ width: 400, ...card, padding: 32 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Edit Score</div>
+                <div style={{ fontSize: 13, color: T2, marginBottom: 24 }}>{g?.home} vs {g?.away} · {g?.date}</div>
+                <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
+                  <div style={{ flex: 1 }}><label style={lbl}>{g?.home}</label><input type="number" style={inp} value={editScore.homeScore} onChange={e=>setEditScore({...editScore,homeScore:e.target.value})} /></div>
+                  <div style={{ flex: 1 }}><label style={lbl}>{g?.away}</label><input type="number" style={inp} value={editScore.awayScore} onChange={e=>setEditScore({...editScore,awayScore:e.target.value})} /></div>
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button style={{ ...btn(), flex: 1 }} onClick={saveEditScore}>Save Score</button>
+                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditScore(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {deleteScoreId && (
+          <ConfirmModal icon="↩️" title="Reset this game result?" body="The score and player stats will be cleared. The game returns to Upcoming status." confirmLabel="Yes, Reset" onConfirm={() => deleteScore(deleteScoreId)} onCancel={() => setDeleteScoreId(null)} />
+        )}
+
+        {/* ── SAVE CONFIRMATION MODAL ── */}
+        {pendingSave && (
+          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350 }}>
+            <div style={{ width: 420, ...card, padding: 36, textAlign: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>💾</div>
+              <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 10 }}>Save Changes?</div>
+              <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>Are you sure you want to apply these changes?<br/>This will update the live league data.</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={confirmSave}>Confirm Save</button>
+                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingSave(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── UNSAVED CHANGES MODAL ── */}
+        {pendingNavTab && (
+          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350 }}>
+            <div style={{ width: 420, ...card, padding: 36, textAlign: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+              <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 10 }}>Unsaved Changes</div>
+              <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>You have unsaved changes. Leaving without saving will discard all edits made on this tab.</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingNavTab(null)}>Stay</button>
+                <button style={{ ...btn("#ef4444"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={leaveWithoutSaving}>Leave Without Saving</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  }
+
+  return null;
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
