@@ -66,8 +66,18 @@ const __fbCfg   = window.__wxFirebaseConfig        || null;
 const _db       = window.__wxDB                    || null;
 const _FS       = window.__wxFS                    || {};
 
-// ── SUPER ADMIN (hardcoded, never stored in localStorage) ──
-const SUPERADMIN = { email: "leaguehunter.project@gmail.com", password: "LeagueX#2025!", role: "superadmin" };
+// ── SUPER ADMIN (password stored as SHA-256 hash only — plaintext never in source) ──
+const SUPERADMIN = { email: "leaguehunter.project@gmail.com", passwordHash: "d634298ea22b3f0870de6026bf0292c5a15a2a44bd0cede09131cd4b0579e77d", role: "superadmin" };
+
+// ── CRYPTO HELPERS ──
+async function hashPassword(pw) {
+  const enc = new TextEncoder().encode(pw);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+const isHashed = s => typeof s === "string" && /^[0-9a-f]{64}$/.test(s);
+function loadAttempts() { try { return JSON.parse(sessionStorage.getItem("wxLoginAttempts") || "{}"); } catch { return {}; } }
+function saveAttempts(obj) { try { sessionStorage.setItem("wxLoginAttempts", JSON.stringify(obj)); } catch {} }
 
 // ── DYNAMIC OWNER ACCOUNTS (localStorage key: wxusers) ──
 function loadUsers() {
@@ -405,7 +415,17 @@ function App() {
   const league = leagues.find(l => l.id === selId);
 
   async function login() {
-    if (email === SUPERADMIN.email && pass === SUPERADMIN.password) {
+    const inputHash = await hashPassword(pass);
+    const now = Date.now();
+    const attempts = loadAttempts();
+    const rec = attempts[email] || { count: 0, lockUntil: 0 };
+    if (rec.lockUntil > now) {
+      const secs = Math.ceil((rec.lockUntil - now) / 1000);
+      setErr(`Too many failed attempts. Try again in ${secs}s.`);
+      return;
+    }
+    if (email === SUPERADMIN.email && inputHash === SUPERADMIN.passwordHash) {
+      saveAttempts({ ...attempts, [email]: { count: 0, lockUntil: 0 } });
       setUser(SUPERADMIN); setErr(""); setPage("dashboard"); return;
     }
     let allUsers = users;
@@ -423,11 +443,26 @@ function App() {
       allUsers = loadUsers();
       if (JSON.stringify(allUsers) !== JSON.stringify(users)) setUsers(allUsers);
     }
-    const owner = allUsers.find(u => u.email === email && u.password === pass);
+    const owner = allUsers.find(u => {
+      if (u.email !== email) return false;
+      if (isHashed(u.password)) return u.password === inputHash;
+      return u.password === pass;
+    });
     if (owner) {
+      if (!isHashed(owner.password)) {
+        const upgraded = allUsers.map(u => u.id === owner.id ? { ...u, password: inputHash } : u);
+        saveUsers(upgraded); setUsers(upgraded);
+        if (__fbReady) {
+          try { const { setDoc, doc } = _FS; await setDoc(doc(_db, "users", owner.id), { ...owner, password: inputHash }); }
+          catch(e) { console.error("Password upgrade:", e); }
+        }
+      }
+      saveAttempts({ ...attempts, [email]: { count: 0, lockUntil: 0 } });
       setUser(owner); setErr("");
       setSelId(owner.leagueId); setTab("teams"); setPage("league"); return;
     }
+    const newCount = rec.count + 1;
+    saveAttempts({ ...attempts, [email]: { count: newCount, lockUntil: newCount >= 5 ? now + 5 * 60 * 1000 : 0 } });
     setErr("Invalid email or password.");
   }
   function logout() { setPage("login"); setUser(null); setEmail(""); setPass(""); setSelId(null); setDirty(false); setLastSaved(null); }
@@ -534,8 +569,9 @@ function App() {
     if (JSON.stringify(fresh) !== JSON.stringify(users)) setUsers(fresh);
     if (fresh.find(u => u.email === e.trim())) { setOwnerError("An account with that email already exists."); return; }
     const lg = leagues.find(l => l.id === ownerModal);
+    const hashedPw = await hashPassword(p);
     const newUser = {
-      id: "user_" + Date.now(), email: e.trim(), password: p,
+      id: "user_" + Date.now(), email: e.trim(), password: hashedPw,
       role: "owner", leagueId: ownerModal,
       createdAt: new Date().toISOString().slice(0, 10),
     };
@@ -572,7 +608,8 @@ function App() {
     const { userId, password, confirm } = resetPwForm;
     if (!password) { setOwnerError("Password cannot be empty."); return; }
     if (password !== confirm) { setOwnerError("Passwords do not match."); return; }
-    const updated = users.map(u => u.id === userId ? { ...u, password } : u);
+    const hashedPw = await hashPassword(password);
+    const updated = users.map(u => u.id === userId ? { ...u, password: hashedPw } : u);
     saveUsers(updated);
     if (__fbReady) {
       try {

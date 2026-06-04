@@ -246,7 +246,7 @@ function initNPS(players, sport) {
     if (sport === "Hockey") {
       s[p.id] = isGoalie(p) ? { saves: "", goalsAgainst: "" } : { goals: "", assists: "" };
     } else if (sport === "Basketball") {
-      s[p.id] = { points: "", assists: "", rebounds: "", blocks: "", steals: "" };
+      s[p.id] = { points: "", assists: "", rebounds: "", blocks: "", steals: "", fgm: "", fga: "", tpm: "", tpa: "", ftm: "", fta: "", turnovers: "", fouls: "", plusMinus: "", minutes: "" };
     } else {
       s[p.id] = { goals: "", assists: "" };
     }
@@ -1177,7 +1177,7 @@ function App() {
                     </div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 16 }}>{l.name}</div>
-                      <div style={{ fontSize: 13, color: T2, marginTop: 3 }}><span style={{ color: l.color }}>●</span> {l.domain} · {l.sport}</div>
+                      <div style={{ fontSize: 13, color: T2, marginTop: 3 }}><span style={{ color: l.color }}>●</span> {l.domain && !l.domain.startsWith("file:") ? l.domain + " · " : ""}{l.sport}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
@@ -1430,12 +1430,25 @@ function App() {
     if (sport === "Basketball") {
       bballTotals = catPlayers.map(p => {
         const gs = played.filter(g => g.playerStats && g.playerStats[p.id] !== undefined);
-        const points  = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.points||0),0);
-        const assists  = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.assists||0),0);
-        const rebounds = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.rebounds||0),0);
-        const blocks   = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.blocks||0),0);
-        const steals   = gs.reduce((s,g)=>s+(g.playerStats[p.id]?.steals||0),0);
-        return { ...p, gp: gs.length, points, assists, rebounds, blocks, steals };
+        const n = (g, k) => parseFloat(g.playerStats[p.id]?.[k]) || 0;
+        const points    = gs.reduce((s,g)=>s+n(g,"points"),0);
+        const assists   = gs.reduce((s,g)=>s+n(g,"assists"),0);
+        const rebounds  = gs.reduce((s,g)=>s+n(g,"rebounds"),0);
+        const blocks    = gs.reduce((s,g)=>s+n(g,"blocks"),0);
+        const steals    = gs.reduce((s,g)=>s+n(g,"steals"),0);
+        const fgm       = gs.reduce((s,g)=>s+n(g,"fgm"),0);
+        const fga       = gs.reduce((s,g)=>s+n(g,"fga"),0);
+        const tpm       = gs.reduce((s,g)=>s+n(g,"tpm"),0);
+        const tpa       = gs.reduce((s,g)=>s+n(g,"tpa"),0);
+        const ftm       = gs.reduce((s,g)=>s+n(g,"ftm"),0);
+        const fta       = gs.reduce((s,g)=>s+n(g,"fta"),0);
+        const turnovers = gs.reduce((s,g)=>s+n(g,"turnovers"),0);
+        const fouls     = gs.reduce((s,g)=>s+n(g,"fouls"),0);
+        const plusMinus = gs.reduce((s,g)=>s+n(g,"plusMinus"),0);
+        const fgPct = fga > 0 ? (fgm/fga*100).toFixed(1) : null;
+        const tpPct = tpa > 0 ? (tpm/tpa*100).toFixed(1) : null;
+        const ftPct = fta > 0 ? (ftm/fta*100).toFixed(1) : null;
+        return { ...p, gp: gs.length, points, assists, rebounds, blocks, steals, fgm, fga, fgPct, tpm, tpa, tpPct, ftm, fta, ftPct, turnovers, fouls, plusMinus };
       }).sort((a,b) => b.points-a.points || b.assists-a.assists);
     }
 
@@ -1448,7 +1461,7 @@ function App() {
         {/* HEADER */}
         <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {user?.role==="superadmin" && <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← Back</button>}
+            <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>← {user?.role==="superadmin" ? "All Leagues" : "Home"}</button>
             <div style={{ width: 1, height: 24, background: BORDER }} />
             <div style={{ fontSize: 18, fontWeight: 900, color: ACC }}>WEBSITE X</div>
             <div style={{ fontSize: 14, color: T2 }}>/ {league.name}</div>
@@ -1568,6 +1581,12 @@ function App() {
                     <option value="">Select team</option>
                     {catTeams.map(t => <option key={t.id}>{t.name}</option>)}
                   </select>
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+                  <input style={{ ...inp, flex: 0.8, minWidth: 80 }} value={nP.birthYear||""} onChange={e=>setNP({...nP,birthYear:e.target.value})} placeholder="Birth year" type="number" min="1970" max="2015" />
+                  <input style={{ ...inp, flex: 0.8, minWidth: 80 }} value={nP.height||""} onChange={e=>setNP({...nP,height:e.target.value})} placeholder='Height (e.g. 6\'2")' />
+                  <input style={{ ...inp, flex: 0.8, minWidth: 80 }} value={nP.weight||""} onChange={e=>setNP({...nP,weight:e.target.value})} placeholder="Weight (lbs)" type="number" />
+                  <input style={{ ...inp, flex: 3, minWidth: 200 }} value={nP.photoUrl||""} onChange={e=>setNP({...nP,photoUrl:e.target.value})} placeholder="Photo URL (optional)" />
                   <button style={btn()} onClick={addPlayer}>Add Player</button>
                 </div>
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
@@ -1586,8 +1605,19 @@ function App() {
                           <div key={p.id} style={{ ...card, marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                                <div style={{ width: 40, height: 40, borderRadius: 8, background: "#23233a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: ACC }}>#{p.number}</div>
-                                <div><div style={{ fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 12, color: T2 }}>{p.position}{isGoalie(p)?" 🥅":""}</div></div>
+                                {p.photoUrl
+                                  ? <img src={p.photoUrl} alt={p.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} onError={e=>{ e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }} />
+                                  : null}
+                                <div style={{ width: 40, height: 40, borderRadius: 8, background: "#23233a", display: p.photoUrl ? "none" : "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: ACC }}>#{p.number}</div>
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{p.name} <span style={{ fontSize: 12, color: T2, fontWeight: 400 }}>#{p.number}</span></div>
+                                  <div style={{ fontSize: 12, color: T2 }}>
+                                    {p.position}{isGoalie(p)?" 🥅":""}
+                                    {p.height ? ` · ${p.height}` : ""}
+                                    {p.weight ? ` · ${p.weight} lbs` : ""}
+                                    {p.birthYear ? ` · b. ${p.birthYear}` : ""}
+                                  </div>
+                                </div>
                               </div>
                               <button onClick={() => delPlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
                             </div>
@@ -1853,12 +1883,20 @@ function App() {
                         <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional)</span></div>
                           <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                               <thead>
                                 <tr>
-                                  <th style={{ textAlign: "left", color: T2, fontSize: 11, fontWeight: 700, padding: "4px 8px", minWidth: 160 }}>PLAYER</th>
-                                  {["PTS","AST","REB","BLK","STL"].map(h => (
-                                    <th key={h} style={{ color: T2, fontSize: 11, fontWeight: 700, padding: "4px 6px", textAlign: "center", minWidth: 60 }}>{h}</th>
+                                  <th style={{ textAlign: "left", color: T2, fontSize: 11, fontWeight: 700, padding: "4px 8px", minWidth: 140, position: "sticky", left: 0, background: CARD }} rowSpan={2}>PLAYER</th>
+                                  <th colSpan={2} style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, padding: "3px 4px", textAlign: "center", borderBottom: `1px solid #f59e0b40` }}>SHOOTING</th>
+                                  <th colSpan={2} style={{ color: "#818cf8", fontSize: 10, fontWeight: 700, padding: "3px 4px", textAlign: "center", borderBottom: `1px solid #818cf840` }}>3-POINT</th>
+                                  <th colSpan={2} style={{ color: "#34d399", fontSize: 10, fontWeight: 700, padding: "3px 4px", textAlign: "center", borderBottom: `1px solid #34d39940` }}>FREE THROW</th>
+                                  {["PTS","REB","AST","STL","BLK","TO","PF","+/-","MIN"].map(h => (
+                                    <th key={h} style={{ color: T2, fontSize: 10, fontWeight: 700, padding: "3px 4px", textAlign: "center" }} rowSpan={2}>{h}</th>
+                                  ))}
+                                </tr>
+                                <tr>
+                                  {["FGM","FGA","3PM","3PA","FTM","FTA"].map(h => (
+                                    <th key={h} style={{ color: T2, fontSize: 10, fontWeight: 600, padding: "2px 4px", textAlign: "center", minWidth: 48 }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
@@ -1866,22 +1904,38 @@ function App() {
                                 {[g.home, g.away].map(tn => {
                                   const tp = gPlayers.filter(p => p.team===tn);
                                   if (!tp.length) return null;
+                                  const emptyPS = {points:"",assists:"",rebounds:"",blocks:"",steals:"",fgm:"",fga:"",tpm:"",tpa:"",ftm:"",fta:"",turnovers:"",fouls:"",plusMinus:"",minutes:""};
                                   return [
                                     <tr key={tn+"hdr"}>
-                                      <td colSpan={6} style={{ padding: "8px 8px 4px", fontSize: 12, fontWeight: 700, color: T2 }}>{tn}</td>
+                                      <td colSpan={16} style={{ padding: "8px 8px 4px", fontSize: 12, fontWeight: 700, color: ACC, background: ACC+"10" }}>{tn}</td>
                                     </tr>,
                                     ...tp.map(p => {
-                                      const ps = nPS[p.id]||{points:"",assists:"",rebounds:"",blocks:"",steals:""};
+                                      const ps = {...emptyPS, ...nPS[p.id]};
+                                      const numInp = (k, allowNeg) => (
+                                        <td key={k} style={{ padding: "3px 3px" }}>
+                                          <input type="number" min={allowNeg?undefined:"0"} style={{ ...inp, padding: "5px 3px", textAlign: "center", fontSize: 12, width: 46 }} value={ps[k]} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],[k]:e.target.value}}))} placeholder="0" />
+                                        </td>
+                                      );
                                       return (
-                                        <tr key={p.id}>
-                                          <td style={{ padding: "4px 8px" }}>
-                                            <span style={{ color: ACC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}
+                                        <tr key={p.id} style={{ borderBottom: `1px solid ${BORDER}30` }}>
+                                          <td style={{ padding: "4px 8px", position: "sticky", left: 0, background: CARD, whiteSpace: "nowrap" }}>
+                                            <span style={{ color: ACC, fontWeight: 700, fontSize: 11, marginRight: 5 }}>#{p.number}</span>{p.name}
                                           </td>
-                                          {["points","assists","rebounds","blocks","steals"].map(k => (
-                                            <td key={k} style={{ padding: "4px 4px" }}>
-                                              <input type="number" min="0" style={{ ...inp, padding: "6px 4px", textAlign: "center", fontSize: 13 }} value={ps[k]} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],[k]:e.target.value}}))} placeholder="0" />
-                                            </td>
-                                          ))}
+                                          {numInp("fgm")}
+                                          {numInp("fga")}
+                                          {numInp("tpm")}
+                                          {numInp("tpa")}
+                                          {numInp("ftm")}
+                                          {numInp("fta")}
+                                          {numInp("points")}
+                                          {numInp("rebounds")}
+                                          {numInp("assists")}
+                                          {numInp("steals")}
+                                          {numInp("blocks")}
+                                          {numInp("turnovers")}
+                                          {numInp("fouls")}
+                                          {numInp("plusMinus", true)}
+                                          {numInp("minutes")}
                                         </tr>
                                       );
                                     })
