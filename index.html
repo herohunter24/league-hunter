@@ -478,6 +478,7 @@ function App() {
   const [deleteAdminId, setDeleteAdminId] = useState(null);   // userId to delete
   const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
   const [deleteLeagueId, setDeleteLeagueId] = useState(null);
+  const [deleteTeamId, setDeleteTeamId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [activeCatId, setActiveCatId] = useState(null);
   const [showCatModal, setShowCatModal] = useState(false);
@@ -1664,7 +1665,7 @@ function App() {
                       <span style={{ fontSize: 28 }}>{t.emoji}</span>
                       <div><div style={{ fontWeight: 700 }}>{t.name}</div><div style={{ fontSize: 12, color: T2 }}>{catPlayers.filter(p=>p.team===t.name).length} players</div></div>
                     </div>
-                    <button onClick={() => delTeam(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                    <button onClick={() => setDeleteTeamId(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 14px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>🗑 Delete</button>
                   </div>
                 ))
               }
@@ -2682,6 +2683,21 @@ service cloud.firestore {
               confirmLabel="Yes, Delete Category"
               onConfirm={() => deleteCategory(deleteCatId)}
               onCancel={() => setDeleteCatId(null)}
+            />
+          );
+        })()}
+
+        {deleteTeamId && (() => {
+          const teamToDelete = league.teams.find(t => t.id === deleteTeamId);
+          const playerCount = (league.players || []).filter(p => p.team === teamToDelete?.name).length;
+          return (
+            <ConfirmModal
+              icon="🗑️"
+              title={`Delete "${teamToDelete?.name}"?`}
+              body={`This will permanently delete the team and its ${playerCount} player${playerCount !== 1 ? "s" : ""}. This cannot be undone.`}
+              confirmLabel="Yes, Delete Team"
+              onConfirm={() => { delTeam(deleteTeamId); setDeleteTeamId(null); }}
+              onCancel={() => setDeleteTeamId(null)}
             />
           );
         })()}
