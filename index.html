@@ -1692,7 +1692,21 @@ function App() {
                   <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nP.position} onChange={e=>setNP({...nP,position:e.target.value})} placeholder={sport==="Hockey"?"Center / Goalie":"Guard / Forward"} />
                   <select style={{ ...inp, flex: 1, minWidth: 130 }} value={nP.team} onChange={e=>setNP({...nP,team:e.target.value})}>
                     <option value="">🆓 Free Agent (no team)</option>
-                    {catTeams.map(t => <option key={t.id}>{t.name}</option>)}
+                    {(league.categories || []).map(cat => {
+                      const teams = (league.teams || []).filter(t => t.categoryId === cat.id);
+                      if (!teams.length) return null;
+                      return <optgroup key={cat.id} label={cat.displayName || cat.name}>
+                        {teams.map(t => <option key={t.id} value={t.name}>{t.emoji} {t.name}</option>)}
+                      </optgroup>;
+                    })}
+                    {/* Teams with no category */}
+                    {(() => {
+                      const catIds = new Set((league.categories||[]).map(c=>c.id));
+                      const uncategorized = (league.teams||[]).filter(t => !t.categoryId || !catIds.has(t.categoryId));
+                      return uncategorized.length ? <optgroup label="Other">
+                        {uncategorized.map(t => <option key={t.id} value={t.name}>{t.emoji} {t.name}</option>)}
+                      </optgroup> : null;
+                    })()}
                   </select>
                   <button style={btn(LC)} onClick={addPlayer}>Add Player</button>
                 </div>
