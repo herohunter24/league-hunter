@@ -471,6 +471,9 @@ function App() {
   const [manageOwnerId, setManageOwnerId] = useState(null);
   const [deleteOwnerId, setDeleteOwnerId] = useState(null);
   const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
+  const [showFunderModal, setShowFunderModal] = useState(false);
+  const [newFunder, setNewFunder] = useState({ email: "", password: "", confirm: "" });
+  const [funderError, setFunderError] = useState("");
   const [deleteLeagueId, setDeleteLeagueId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [activeCatId, setActiveCatId] = useState(null);
@@ -642,6 +645,9 @@ function App() {
       }
       saveAttempts({ ...attempts, [email]: { count: 0, lockUntil: 0 } });
       setUser(owner); setErr("");
+      if (owner.role === "funder") {
+        setPage("dashboard"); return;
+      }
       setSelId(owner.leagueId); setTab("teams"); setPage("league"); return;
     }
     const newCount = rec.count + 1;
@@ -653,7 +659,8 @@ function App() {
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 3000); }
   function handleTabSwitch(t) { if (dirty) { setPendingNavTab(t); } else { setTab(t); } }
-  function handleBack() { if (dirty) { setPendingNavTab("__dashboard__"); } else { setPage("dashboard"); setSelId(null); } }
+  const isFunderOrAdmin = user?.role === "superadmin" || user?.role === "funder";
+  function handleBack() { if (isFunderOrAdmin) { if (dirty) { setPendingNavTab("__dashboard__"); } else { setPage("dashboard"); setSelId(null); } } else { logout(); } }
   function handleLogout() { if (dirty) { setPendingNavTab("__logout__"); } else { logout(); } }
   function handleSave() { setPendingSave(true); }
   // ── IMMEDIATE FIRESTORE WRITE (used by deletes and confirmSave) ──
@@ -799,6 +806,40 @@ function App() {
     setNewOwner({ email: "", password: "", confirm: "" });
     setOwnerError("");
     setCreatedCreds({ email: newUser.email, password: p, leagueName: lg?.name || "League" });
+  }
+
+  async function createFunder() {
+    const { email: e, password: p, confirm: c } = newFunder;
+    if (!e.trim() || !p) { setFunderError("Email and password are required."); return; }
+    if (p !== c) { setFunderError("Passwords do not match."); return; }
+    if (e.trim() === SUPERADMIN.email) { setFunderError("That email is already in use."); return; }
+    let fresh = loadUsers();
+    if (__fbReady) {
+      try { const { getDocs, collection } = _FS; const snap = await getDocs(collection(_db, "users")); fresh = snap.docs.map(d => d.data()); } catch(e2) {}
+    }
+    if (fresh.find(u => u.email === e.trim())) { setFunderError("An account with that email already exists."); return; }
+    const hashedPw = await hashPassword(p);
+    const newUser = { id: "user_" + Date.now(), email: e.trim(), password: hashedPw, role: "funder", createdAt: new Date().toISOString().slice(0,10) };
+    const updated = [...fresh, newUser];
+    saveUsers(updated);
+    if (__fbReady) {
+      try { const { setDoc, doc } = _FS; await setDoc(doc(_db, "users", newUser.id), newUser); } catch(e2) { console.error("Firestore createFunder:", e2); }
+    }
+    setUsers(updated);
+    setShowFunderModal(false);
+    setNewFunder({ email: "", password: "", confirm: "" });
+    setFunderError("");
+    setCreatedCreds({ email: newUser.email, password: p, leagueName: "All Leagues (Funder)" });
+  }
+
+  async function deleteFunder(userId) {
+    const updated = users.filter(u => u.id !== userId);
+    saveUsers(updated);
+    if (__fbReady) {
+      try { const { deleteDoc, doc } = _FS; await deleteDoc(doc(_db, "users", userId)); } catch(e) {}
+    }
+    setUsers(updated);
+    showToast("Funder account deleted.");
   }
 
   async function deleteOwner(userId) {
@@ -1139,8 +1180,10 @@ function App() {
       <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
         <div style={{ fontSize: 20, fontWeight: 900, color: ACC }}>WEBSITE X</div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: 13, color: T2 }}>Super Admin</span>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: ACC+"30", border: `2px solid ${ACC}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: ACC }}>A</div>
+          <span style={{ fontSize: 12, padding: "4px 10px", background: user?.role==="funder" ? "#f59e0b20" : ACC+"20", borderRadius: 6, fontWeight: 700, color: user?.role==="funder" ? "#f59e0b" : ACC }}>
+            {user?.role === "funder" ? "⭐ Funder" : "🔑 Super Admin"}
+          </span>
+          <span style={{ fontSize: 13, color: T2 }}>{user?.email || ""}</span>
           <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
         </div>
       </div>
@@ -1222,7 +1265,61 @@ function App() {
         </div>
         );
         })()}
+
+        {/* ── FUNDER MANAGEMENT (superadmin only) ── */}
+        {user?.role === "superadmin" && (() => {
+          const funders = users.filter(u => u.role === "funder");
+          return (
+            <div style={{ marginTop: 36 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>Funders</div>
+                  <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>Funder accounts have access to all leagues and all functions.</div>
+                </div>
+                <button style={{ ...btn("#f59e0b"), color: "#000", fontWeight: 700 }} onClick={() => { setShowFunderModal(true); setNewFunder({ email: "", password: "", confirm: "" }); setFunderError(""); }}>⭐ Add Funder</button>
+              </div>
+              {funders.length === 0 && (
+                <div style={{ ...card, textAlign: "center", padding: "28px 20px", color: T2, fontSize: 14 }}>No funder accounts yet.</div>
+              )}
+              {funders.map(f => (
+                <div key={f.id} style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 20 }}>⭐</span>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{f.email}</div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>Funder · Created {f.createdAt}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteFunder(f.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
+
+      {/* ── ADD FUNDER MODAL ── */}
+      {showFunderModal && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+          <div style={{ width: 460, ...card, padding: 32 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Add Funder Account</div>
+            <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Funders have full access to all leagues and all admin functions.</div>
+            <div style={{ fontSize: 12, color: "#22c55e", background: "#22c55e12", border: "1px solid #22c55e30", borderRadius: 8, padding: "10px 14px", marginBottom: 20, lineHeight: 1.6 }}>
+              🔒 Passwords are hashed with SHA-256 before storage — plaintext is never saved.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div><label style={lbl}>Email</label><input style={inp} value={newFunder.email} onChange={e=>setNewFunder({...newFunder,email:e.target.value})} placeholder="funder@example.com" autoComplete="off" /></div>
+              <div><label style={lbl}>Password</label><input type="password" style={inp} value={newFunder.password} onChange={e=>setNewFunder({...newFunder,password:e.target.value})} placeholder="Choose a password" autoComplete="new-password" /></div>
+              <div><label style={lbl}>Confirm Password</label><input type="password" style={inp} value={newFunder.confirm} onChange={e=>setNewFunder({...newFunder,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&createFunder()} placeholder="Repeat password" autoComplete="new-password" /></div>
+              {funderError && <div style={{ color: "#ef4444", fontSize: 13 }}>{funderError}</div>}
+              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                <button style={{ ...btn("#f59e0b"), flex: 1, color: "#000", fontWeight: 700 }} onClick={createFunder}>Create Funder</button>
+                <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setShowFunderModal(false); setFunderError(""); }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── ASSIGN OWNER MODAL ── */}
       {ownerModal && (() => {
@@ -1256,8 +1353,8 @@ function App() {
           <div style={{ width: 460, ...card, padding: 32 }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>🎉</div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>Owner Account Created</div>
-              <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials with the league owner. Screenshot or copy them now — the password will not be shown again.</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{createdCreds.leagueName === "All Leagues (Funder)" ? "Funder Account Created" : "Owner Account Created"}</div>
+              <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials with the recipient. Screenshot or copy them now — the password will not be shown again.</div>
             </div>
             <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "20px 22px", marginBottom: 20, fontFamily: "monospace", fontSize: 13 }}>
               <div style={{ marginBottom: 14 }}>
