@@ -2703,6 +2703,11 @@ service cloud.firestore {
           );
         })()}
 
+        {/* ── DELETE LEAGUE CONFIRM (from Settings Danger Zone) ── */}
+        {deleteLeagueId && (
+          <ConfirmModal icon="⚠️" title={`Delete "${league?.name}"?`} body="This will permanently delete the league and all its teams, players, games, and scores from Firestore. This cannot be undone." confirmLabel="Yes, Delete League" onConfirm={() => deleteLeague(deleteLeagueId)} onCancel={() => setDeleteLeagueId(null)} />
+        )}
+
         {/* ── UNSAVED CHANGES MODAL ── */}
         {pendingNavTab && (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350 }}>
