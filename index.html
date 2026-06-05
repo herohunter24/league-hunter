@@ -1144,7 +1144,7 @@ function App() {
       </div>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
         <div style={{ display: "flex", gap: 16, marginBottom: 36 }}>
-          {[["Total Leagues",leagues.length],["Total Teams",leagues.reduce((a,l)=>a+l.teams.length,0)],["Total Players",leagues.reduce((a,l)=>a+l.players.length,0)],["Games Scheduled",leagues.reduce((a,l)=>a+l.schedule.length,0)]].map(([label,val]) => (
+          {[["Total Leagues",leagues.length],["Total Teams",leagues.reduce((a,l)=>a+(l.teams||[]).length,0)],["Total Players",leagues.reduce((a,l)=>a+(l.players||[]).length,0)],["Games Scheduled",leagues.reduce((a,l)=>a+(l.schedule||[]).length,0)]].map(([label,val]) => (
             <div key={label} style={{ flex: 1, ...card, textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: ACC }}>{val}</div>
               <div style={{ fontSize: 12, color: T2, marginTop: 4 }}>{label}</div>
