@@ -1494,7 +1494,7 @@ function App() {
     const toggles = getToggles(league);
     const sport = league.sport;
     const isCoAdminUser = user?.role === "co-admin";
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],
+    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule & Scores"],["stats","📊 Stats"],
       ...(!isCoAdminUser ? [["settings","⚙️ Settings"]] : []),
     ];
 
@@ -1795,9 +1795,7 @@ function App() {
           {/* ── SCHEDULE ── */}
           {tab==="schedule" && (
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Schedule {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
-              </div>
+              {/* ── ADD GAME FORM ── */}
               {(() => {
                 // Per-league venue suggestions (deduplicated, sorted)
                 const venueOptions = [...new Set(
@@ -1844,62 +1842,101 @@ function App() {
                   </div>
                 );
               })()}
-              {catSchedule.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No games scheduled in this category yet.</div> : (
-                <div>
-                  {/* ── UPCOMING ── sorted ascending */}
-                  {upcomingGames.length > 0 && (
-                    <>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>Upcoming</div>
-                      {upcomingGames.map(g => (
-                        <div key={g.id} style={{ ...card, marginBottom: 8 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                            <div>
-                              <div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
-                              <div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{g.date}{g.time ? " · " + formatTime12h(g.time) : ""}{g.venue ? " · " + g.venue : ""}</div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 12, color: "#f97316", padding: "4px 12px", background: "#f9731615", borderRadius: 6, fontWeight: 600 }}>Upcoming</span>
-                              <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                              <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
+              {/* ── MARQUEUR-STYLE SCHEDULE TABLE ── */}
+              {catSchedule.length === 0
+                ? <div style={{ textAlign: "center", color: T2, padding: 64, fontSize: 14 }}>No games scheduled in this category yet.</div>
+                : (() => {
+                  // Group all games by month, sorted chronologically
+                  const allGames = [...catSchedule].sort((a,b) => {
+                    const da = new Date(a.date + (a.time ? "T"+a.time : "T00:00"));
+                    const db = new Date(b.date + (b.time ? "T"+b.time : "T00:00"));
+                    return da - db;
+                  });
+                  const monthGroups = [];
+                  const monthMap = {};
+                  const MONTHS_FR = ["JANVIER","FÉVRIER","MARS","AVRIL","MAI","JUIN","JUILLET","AOÛT","SEPTEMBRE","OCTOBRE","NOVEMBRE","DÉCEMBRE"];
+                  allGames.forEach(g => {
+                    const d = new Date(g.date + "T12:00");
+                    const key = `${d.getFullYear()}-${d.getMonth()}`;
+                    const label = `${MONTHS_FR[d.getMonth()]} ${d.getFullYear()}`;
+                    if (!monthMap[key]) { monthMap[key] = { label, games: [] }; monthGroups.push(monthMap[key]); }
+                    monthMap[key].games.push(g);
+                  });
+                  const DAYS_FR = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
 
-                  {/* ── PAST GAMES ── sorted descending (most recent first) */}
-                  {pastGames.length > 0 && (
-                    <>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: T2, margin: upcomingGames.length > 0 ? "20px 0 10px" : "0 0 10px" }}>Past Games</div>
-                      {pastGames.map(g => {
-                        const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
-                        const hw = hasScore && parseInt(g.homeScore) > parseInt(g.awayScore);
-                        return (
-                          <div key={g.id} style={{ ...card, marginBottom: 8 }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                              <div>
-                                <div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
-                                <div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{g.date}{g.time ? " · " + formatTime12h(g.time) : ""}{g.venue ? " · " + g.venue : ""}</div>
-                              </div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                {hasScore && (
-                                  <span style={{ fontWeight: 800, fontSize: 18, color: "#22c55e" }}>{g.homeScore} – {g.awayScore}</span>
-                                )}
-                                {hasScore
-                                  ? <span style={{ fontSize: 12, color: "#22c55e", padding: "4px 12px", background: "#22c55e15", borderRadius: 6, fontWeight: 600 }}>Final</span>
-                                  : <span style={{ fontSize: 12, color: T2, padding: "4px 12px", background: "#ffffff0a", borderRadius: 6, fontWeight: 600 }}>Awaiting Score</span>
-                                }
-                                {!hasScore
-                                  ? <button onClick={() => setEditScore({id: g.id, homeScore: "", awayScore: ""})} style={{ background: "none", border: `1px solid ${LC}55`, borderRadius: 6, color: LC, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>Enter Score</button>
-                                  : <button onClick={() => setEditScore({id: g.id, homeScore: g.homeScore, awayScore: g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit Score</button>
-                                }
-                                {(() => {
-                                  const hasStats = Object.keys(g.playerStats || {}).length > 0;
-                                  const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
-                                  if (!gamePlayers.length) return null;
-                                  return (
-                                    <button onClick={() => {
+                  return (
+                    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+                      {/* Table header */}
+                      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 2fr 80px 2fr 1.5fr 100px 100px", gap: 0, background: "#111", padding: "10px 16px", borderBottom: `2px solid ${LC}` }}>
+                        {["VISITEUR","","LOCAL","","ENDROIT","DATE / HEURE","RÉSULTAT",""].map((h,i) => (
+                          <div key={i} style={{ fontSize: 10, fontWeight: 800, color: "#fff", letterSpacing: "0.1em", textAlign: i===3?"center":i===7?"center":"left", fontFamily: "'Barlow Condensed', sans-serif" }}>{h}</div>
+                        ))}
+                      </div>
+
+                      {monthGroups.map(({ label, games }) => (
+                        <div key={label}>
+                          {/* Month header */}
+                          <div style={{ padding: "10px 16px", background: LC+"18", borderBottom: `1px solid ${LC}30`, borderTop: `1px solid ${LC}30` }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: LC, letterSpacing: "0.12em", fontFamily: "'Barlow Condensed', sans-serif" }}>{label}</span>
+                          </div>
+
+                          {games.map((g, idx) => {
+                            const hasScore = g.homeScore !== undefined && g.homeScore !== "" && g.awayScore !== undefined && g.awayScore !== "";
+                            const isPast = isGamePast(g);
+                            const hs = parseInt(g.homeScore), as_ = parseInt(g.awayScore);
+                            // In marqueur: VISITEUR = away, LOCAL = home
+                            const awayWin = hasScore && as_ > hs;
+                            const homeWin = hasScore && hs > as_;
+                            const d = new Date(g.date + "T12:00");
+                            const dateLabel = `${DAYS_FR[d.getDay()]} ${d.getDate()} ${MONTHS_FR[d.getMonth()].slice(0,3).toLowerCase()}.`;
+                            const hasStats = Object.keys(g.playerStats || {}).length > 0;
+                            const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+
+                            return (
+                              <div key={g.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 2fr 80px 2fr 1.5fr 100px 100px", gap: 0, padding: "11px 16px", borderBottom: idx < games.length-1 ? `1px solid ${BORDER}` : "none", alignItems: "center", background: idx%2===0?"transparent":"#f9f9f9", transition: "background 0.1s" }}
+                                onMouseEnter={e => e.currentTarget.style.background = LC+"0f"}
+                                onMouseLeave={e => e.currentTarget.style.background = idx%2===0?"transparent":"#f9f9f9"}>
+                                {/* VISITEUR (away) */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  {(() => { const t = league.teams.find(t=>t.name===g.away); return t ? <span style={{ fontSize: 16 }}>{t.emoji}</span> : null; })()}
+                                  <span style={{ fontWeight: awayWin ? 800 : 500, fontSize: 13, color: awayWin ? T1 : T2 }}>{g.away}</span>
+                                  {hasScore && <span style={{ fontWeight: 800, fontSize: 18, color: awayWin ? LC : T2, marginLeft: 6 }}>{g.awayScore}</span>}
+                                </div>
+                                {/* VS */}
+                                <div style={{ fontSize: 11, color: T2, fontWeight: 600, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.06em" }}>{hasScore?"":"VS"}</div>
+                                {/* LOCAL (home) */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  {(() => { const t = league.teams.find(t=>t.name===g.home); return t ? <span style={{ fontSize: 16 }}>{t.emoji}</span> : null; })()}
+                                  <span style={{ fontWeight: homeWin ? 800 : 500, fontSize: 13, color: homeWin ? T1 : T2 }}>{g.home}</span>
+                                  {hasScore && <span style={{ fontWeight: 800, fontSize: 18, color: homeWin ? LC : T2, marginLeft: 6 }}>{g.homeScore}</span>}
+                                </div>
+                                {/* Separator */}
+                                <div></div>
+                                {/* ENDROIT */}
+                                <div style={{ fontSize: 12, color: T2 }}>{g.venue || "—"}</div>
+                                {/* DATE / HEURE */}
+                                <div>
+                                  <div style={{ fontSize: 12, color: T1, fontWeight: 600 }}>{dateLabel}</div>
+                                  {g.time && <div style={{ fontSize: 11, color: T2 }}>{formatTime12h(g.time)}</div>}
+                                </div>
+                                {/* RÉSULTAT / STATUS */}
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+                                  {hasScore
+                                    ? <span style={{ fontSize: 10, fontWeight: 800, color: "#22c55e", letterSpacing: "0.1em", fontFamily:"'Barlow Condensed',sans-serif" }}>FINAL</span>
+                                    : isPast
+                                      ? <button onClick={() => setEditScore({id: g.id, homeScore: "", awayScore: ""})}
+                                          style={{ fontSize: 10, fontWeight: 800, color: LC, background: LC+"15", border: `1px solid ${LC}40`, borderRadius: 3, padding: "3px 8px", cursor: "pointer", letterSpacing: "0.08em", fontFamily:"'Barlow Condensed',sans-serif" }}>
+                                          ENTRER
+                                        </button>
+                                      : <span style={{ fontSize: 10, fontWeight: 700, color: "#f97316", letterSpacing: "0.08em", fontFamily:"'Barlow Condensed',sans-serif" }}>À VENIR</span>
+                                  }
+                                  {hasScore && <button onClick={() => setEditScore({id: g.id, homeScore: g.homeScore, awayScore: g.awayScore})}
+                                    style={{ fontSize: 10, color: T2, background: "none", border: `1px solid ${BORDER}`, borderRadius: 3, padding: "2px 6px", cursor: "pointer" }}>Modifier</button>}
+                                </div>
+                                {/* ACTIONS */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                                  {gamePlayers.length > 0 && isPast && (
+                                    <button title={hasStats ? "Edit Stats" : "Enter Stats"} onClick={() => {
                                       const stats = {};
                                       gamePlayers.forEach(p => {
                                         const existing = (g.playerStats || {})[p.id] || {};
@@ -1909,223 +1946,54 @@ function App() {
                                         stats[p.id] = { ...defaults, ...existing };
                                       });
                                       setEditStats({ game: g, stats });
-                                    }} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 6, color: hasStats ? T2 : "#a78bfa", padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: hasStats ? 400 : 600 }}>
-                                      {hasStats ? "Edit Stats" : "Enter Stats"}
-                                    </button>
-                                  );
-                                })()}
-                                <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                                <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                                    }} style={{ background: hasStats ? LC+"22" : "none", border: `1px solid ${hasStats ? LC : BORDER}`, borderRadius: 4, color: hasStats ? LC : T2, padding: "4px 8px", fontSize: 13, cursor: "pointer" }}>📊</button>
+                                  )}
+                                  <button title="Edit game" onClick={() => setEditGame({...g})}
+                                    style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "4px 8px", fontSize: 13, cursor: "pointer" }}>✏️</button>
+                                  <button title="Delete game" onClick={() => setDeleteGameId(g.id)}
+                                    style={{ background: "none", border: "1px solid #ef444430", borderRadius: 4, color: "#ef4444", padding: "4px 8px", fontSize: 13, cursor: "pointer" }}>🗑</button>
+                                </div>
                               </div>
-                            </div>
-                            {hasScore && <BoxScore game={g} players={league.players} sport={sport} />}
-                          </div>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── SCORES ── */}
-          {tab==="scores" && (
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Enter Scores {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
-              </div>
-              <div style={{ ...card, marginBottom: 28 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Submit Result</div>
-                {needsScore.length===0 ? <div style={{ fontSize: 14, color: T2 }}>All game results have been entered. No scores pending.</div> : (
-                  <div>
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
-                      <div style={{ flex: 2, minWidth: 200 }}>
-                        <label style={lbl}>Select Game</label>
-                        <select style={inp} value={nS.gameId} onChange={e => {
-                          const gId = e.target.value;
-                          setNS({ ...nS, gameId: gId, homeScore: "", awayScore: "" });
-                          if (gId) { const g = catSchedule.find(x => x.id===parseInt(gId)); doInitPlayerStats(g); }
-                          else setNPS({});
-                        }}>
-                          <option value="">Choose a game...</option>
-                          {needsScore.map(g => <option key={g.id} value={g.id}>{g.home} vs {g.away} ({g.date}{g.time ? " " + formatTime12h(g.time) : ""}){isGamePast(g) ? " — Past" : ""}</option>)}
-                        </select>
-                      </div>
-                      {nS.gameId && (() => {
-                        const g = catSchedule.find(x => x.id===parseInt(nS.gameId));
-                        return (<>
-                          <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.home} Score</label><input type="number" min="0" style={inp} value={nS.homeScore} onChange={e=>setNS({...nS,homeScore:e.target.value})} placeholder="0" /></div>
-                          <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.away} Score</label><input type="number" min="0" style={inp} value={nS.awayScore} onChange={e=>setNS({...nS,awayScore:e.target.value})} placeholder="0" /></div>
-                        </>);
-                      })()}
+                            );
+                          })}
+                        </div>
+                      ))}
                     </div>
+                  );
+                })()
+              }
 
-                    {/* Player stats entry — Hockey */}
-                    {nS.gameId && sport==="Hockey" && (() => {
-                      const g = catSchedule.find(x => x.id===parseInt(nS.gameId));
-                      const gPlayers = getGamePlayers(g);
-                      if (!gPlayers.length) return null;
-                      const skaters = gPlayers.filter(p => !isGoalie(p));
-                      const goalies = gPlayers.filter(p => isGoalie(p));
-                      return (
-                        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional — points auto-calculated)</span></div>
-                          {skaters.length > 0 && (
-                            <div style={{ marginBottom: 16 }}>
-                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
-                                <span style={{ flex: 3 }}>SKATER</span><span style={{ flex: 1, textAlign: "center" }}>GOALS</span><span style={{ flex: 1, textAlign: "center" }}>ASSISTS</span><span style={{ flex: 1, textAlign: "center" }}>PTS</span>
-                              </div>
-                              {[g.home, g.away].map(tn => {
-                                const tp = skaters.filter(p => p.team===tn);
-                                if (!tp.length) return null;
-                                return (
-                                  <div key={tn} style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: T2, marginBottom: 6, paddingLeft: 4 }}>{tn}</div>
-                                    {tp.map(p => {
-                                      const ps = nPS[p.id]||{goals:"",assists:""};
-                                      const g2=parseInt(ps.goals)||0, a=parseInt(ps.assists)||0;
-                                      return (
-                                        <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                                          <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                                            <span style={{ color: LC, fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name}
-                                          </div>
-                                          <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goals} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goals:e.target.value}}))} placeholder="0" />
-                                          <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.assists} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],assists:e.target.value}}))} placeholder="0" />
-                                          <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: (g2+a)>0?ACC:T2, fontSize: 16 }}>{g2+a||"—"}</div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {goalies.length > 0 && (
-                            <div>
-                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
-                                <span style={{ flex: 3 }}>GOALIE</span><span style={{ flex: 1, textAlign: "center" }}>SAVES</span><span style={{ flex: 1, textAlign: "center" }}>GA</span><span style={{ flex: 1 }}></span>
-                              </div>
-                              {goalies.map(p => {
-                                const ps = nPS[p.id]||{saves:"",goalsAgainst:""};
-                                return (
-                                  <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                                    <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                                      <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name} <span style={{ fontSize: 11, color: T2 }}>({p.team})</span>
-                                    </div>
-                                    <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.saves} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],saves:e.target.value}}))} placeholder="0" />
-                                    <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goalsAgainst} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goalsAgainst:e.target.value}}))} placeholder="0" />
-                                    <div style={{ flex: 1 }}></div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Player stats entry — Basketball */}
-                    {nS.gameId && sport==="Basketball" && (() => {
-                      const g = catSchedule.find(x => x.id===parseInt(nS.gameId));
-                      const gPlayers = getGamePlayers(g);
-                      if (!gPlayers.length) return null;
-                      return (
-                        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional)</span></div>
-                          <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ textAlign: "left", color: T2, fontSize: 11, fontWeight: 700, padding: "4px 8px", minWidth: 160 }}>PLAYER</th>
-                                  {["PTS","AST","REB","BLK","STL"].map(h => (
-                                    <th key={h} style={{ color: T2, fontSize: 11, fontWeight: 700, padding: "4px 6px", textAlign: "center", minWidth: 60 }}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {[g.home, g.away].map(tn => {
-                                  const tp = gPlayers.filter(p => p.team===tn);
-                                  if (!tp.length) return null;
-                                  return [
-                                    <tr key={tn+"hdr"}>
-                                      <td colSpan={6} style={{ padding: "8px 8px 4px", fontSize: 12, fontWeight: 700, color: T2 }}>{tn}</td>
-                                    </tr>,
-                                    ...tp.map(p => {
-                                      const ps = nPS[p.id]||{points:"",assists:"",rebounds:"",blocks:"",steals:""};
-                                      return (
-                                        <tr key={p.id}>
-                                          <td style={{ padding: "4px 8px" }}>
-                                            <span style={{ color: LC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}
-                                          </td>
-                                          {["points","assists","rebounds","blocks","steals"].map(k => (
-                                            <td key={k} style={{ padding: "4px 4px" }}>
-                                              <input type="number" min="0" style={{ ...inp, padding: "6px 4px", textAlign: "center", fontSize: 13 }} value={ps[k]} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],[k]:e.target.value}}))} placeholder="0" />
-                                            </td>
-                                          ))}
-                                        </tr>
-                                      );
-                                    })
-                                  ];
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    <button style={{ ...btn(), opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={submitScore}>{saving ? "Saving…" : "Submit Score"}</button>
+              {/* ── STANDINGS (if games played) ── */}
+              {standings.length > 0 && (
+                <div style={{ marginTop: 32 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 14, letterSpacing: "0.04em", fontFamily:"'Barlow Condensed',sans-serif", color: T1 }}>
+                    CLASSEMENT <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 500, fontFamily: "inherit" }}>● Auto-calculé</span>
                   </div>
-                )}
-              </div>
-
-              {played.length>0 && (
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Results</div>
-                  {played.map(g => {
-                    const hw = parseInt(g.homeScore)>parseInt(g.awayScore);
-                    return (
-                      <div key={g.id} style={{ ...card, marginBottom: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div><div style={{ fontWeight: 700 }}>{g.home} vs {g.away}</div><div style={{ fontSize: 12, color: T2 }}>{g.date}</div></div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontWeight: 800, fontSize: 20, color: hw?"#22c55e":T2 }}>{g.homeScore}</span>
-                            <span style={{ color: T2 }}>–</span>
-                            <span style={{ fontWeight: 800, fontSize: 20, color: !hw?"#22c55e":T2 }}>{g.awayScore}</span>
-                            <button onClick={() => setEditScore({id:g.id,homeScore:g.homeScore,awayScore:g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                            <button onClick={() => setDeleteScoreId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                          </div>
-                        </div>
-                        <BoxScore game={g} players={league.players} sport={sport} />
-                      </div>
-                    );
-                  })}
-                  {standings.length>0 && (
-                    <div style={{ marginTop: 28 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Standings <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 400 }}>● Auto-calculated</span></div>
-                      <div style={card}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                          <thead><tr style={{ borderBottom: `1px solid ${BORDER}` }}>{["#","Team","GP","W","L","PTS"].map(h=><th key={h} style={{ padding: "8px 12px", textAlign: h==="Team"?"left":"center", color: T2, fontSize: 12, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-                          <tbody>
-                            {standings.map((t,i) => (
-                              <tr key={t.name} style={{ borderBottom: i<standings.length-1?`1px solid ${BORDER}`:"none" }}>
-                                <td style={{ padding: 12, textAlign: "center", color: i===0?ACC:T2, fontWeight: i===0?700:400 }}>{i+1}</td>
-                                <td style={{ padding: 12, fontWeight: 600 }}>{t.emoji} {t.name}</td>
-                                <td style={{ padding: 12, textAlign: "center", color: T2 }}>{t.gp}</td>
-                                <td style={{ padding: 12, textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{t.wins}</td>
-                                <td style={{ padding: 12, textAlign: "center", color: "#ef4444" }}>{t.losses}</td>
-                                <td style={{ padding: 12, textAlign: "center", fontWeight: 800, color: LC }}>{t.wins*2}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
+                  <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                      <thead>
+                        <tr style={{ background: "#111", borderBottom: `2px solid ${LC}` }}>
+                          {["#","ÉQUIPE","PJ","V","D","PTS"].map(h => (
+                            <th key={h} style={{ padding: "10px 14px", textAlign: h==="ÉQUIPE"?"left":"center", color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", fontFamily:"'Barlow Condensed',sans-serif" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {standings.map((t,i) => (
+                          <tr key={t.name} style={{ borderBottom: i<standings.length-1?`1px solid ${BORDER}`:"none", background: i===0 ? LC+"0d" : "transparent" }}>
+                            <td style={{ padding: "12px 14px", textAlign: "center", color: i===0?LC:T2, fontWeight: i===0?800:400, fontSize: 13 }}>{i+1}</td>
+                            <td style={{ padding: "12px 14px", fontWeight: 700, fontSize: 13 }}>{t.emoji} {t.name}</td>
+                            <td style={{ padding: "12px 14px", textAlign: "center", color: T2, fontSize: 13 }}>{t.gp}</td>
+                            <td style={{ padding: "12px 14px", textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{t.wins}</td>
+                            <td style={{ padding: "12px 14px", textAlign: "center", color: "#ef4444" }}>{t.losses}</td>
+                            <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: LC, fontSize: 15 }}>{t.wins*2}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
-              {played.length===0 && <div style={{ textAlign: "center", color: T2, padding: 48 }}>No results yet.</div>}
             </div>
           )}
 
