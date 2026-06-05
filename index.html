@@ -464,12 +464,13 @@ function App() {
   const [showConnGuide, setShowConnGuide] = useState(false);
   const [users, setUsers] = useState(loadUsers);
   const [lastSaved, setLastSaved] = useState(null);
-  const [ownerModal, setOwnerModal] = useState(null);
-  const [newOwner, setNewOwner] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "", confirm: "" });
-  const [ownerError, setOwnerError] = useState("");
+  const [adminModal, setAdminModal] = useState(null);         // leagueId — create league admin
+  const [coAdminModal, setCoAdminModal] = useState(null);     // leagueId — create co-admin
+  const [newAdmin, setNewAdmin] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "", confirm: "" });
+  const [adminError, setAdminError] = useState("");
   const [createdCreds, setCreatedCreds] = useState(null);
-  const [manageOwnerId, setManageOwnerId] = useState(null);
-  const [deleteOwnerId, setDeleteOwnerId] = useState(null);
+  const [manageAdminId, setManageAdminId] = useState(null);   // leagueId — manage users panel
+  const [deleteAdminId, setDeleteAdminId] = useState(null);   // userId to delete
   const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
   const [deleteLeagueId, setDeleteLeagueId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -494,7 +495,7 @@ function App() {
 
   // Owner isolation — ensure owners can never view a league other than their own
   useEffect(() => {
-    if (user && user.role === "owner" && selId && selId !== user.leagueId) {
+    if (user && (user.role === "admin" || user.role === "co-admin") && selId && selId !== user.leagueId) {
       setSelId(user.leagueId);
     }
   }, [selId, user]);
@@ -653,7 +654,7 @@ function App() {
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 3000); }
   function handleTabSwitch(t) { if (dirty) { setPendingNavTab(t); } else { setTab(t); } }
-  function handleBack() { if (user?.role === "superadmin") { if (dirty) { setPendingNavTab("__dashboard__"); } else { setPage("dashboard"); setSelId(null); } } else { logout(); } }
+  function handleBack() { if (user?.role === "superadmin") { if (dirty) { setPendingNavTab("__dashboard__"); } else { setPage("dashboard"); setSelId(null); } } else { if (dirty) { setPendingNavTab("__logout__"); } else { logout(); } } }
   function handleLogout() { if (dirty) { setPendingNavTab("__logout__"); } else { logout(); } }
   function handleSave() { setPendingSave(true); }
   // ── IMMEDIATE FIRESTORE WRITE (used by deletes and confirmSave) ──
@@ -764,73 +765,64 @@ function App() {
     showToast("Force sync triggered! Public site will refresh.");
   }
 
-  async function createOwner() {
-    const { firstName: fn, lastName: ln, email: e, phone: ph, password: p, confirm: c } = newOwner;
-    if (!fn.trim() || !ln.trim()) { setOwnerError("First and last name are required."); return; }
-    if (!e.trim() || !p) { setOwnerError("Email and password are required."); return; }
-    if (p !== c) { setOwnerError("Passwords do not match."); return; }
-    if (p.length < 8) { setOwnerError("Password must be at least 8 characters."); return; }
-    if (e.trim() === SUPERADMIN.email) { setOwnerError("That email is already in use."); return; }
+  async function _createLeagueUser(role, leagueId, closeModal) {
+    const { firstName: fn, lastName: ln, email: e, phone: ph, password: p, confirm: c } = newAdmin;
+    if (!fn.trim() || !ln.trim()) { setAdminError("First and last name are required."); return; }
+    if (!e.trim() || !p) { setAdminError("Email and password are required."); return; }
+    if (p !== c) { setAdminError("Passwords do not match."); return; }
+    if (p.length < 8) { setAdminError("Password must be at least 8 characters."); return; }
+    if (e.trim() === SUPERADMIN.email) { setAdminError("That email is already in use."); return; }
     const phoneClean = ph.replace(/\D/g, "");
-    if (ph.trim() && phoneClean.length < 10) { setOwnerError("Enter a valid phone number (at least 10 digits)."); return; }
+    if (ph.trim() && phoneClean.length < 10) { setAdminError("Enter a valid phone number (at least 10 digits)."); return; }
     let fresh = loadUsers();
     if (__fbReady) {
-      try {
-        const { getDocs, collection } = _FS;
-        const snap = await getDocs(collection(_db, "users"));
-        fresh = snap.docs.map(d => d.data());
-      } catch(e2) { /* use localStorage list */ }
+      try { const { getDocs, collection } = _FS; const snap = await getDocs(collection(_db, "users")); fresh = snap.docs.map(d => d.data()); } catch(e2) {}
     }
     if (JSON.stringify(fresh) !== JSON.stringify(users)) setUsers(fresh);
-    if (fresh.find(u => u.email === e.trim())) { setOwnerError("An account with that email already exists."); return; }
-    const lg = leagues.find(l => l.id === ownerModal);
+    if (fresh.find(u => u.email === e.trim())) { setAdminError("An account with that email already exists."); return; }
+    const lg = leagues.find(l => l.id === leagueId);
     const hashedPw = await hashPassword(p);
     const hashedPhone = ph.trim() ? await hashPassword(phoneClean) : "";
     const newUser = {
       id: "user_" + Date.now(),
-      firstName: fn.trim(),
-      lastName: ln.trim(),
+      firstName: fn.trim(), lastName: ln.trim(),
       email: e.trim(),
       phoneHash: hashedPhone,
       phoneLast4: phoneClean.length >= 4 ? phoneClean.slice(-4) : "",
       password: hashedPw,
-      role: "owner",
-      leagueId: ownerModal,
+      role,
+      leagueId,
       createdAt: new Date().toISOString().slice(0, 10),
     };
     const updated = [...fresh, newUser];
     saveUsers(updated);
     if (__fbReady) {
-      try {
-        const { setDoc, doc } = _FS;
-        await setDoc(doc(_db, "users", newUser.id), newUser);
-      } catch(e2) { console.error("Firestore createOwner:", e2); }
+      try { const { setDoc, doc } = _FS; await setDoc(doc(_db, "users", newUser.id), newUser); } catch(e2) { console.error("Firestore createUser:", e2); }
     }
     setUsers(updated);
-    setOwnerModal(null);
-    setNewOwner({ firstName: "", lastName: "", email: "", phone: "", password: "", confirm: "" });
-    setOwnerError("");
-    setCreatedCreds({ email: newUser.email, password: p, leagueName: lg?.name || "League", ownerName: `${newUser.firstName} ${newUser.lastName}` });
+    closeModal();
+    setNewAdmin({ firstName: "", lastName: "", email: "", phone: "", password: "", confirm: "" });
+    setAdminError("");
+    setCreatedCreds({ email: newUser.email, password: p, leagueName: lg?.name || "League", ownerName: `${newUser.firstName} ${newUser.lastName}`, role });
   }
+  function createAdmin()   { _createLeagueUser("admin",    adminModal,   () => setAdminModal(null)); }
+  function createCoAdmin() { _createLeagueUser("co-admin", coAdminModal, () => setCoAdminModal(null)); }
 
-  async function deleteOwner(userId) {
+  async function deleteLeagueUser(userId) {
     const updated = users.filter(u => u.id !== userId);
     saveUsers(updated);
     if (__fbReady) {
-      try {
-        const { deleteDoc, doc } = _FS;
-        await deleteDoc(doc(_db, "users", userId));
-      } catch(e) { console.error("Firestore deleteOwner:", e); }
+      try { const { deleteDoc, doc } = _FS; await deleteDoc(doc(_db, "users", userId)); } catch(e) { console.error("Firestore deleteUser:", e); }
     }
     setUsers(updated);
-    setDeleteOwnerId(null);
-    showToast("Owner account deleted.");
+    setDeleteAdminId(null);
+    showToast("Account removed.");
   }
 
   async function resetOwnerPassword() {
     const { userId, password, confirm } = resetPwForm;
-    if (!password) { setOwnerError("Password cannot be empty."); return; }
-    if (password !== confirm) { setOwnerError("Passwords do not match."); return; }
+    if (!password) { setAdminError("Password cannot be empty."); return; }
+    if (password !== confirm) { setAdminError("Passwords do not match."); return; }
     const hashedPw = await hashPassword(password);
     const updated = users.map(u => u.id === userId ? { ...u, password: hashedPw } : u);
     saveUsers(updated);
@@ -843,7 +835,7 @@ function App() {
     }
     setUsers(updated);
     setResetPwForm({ userId: null, password: "", confirm: "" });
-    setOwnerError(""); showToast("Password updated!");
+    setAdminError(""); showToast("Password updated!");
   }
 
   async function addLeague() {
@@ -1168,18 +1160,18 @@ function App() {
           ))}
         </div>
         {(() => {
-          const visibleLeagues = user?.role === "owner"
+          const visibleLeagues = (user?.role === "admin" || user?.role === "co-admin")
             ? leagues.filter(l => l.id === user.leagueId)
             : leagues;
           return (
         <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <div><div style={{ fontSize: 20, fontWeight: 700 }}>All Leagues</div><div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{visibleLeagues.length} league{visibleLeagues.length !== 1 ? "s" : ""} in your network</div></div>
-          {user?.role !== "owner" && <button style={btn()} onClick={() => setShowAdd(true)}>+ Add League</button>}
+          {user?.role === "superadmin" && <button style={btn()} onClick={() => setShowAdd(true)}>+ Add League</button>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {visibleLeagues.map(l => {
-            const lOwners = users.filter(u => u.leagueId === l.id && u.role === "owner");
+            const lAdmins = users.filter(u => u.leagueId === l.id && (u.role === "admin" || u.role === "co-admin"));
             return (
               <div key={l.id} style={{ ...card, transition: "all 0.2s" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor=l.color; e.currentTarget.style.background="#1a1a2e"; }}
@@ -1203,31 +1195,35 @@ function App() {
                     <div style={{ color: T2, fontSize: 20 }}>›</div>
                   </div>
                 </div>
-                {/* Owner row — not clickable */}
+                {/* Admins row */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${BORDER}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
-                    {lOwners.length > 0 ? lOwners.map(o => (
-                      <span key={o.id} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5, marginRight: 12 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block", flexShrink: 0 }} />
-                        <span style={{ color: T2 }}>Owner:</span>
+                    {lAdmins.length > 0 ? lAdmins.map(o => (
+                      <span key={o.id} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5, marginRight: 10 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: o.role==="admin"?"#22c55e":"#f59e0b", display: "inline-block", flexShrink: 0 }} />
+                        <span style={{ color: T2 }}>{o.role === "admin" ? "Admin:" : "Co-Admin:"}</span>
                         <strong style={{ color: T1 }}>{o.firstName ? `${o.firstName} ${o.lastName}` : o.email}</strong>
-                        {o.firstName && <span style={{ color: T2, fontWeight: 400 }}>({o.email})</span>}
                       </span>
                     )) : (
-                      <span style={{ fontSize: 12, color: T2 }}>No owner assigned</span>
+                      <span style={{ fontSize: 12, color: T2 }}>No admin assigned</span>
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                    {lOwners.length > 0 && (
-                      <button onClick={() => { setManageOwnerId(l.id); setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}
+                    {lAdmins.length > 0 && (
+                      <button onClick={() => { setManageAdminId(l.id); setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}
                         style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
                         Manage
                       </button>
                     )}
-                    <button onClick={() => { setOwnerModal(l.id); setNewOwner({ email: "", password: "", confirm: "" }); setOwnerError(""); }}
-                      style={{ background: "none", border: `1px solid ${l.color}60`, borderRadius: 6, color: l.color, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
-                      👤 {lOwners.length > 0 ? "Add Another" : "Assign Owner"}
-                    </button>
+                    {(() => {
+                      const hasAdmin = lAdmins.some(u => u.role === "admin");
+                      return (
+                        <button onClick={() => { setNewAdmin({firstName:"",lastName:"",email:"",phone:"",password:"",confirm:""}); setAdminError(""); hasAdmin ? setCoAdminModal(l.id) : setAdminModal(l.id); }}
+                          style={{ background: "none", border: `1px solid ${l.color}60`, borderRadius: 6, color: l.color, padding: "4px 12px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+                          {hasAdmin ? "🤝 + Co-Admin" : "👤 Assign Admin"}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1240,37 +1236,48 @@ function App() {
 
       </div>
 
-      {/* ── ASSIGN OWNER MODAL ── */}
-      {ownerModal && (() => {
-        const lg = leagues.find(l => l.id === ownerModal);
+      {/* ── CREATE ADMIN / CO-ADMIN MODAL (shared) ── */}
+      {(adminModal || coAdminModal) && (() => {
+        const isCoAdmin = !!coAdminModal;
+        const leagueId  = adminModal || coAdminModal;
+        const lg = leagues.find(l => l.id === leagueId);
+        const accentColor = isCoAdmin ? "#f59e0b" : ACC;
         return (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-            <div style={{ width: 460, ...card, padding: 32 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Assign Owner Account</div>
-              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>{lg?.name}</div>
-              <div style={{ fontSize: 12, color: "#22c55e", background: "#22c55e12", border: "1px solid #22c55e30", borderRadius: 8, padding: "10px 14px", marginBottom: 20, lineHeight: 1.6 }}>
+            <div style={{ width: 480, ...card, padding: 32 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 22 }}>{isCoAdmin ? "🤝" : "👤"}</span>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{isCoAdmin ? "Add Co-Admin" : "Assign League Admin"}</div>
+              </div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 6 }}>{lg?.name}</div>
+              <div style={{ fontSize: 12, color: T2, background: accentColor+"15", border: `1px solid ${accentColor}40`, borderRadius: 8, padding: "8px 12px", marginBottom: 20, lineHeight: 1.6 }}>
+                {isCoAdmin
+                  ? "🤝 Co-Admins can manage teams, players and schedule. They cannot change league settings or manage accounts."
+                  : "👤 League Admin has full control of their league. They can also manage co-admins."}
+              </div>
+              <div style={{ fontSize: 12, color: "#22c55e", background: "#22c55e12", border: "1px solid #22c55e30", borderRadius: 8, padding: "8px 12px", marginBottom: 20, lineHeight: 1.6 }}>
                 🔒 Passwords are hashed with SHA-256 before storage — plaintext is never saved.
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div style={{ display: "flex", gap: 12 }}>
-                  <div style={{ flex: 1 }}><label style={lbl}>First Name <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newOwner.firstName} onChange={e=>setNewOwner({...newOwner,firstName:e.target.value})} placeholder="Jean" autoComplete="off" /></div>
-                  <div style={{ flex: 1 }}><label style={lbl}>Last Name <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newOwner.lastName} onChange={e=>setNewOwner({...newOwner,lastName:e.target.value})} placeholder="Tremblay" autoComplete="off" /></div>
+                  <div style={{ flex: 1 }}><label style={lbl}>First Name <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newAdmin.firstName} onChange={e=>setNewAdmin({...newAdmin,firstName:e.target.value})} placeholder="Jean" autoComplete="off" /></div>
+                  <div style={{ flex: 1 }}><label style={lbl}>Last Name <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newAdmin.lastName} onChange={e=>setNewAdmin({...newAdmin,lastName:e.target.value})} placeholder="Tremblay" autoComplete="off" /></div>
                 </div>
-                <div><label style={lbl}>Email <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newOwner.email} onChange={e=>setNewOwner({...newOwner,email:e.target.value})} placeholder="owner@example.com" autoComplete="off" /></div>
+                <div><label style={lbl}>Email <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newAdmin.email} onChange={e=>setNewAdmin({...newAdmin,email:e.target.value})} placeholder="admin@example.com" autoComplete="off" /></div>
                 <div>
                   <label style={lbl}>Phone Number <span style={{color:T2,fontWeight:400}}>(optional)</span></label>
-                  <input style={inp} value={newOwner.phone} onChange={e=>setNewOwner({...newOwner,phone:e.target.value})} placeholder="514-555-0100" autoComplete="off" />
-                  <div style={{fontSize:11,color:T2,marginTop:4}}>🔒 Stored as a SHA-256 hash — only last 4 digits kept readable.</div>
+                  <input style={inp} value={newAdmin.phone} onChange={e=>setNewAdmin({...newAdmin,phone:e.target.value})} placeholder="514-555-0100" autoComplete="off" />
+                  <div style={{fontSize:11,color:T2,marginTop:4}}>🔒 Stored as SHA-256 hash — only last 4 digits kept readable.</div>
                 </div>
                 <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:14}}>
                   <div style={{fontSize:12,color:T2,marginBottom:10}}>Login credentials — minimum 8 characters</div>
                 </div>
-                <div><label style={lbl}>Password <span style={{color:"#ef4444"}}>*</span></label><input type="password" style={inp} value={newOwner.password} onChange={e=>setNewOwner({...newOwner,password:e.target.value})} placeholder="Minimum 8 characters" autoComplete="new-password" /></div>
-                <div><label style={lbl}>Confirm Password <span style={{color:"#ef4444"}}>*</span></label><input type="password" style={inp} value={newOwner.confirm} onChange={e=>setNewOwner({...newOwner,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&createOwner()} placeholder="Repeat password" autoComplete="new-password" /></div>
-                {ownerError && <div style={{ color: "#ef4444", fontSize: 13 }}>{ownerError}</div>}
+                <div><label style={lbl}>Password <span style={{color:"#ef4444"}}>*</span></label><input type="password" style={inp} value={newAdmin.password} onChange={e=>setNewAdmin({...newAdmin,password:e.target.value})} placeholder="Minimum 8 characters" autoComplete="new-password" /></div>
+                <div><label style={lbl}>Confirm Password <span style={{color:"#ef4444"}}>*</span></label><input type="password" style={inp} value={newAdmin.confirm} onChange={e=>setNewAdmin({...newAdmin,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&(isCoAdmin?createCoAdmin():createAdmin())} placeholder="Repeat password" autoComplete="new-password" /></div>
+                {adminError && <div style={{ color: "#ef4444", fontSize: 13 }}>{adminError}</div>}
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1 }} onClick={createOwner}>Create Account</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setOwnerModal(null); setOwnerError(""); }}>Cancel</button>
+                  <button style={{ ...btn(accentColor), flex: 1, ...(isCoAdmin?{color:"#000"}:{}) }} onClick={isCoAdmin ? createCoAdmin : createAdmin}>Create Account</button>
+                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { isCoAdmin ? setCoAdminModal(null) : setAdminModal(null); setAdminError(""); }}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -1284,12 +1291,12 @@ function App() {
           <div style={{ width: 460, ...card, padding: 32 }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>🎉</div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>Owner Account Created</div>
-              <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials with the league owner. Screenshot or copy them now — the password will not be shown again.</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{createdCreds.role === "co-admin" ? "Co-Admin Account Created" : "League Admin Account Created"}</div>
+              <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials now — the password will not be shown again.</div>
             </div>
             <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "20px 22px", marginBottom: 20, fontFamily: "monospace", fontSize: 13 }}>
               {createdCreds.ownerName && <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>OWNER NAME</div>
+                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>{createdCreds.role === "co-admin" ? "CO-ADMIN NAME" : "ADMIN NAME"}</div>
                 <div style={{ color: T1, fontWeight: 700 }}>{createdCreds.ownerName}</div>
               </div>}
               <div style={{ marginBottom: 14 }}>
@@ -1320,55 +1327,72 @@ function App() {
         </div>
       )}
 
-      {/* ── MANAGE OWNERS MODAL ── */}
-      {manageOwnerId && (() => {
-        const lg = leagues.find(l => l.id === manageOwnerId);
-        const ownersForLeague = users.filter(u => u.leagueId === manageOwnerId && u.role === "owner");
+      {/* ── MANAGE LEAGUE USERS MODAL ── */}
+      {manageAdminId && (() => {
+        const lg = leagues.find(l => l.id === manageAdminId);
+        const leagueUsers = users.filter(u => u.leagueId === manageAdminId && (u.role === "admin" || u.role === "co-admin"));
+        const admins   = leagueUsers.filter(u => u.role === "admin");
+        const coAdmins = leagueUsers.filter(u => u.role === "co-admin");
+        const renderUser = (u) => (
+          <div key={u.id} style={{ background: SURF, borderRadius: 10, padding: "16px 18px", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: u.role==="admin"?"#22c55e20":"#f59e0b20", color: u.role==="admin"?"#22c55e":"#f59e0b" }}>
+                    {u.role === "admin" ? "👤 Admin" : "🤝 Co-Admin"}
+                  </span>
+                </div>
+                {u.firstName && <div style={{ fontWeight: 700, fontSize: 14 }}>{u.firstName} {u.lastName}</div>}
+                <div style={{ fontSize: 13, color: T2 }}>{u.email}</div>
+                {u.phoneLast4 && <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>📞 ••••••{u.phoneLast4}</div>}
+                <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Created {u.createdAt}</div>
+              </div>
+              <button onClick={() => setDeleteAdminId(u.id)}
+                style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Remove</button>
+            </div>
+            {resetPwForm.userId === u.id ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.password} onChange={e=>setResetPwForm({...resetPwForm,password:e.target.value})} placeholder="New password" autoComplete="new-password" />
+                <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.confirm} onChange={e=>setResetPwForm({...resetPwForm,confirm:e.target.value})} placeholder="Confirm new password" autoComplete="new-password" />
+                {adminError && <div style={{ color: "#ef4444", fontSize: 12 }}>{adminError}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button style={{ ...btn(), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={resetOwnerPassword}>Save</button>
+                  <button style={{ ...btn("#252540"), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={() => { setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => { setResetPwForm({ userId: u.id, password: "", confirm: "" }); setAdminError(""); }}
+                style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>
+                🔑 Reset Password
+              </button>
+            )}
+          </div>
+        );
         return (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-            <div style={{ width: 480, ...card, padding: 32, maxHeight: "80vh", overflowY: "auto" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Manage Owners</div>
-              <div style={{ fontSize: 13, color: T2, marginBottom: 24 }}>{lg?.name}</div>
-              {ownersForLeague.length === 0 && <div style={{ color: T2, fontSize: 14, marginBottom: 20 }}>No owners assigned yet.</div>}
-              {ownersForLeague.map(owner => (
-                <div key={owner.id} style={{ background: SURF, borderRadius: 10, padding: "16px 18px", marginBottom: 14 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <div>
-                      {owner.firstName && <div style={{ fontWeight: 700, fontSize: 15 }}>{owner.firstName} {owner.lastName}</div>}
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.email}</div>
-                      {owner.phoneLast4 && <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>📞 ••••••{owner.phoneLast4}</div>}
-                      <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Created {owner.createdAt} · ID {owner.id}</div>
-                    </div>
-                    <button onClick={() => setDeleteOwnerId(owner.id)}
-                      style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Delete</button>
-                  </div>
-                  {resetPwForm.userId === owner.id ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.password} onChange={e=>setResetPwForm({...resetPwForm,password:e.target.value})} placeholder="New password" autoComplete="new-password" />
-                      <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.confirm} onChange={e=>setResetPwForm({...resetPwForm,confirm:e.target.value})} placeholder="Confirm new password" autoComplete="new-password" />
-                      {ownerError && <div style={{ color: "#ef4444", fontSize: 12 }}>{ownerError}</div>}
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button style={{ ...btn(), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={resetOwnerPassword}>Save</button>
-                        <button style={{ ...btn("#252540"), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={() => { setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => { setResetPwForm({ userId: owner.id, password: "", confirm: "" }); setOwnerError(""); }}
-                      style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>
-                      🔑 Reset Password
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button style={{ ...btn("#252540"), width: "100%", marginTop: 8 }} onClick={() => { setManageOwnerId(null); setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}>Close</button>
+            <div style={{ width: 500, ...card, padding: 32, maxHeight: "85vh", overflowY: "auto" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Manage League Access</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>{lg?.name}</div>
+              {leagueUsers.length === 0 && <div style={{ color: T2, fontSize: 14, marginBottom: 20 }}>No accounts assigned yet.</div>}
+              {admins.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 10 }}>LEAGUE ADMIN</div>}
+              {admins.map(renderUser)}
+              {coAdmins.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", margin: "16px 0 10px" }}>CO-ADMINS</div>}
+              {coAdmins.map(renderUser)}
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                {admins.length === 0 && (
+                  <button style={{ ...btn(), flex: 1, fontSize: 13 }} onClick={() => { setManageAdminId(null); setAdminModal(manageAdminId); setNewAdmin({firstName:"",lastName:"",email:"",phone:"",password:"",confirm:""}); setAdminError(""); }}>+ Assign Admin</button>
+                )}
+                <button style={{ ...btn("#f59e0b"), flex: 1, fontSize: 13, color: "#000", fontWeight: 700 }} onClick={() => { setManageAdminId(null); setCoAdminModal(manageAdminId); setNewAdmin({firstName:"",lastName:"",email:"",phone:"",password:"",confirm:""}); setAdminError(""); }}>🤝 Add Co-Admin</button>
+                <button style={{ ...btn("#252540"), flex: 1, fontSize: 13 }} onClick={() => { setManageAdminId(null); setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}>Close</button>
+              </div>
             </div>
           </div>
         );
       })()}
 
-      {/* ── DELETE OWNER CONFIRM ── */}
-      {deleteOwnerId && (
-        <ConfirmModal icon="🗑️" title="Delete Owner Account?" body={`This will permanently remove the login credentials for ${users.find(u=>u.id===deleteOwnerId)?.email}. The league data is unaffected.`} confirmLabel="Yes, Delete Account" onConfirm={() => deleteOwner(deleteOwnerId)} onCancel={() => setDeleteOwnerId(null)} />
+      {/* ── DELETE USER CONFIRM ── */}
+      {deleteAdminId && (
+        <ConfirmModal icon="🗑️" title="Remove Account?" body={`This will permanently remove the login credentials for ${users.find(u=>u.id===deleteAdminId)?.email}. League data is unaffected.`} confirmLabel="Yes, Remove" onConfirm={() => deleteLeagueUser(deleteAdminId)} onCancel={() => setDeleteAdminId(null)} />
       )}
 
       {deleteLeagueId && (() => {
@@ -1408,7 +1432,10 @@ function App() {
   if (page === "league" && league) {
     const toggles = getToggles(league);
     const sport = league.sport;
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["settings","⚙️ Settings"]];
+    const isCoAdminUser = user?.role === "co-admin";
+    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],
+      ...(!isCoAdminUser ? [["settings","⚙️ Settings"]] : []),
+    ];
 
     // ── CATEGORY FILTERING ──
     const activeCat = (league.categories || []).find(c => c.id === activeCatId);
@@ -1496,8 +1523,10 @@ function App() {
                 Saved {lastSaved}
               </span>
             )}
-            <span style={{ fontSize: 12, padding: "4px 10px", background: user?.role==="superadmin"?ACC+"20":"#6366f120", borderRadius: 6, fontWeight: 600, color: user?.role==="superadmin"?ACC:"#818cf8" }}>
-              {user?.role==="superadmin"?"Super Admin":"League Owner"}
+            <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, fontWeight: 600,
+              background: user?.role==="superadmin" ? ACC+"20" : user?.role==="admin" ? "#6366f120" : "#f59e0b20",
+              color:      user?.role==="superadmin" ? ACC      : user?.role==="admin" ? "#818cf8"   : "#f59e0b" }}>
+              {user?.role==="superadmin" ? "🔑 Super Admin" : user?.role==="admin" ? "👤 League Admin" : "🤝 Co-Admin"}
             </span>
             <button onClick={handleLogout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
           </div>
