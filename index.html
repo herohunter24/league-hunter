@@ -119,6 +119,8 @@ const lbl = { fontSize: 12, color: T2, fontWeight: 600, display: "block", margin
 // ── MIGRATION: Ensure league has categories array ──
 function migrateLeagueIfNeeded(league) {
   if (!league) return league;
+  // Always ensure required arrays exist (guards against incomplete Firestore docs)
+  league = { ...league, teams: league.teams || [], players: league.players || [], schedule: league.schedule || [], honours: league.honours || {} };
   const hasCats = league.categories && league.categories.length > 0;
   if (hasCats) {
     // Already has categories — just backfill any missing categoryIds
@@ -1181,7 +1183,7 @@ function App() {
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-                    {[["Teams",l.teams.length],["Players",l.players.length],["Games",l.schedule.length]].map(([lbl2,val]) => (
+                    {[["Teams",(l.teams||[]).length],["Players",(l.players||[]).length],["Games",(l.schedule||[]).length]].map(([lbl2,val]) => (
                       <div key={lbl2} style={{ textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 800 }}>{val}</div><div style={{ fontSize: 11, color: T2 }}>{lbl2}</div></div>
                     ))}
                     <div style={{ color: T2, fontSize: 20 }}>›</div>
