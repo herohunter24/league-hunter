@@ -915,10 +915,10 @@ function App() {
     showToast(`Removed ${removed} orphaned player${removed !== 1 ? "s" : ""} from Firestore.`);
   }
   async function addPlayer() {
-    if (!nP.name || !nP.team || !league) { if (!nP.team) showToast("Select a team for this player."); return; }
+    if (!nP.name || !league) { showToast("Enter a player name."); return; }
     const team = league.teams.find(t => t.name === nP.team);
     const catId = team?.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
-    const updated = { ...league, players: [...league.players, { id: Date.now(), ...nP, categoryId: catId, teamId: team?.id }] };
+    const updated = { ...league, players: [...league.players, { id: Date.now(), ...nP, categoryId: catId, teamId: team?.id || null }] };
     await writeLeagueNow(updated);
     setDirty(false);
     setNP({ name: "", team: "", number: "", position: "" });
@@ -1691,13 +1691,12 @@ function App() {
                   <input style={{ ...inp, flex: 0.5, minWidth: 64 }} value={nP.number} onChange={e=>setNP({...nP,number:e.target.value})} placeholder="#" />
                   <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nP.position} onChange={e=>setNP({...nP,position:e.target.value})} placeholder={sport==="Hockey"?"Center / Goalie":"Guard / Forward"} />
                   <select style={{ ...inp, flex: 1, minWidth: 130 }} value={nP.team} onChange={e=>setNP({...nP,team:e.target.value})}>
-                    <option value="">Select team</option>
+                    <option value="">🆓 Free Agent (no team)</option>
                     {catTeams.map(t => <option key={t.id}>{t.name}</option>)}
                   </select>
                   <button style={btn(LC)} onClick={addPlayer}>Add Player</button>
                 </div>
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
-                {catTeams.length === 0 && <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 10 }}>⚠️ Add a team in this category first before adding players.</div>}
               </div>
               {catPlayers.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players in this category yet.</div> :
                 catTeams.map(t => {
@@ -1734,6 +1733,48 @@ function App() {
                   );
                 })
               }
+              {/* ── FREE AGENTS ── */}
+              {(() => {
+                const freeAgents = catPlayers.filter(p => !p.team || p.team === "");
+                if (!freeAgents.length) return null;
+                return (
+                  <div style={{ marginTop: 28 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T2 }}>🆓 FREE AGENTS</span>
+                      <span style={{ fontSize: 11, background: LC+"22", color: LC, borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{freeAgents.length}</span>
+                    </div>
+                    {freeAgents.map(p => (
+                      <div key={p.id} style={{ ...card, marginBottom: 8, borderLeft: `3px solid ${LC}55` }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, background: LC+"22", border:`1px solid ${LC}50`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: LC }}>#{p.number || "—"}</div>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{p.name}</div>
+                              <div style={{ fontSize: 12, color: T2 }}>{p.position || "—"} · <span style={{ color: LC, fontWeight: 600 }}>Free Agent</span></div>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <select style={{ ...inp, width: "auto", fontSize: 12, padding: "5px 10px" }}
+                              value=""
+                              onChange={async e => {
+                                if (!e.target.value) return;
+                                const updatedPlayers = league.players.map(pl =>
+                                  pl.id === p.id ? { ...pl, team: e.target.value, teamId: league.teams.find(t=>t.name===e.target.value)?.id || null } : pl
+                                );
+                                await writeLeagueNow({ ...league, players: updatedPlayers });
+                                setDirty(false);
+                              }}>
+                              <option value="">Assign team…</option>
+                              {catTeams.map(t => <option key={t.id} value={t.name}>{t.emoji} {t.name}</option>)}
+                            </select>
+                            <button onClick={() => delPlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
