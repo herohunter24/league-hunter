@@ -782,13 +782,12 @@ function App() {
     if (fresh.find(u => u.email === e.trim())) { setAdminError("An account with that email already exists."); return; }
     const lg = leagues.find(l => l.id === leagueId);
     const hashedPw = await hashPassword(p);
-    const hashedPhone = ph.trim() ? await hashPassword(phoneClean) : "";
+
     const newUser = {
       id: "user_" + Date.now(),
       firstName: fn.trim(), lastName: ln.trim(),
       email: e.trim(),
-      phoneHash: hashedPhone,
-      phoneLast4: phoneClean.length >= 4 ? phoneClean.slice(-4) : "",
+      phone: ph.trim(),
       password: hashedPw,
       role,
       leagueId,
@@ -1267,7 +1266,7 @@ function App() {
                 <div>
                   <label style={lbl}>Phone Number <span style={{color:T2,fontWeight:400}}>(optional)</span></label>
                   <input style={inp} value={newAdmin.phone} onChange={e=>setNewAdmin({...newAdmin,phone:e.target.value})} placeholder="514-555-0100" autoComplete="off" />
-                  <div style={{fontSize:11,color:T2,marginTop:4}}>🔒 Stored as SHA-256 hash — only last 4 digits kept readable.</div>
+                  <div style={{fontSize:11,color:T2,marginTop:4}}>Visible to Super Admin only.</div>
                 </div>
                 <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:14}}>
                   <div style={{fontSize:12,color:T2,marginBottom:10}}>Login credentials — minimum 8 characters</div>
@@ -1344,7 +1343,7 @@ function App() {
                 </div>
                 {u.firstName && <div style={{ fontWeight: 700, fontSize: 14 }}>{u.firstName} {u.lastName}</div>}
                 <div style={{ fontSize: 13, color: T2 }}>{u.email}</div>
-                {u.phoneLast4 && <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>📞 ••••••{u.phoneLast4}</div>}
+                {(u.phone || u.phoneLast4) && <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>📞 {u.phone || `••••••${u.phoneLast4}`}</div>}
                 <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Created {u.createdAt}</div>
               </div>
               <button onClick={() => setDeleteAdminId(u.id)}
