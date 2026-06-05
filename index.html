@@ -198,6 +198,13 @@ function fmtAvg(val, gp) {
   return (val / gp).toFixed(2);
 }
 
+function getDefaultPlayerFields() {
+  return { height: false, weight: false, dob: false, photo: false, handedness: false, hometown: false, jersey: false };
+}
+function getPlayerFields(league) {
+  return { ...getDefaultPlayerFields(), ...(league.playerFields || {}) };
+}
+
 function getDefaultToggles(sport) {
   if (sport === "Hockey")     return { goals: true, assists: true, points: true, goalieStats: true };
   if (sport === "Basketball") return { points: true, assists: true, rebounds: true, blocks: true, steals: true };
@@ -453,7 +460,7 @@ function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [nL, setNL] = useState({ name: "", abbrev: "", sport: "Basketball", city: "", province: "Québec", country: "Canada", domain: "", color: "#6366f1" });
   const [nT, setNT] = useState({ name: "", emoji: "⭐" });
-  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "" });
+  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "", height: "", weight: "", dob: "", handedness: "", hometown: "", photo: "" });
   const [nG, setNG] = useState({ date: "", home: "", away: "", time: "", venue: "" });
   const [nS, setNS] = useState({ gameId: "", homeScore: "", awayScore: "" });
   const [nPS, setNPS] = useState({});
@@ -495,7 +502,7 @@ function App() {
   // Reset add-forms when switching tabs so stale input doesn't persist
   useEffect(() => {
     setNT({ name: "", emoji: "⭐", categoryId: "" });
-    setNP({ name: "", team: "", number: "", position: "" });
+    setNP({ name: "", team: "", number: "", position: "", height: "", weight: "", dob: "", handedness: "", hometown: "", photo: "" });
     setNG({ date: "", home: "", away: "", time: "", venue: "" });
   }, [tab]);
 
@@ -921,7 +928,7 @@ function App() {
     const updated = { ...league, players: [...league.players, { id: Date.now(), ...nP, categoryId: catId, teamId: team?.id || null }] };
     await writeLeagueNow(updated);
     setDirty(false);
-    setNP({ name: "", team: "", number: "", position: "" });
+    setNP({ name: "", team: "", number: "", position: "", height: "", weight: "", dob: "", handedness: "", hometown: "", photo: "" });
   }
   async function delPlayer(id) {
     if (!league) return;
@@ -1065,6 +1072,13 @@ function App() {
   async function setToggle(key, val) {
     if (!league) return;
     const updated = { ...league, statToggles: { ...getToggles(league), [key]: val } };
+    await writeLeagueNow(updated);
+    setDirty(false);
+  }
+
+  async function setPlayerField(key, val) {
+    if (!league) return;
+    const updated = { ...league, playerFields: { ...getPlayerFields(league), [key]: val } };
     await writeLeagueNow(updated);
     setDirty(false);
   }
@@ -1492,6 +1506,7 @@ function App() {
   if (page === "league" && league) {
     const LC = league.color || "#111111"; // league accent color
     const toggles = getToggles(league);
+    const pFields = getPlayerFields(league);
     const sport = league.sport;
     const isCoAdminUser = user?.role === "co-admin";
     const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule & Scores"],["stats","📊 Stats"],
@@ -1710,6 +1725,20 @@ function App() {
                   </select>
                   <button style={btn(LC)} onClick={addPlayer}>Add Player</button>
                 </div>
+                {/* Optional profile fields (enabled in Settings) */}
+                {Object.values(pFields).some(v=>v) && (
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+                    {pFields.dob      && <div style={{ flex: 1, minWidth: 140 }}><label style={lbl}>Date of Birth</label><input type="date" style={inp} value={nP.dob} onChange={e=>setNP({...nP,dob:e.target.value})} /></div>}
+                    {pFields.height   && <div style={{ flex: 1, minWidth: 120 }}><label style={lbl}>Height (cm)</label><input type="number" style={inp} value={nP.height} onChange={e=>setNP({...nP,height:e.target.value})} placeholder="e.g. 183" /></div>}
+                    {pFields.weight   && <div style={{ flex: 1, minWidth: 120 }}><label style={lbl}>Weight (lbs)</label><input type="number" style={inp} value={nP.weight} onChange={e=>setNP({...nP,weight:e.target.value})} placeholder="e.g. 185" /></div>}
+                    {pFields.handedness && <div style={{ flex: 1, minWidth: 130 }}><label style={lbl}>Handedness</label>
+                      <select style={inp} value={nP.handedness} onChange={e=>setNP({...nP,handedness:e.target.value})}>
+                        <option value="">—</option><option>Right</option><option>Left</option><option>Switch</option>
+                      </select></div>}
+                    {pFields.hometown && <div style={{ flex: 2, minWidth: 160 }}><label style={lbl}>Hometown / City</label><input style={inp} value={nP.hometown} onChange={e=>setNP({...nP,hometown:e.target.value})} placeholder="e.g. Montréal, QC" /></div>}
+                    {pFields.photo    && <div style={{ flex: 2, minWidth: 200 }}><label style={lbl}>Photo URL</label><input style={inp} value={nP.photo} onChange={e=>setNP({...nP,photo:e.target.value})} placeholder="https://…" /></div>}
+                  </div>
+                )}
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
               </div>
               {catPlayers.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players in this category yet.</div> :
@@ -1725,8 +1754,21 @@ function App() {
                           <div key={p.id} style={{ ...card, marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                                <div style={{ width: 40, height: 40, borderRadius: 8, background: LC+"22", border:`1px solid ${LC}50`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: LC }}>#{p.number}</div>
-                                <div><div style={{ fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 12, color: T2 }}>{p.position}{isGoalie(p)?" 🥅":""}</div></div>
+                                {pFields.photo && p.photo
+                                  ? <img src={p.photo} alt={p.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", border: `1px solid ${LC}50` }} onError={e=>e.target.style.display="none"} />
+                                  : <div style={{ width: 40, height: 40, borderRadius: 8, background: LC+"22", border:`1px solid ${LC}50`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: LC }}>#{p.number}</div>
+                                }
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{p.name}</div>
+                                  <div style={{ fontSize: 12, color: T2, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                    {p.position && <span>{p.position}{isGoalie(p)?" 🥅":""}</span>}
+                                    {pFields.dob && p.dob && <span>Age {Math.floor((new Date()-new Date(p.dob))/(365.25*24*3600*1000))}</span>}
+                                    {pFields.height && p.height && <span>{p.height} cm</span>}
+                                    {pFields.weight && p.weight && <span>{p.weight} lbs</span>}
+                                    {pFields.handedness && p.handedness && <span>{p.handedness}</span>}
+                                    {pFields.hometown && p.hometown && <span>📍 {p.hometown}</span>}
+                                  </div>
+                                </div>
                               </div>
                               <button onClick={() => delPlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
                             </div>
@@ -2221,6 +2263,33 @@ function App() {
                   {sport!=="Hockey" && sport!=="Basketball" && (
                     <div style={{ padding: "20px 0", color: T2, fontSize: 14 }}>No configurable stat categories for {sport} yet.</div>
                   )}
+                </div>
+              </div>
+
+              {/* ── PLAYER PROFILE FIELDS ── */}
+              <div style={{ ...card, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Player Profile Fields</div>
+                <div style={{ fontSize: 12, color: T2, marginBottom: 18, lineHeight: 1.6 }}>Enable extra fields to collect for each player. Active fields appear in the Add Player form and on player cards.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {[
+                    { key: "dob",        label: "Date of Birth", desc: "Automatically calculates and displays player age",          icon: "🎂", color: "#f97316" },
+                    { key: "height",     label: "Height",        desc: "Player height in centimetres (cm)",                         icon: "📏", color: "#38bdf8" },
+                    { key: "weight",     label: "Weight",        desc: "Player weight in pounds (lbs)",                             icon: "⚖️", color: "#a78bfa" },
+                    { key: "handedness", label: "Handedness",    desc: "Shooting/throwing hand — Right, Left, or Switch",           icon: "🤚", color: "#22c55e" },
+                    { key: "hometown",   label: "Hometown / City", desc: "Player's city or region of origin",                      icon: "📍", color: "#f472b6" },
+                    { key: "photo",      label: "Photo (URL)",   desc: "Link to a profile picture — displays on player cards",      icon: "📸", color: LC },
+                  ].map(({ key, label, desc, icon, color }, i, arr) => (
+                    <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "15px 0", borderBottom: i < arr.length-1 ? `1px solid ${BORDER}` : "none" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 20, width: 28 }}>{icon}</span>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: pFields[key] ? T1 : T2 }}>{label}</div>
+                          <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>{desc}</div>
+                        </div>
+                      </div>
+                      <Toggle on={pFields[key]} onChange={() => setPlayerField(key, !pFields[key])} />
+                    </div>
+                  ))}
                 </div>
               </div>
 
