@@ -49,7 +49,7 @@
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #060608; font-family: 'Barlow', 'Segoe UI', system-ui, sans-serif; }
+  body { background: #f4f4f4; font-family: 'Barlow', 'Segoe UI', system-ui, sans-serif; }
   input, select, button { font-family: inherit; }
   .wx-logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; letter-spacing: -1px; }
   .wx-heading { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; }
@@ -112,12 +112,12 @@ const DEMO_LEAGUES = [
   },
 ];
 
-const BG = "#060608", SURF = "#0d0d10", CARD = "#111115", BORDER = "#1e1e26";
-const ACC = "#f97316", T1 = "#f0f0f8", T2 = "#5a5a7a";
+const BG = "#f4f4f4", SURF = "#ffffff", CARD = "#ffffff", BORDER = "#e0e0e0";
+const ACC = "#f97316", T1 = "#0a0a0a", T2 = "#888888";
 
-const inp = { background: "#0a0a0e", border: `1px solid ${BORDER}`, borderRadius: 4, color: T1, padding: "11px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
-const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 4, color: bg === ACC ? "#000" : "#fff", padding: "11px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", letterSpacing: "0.04em", textTransform: "uppercase", fontFamily: "inherit" });
-const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "20px 24px" };
+const inp = { background: "#f9f9f9", border: `1.5px solid #d0d0d0`, borderRadius: 4, color: T1, padding: "11px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 4, color: "#fff", padding: "11px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", letterSpacing: "0.04em", textTransform: "uppercase", fontFamily: "inherit" });
+const card = { background: CARD, border: `1.5px solid ${BORDER}`, borderRadius: 6, padding: "20px 24px" };
 const lbl = { fontSize: 11, color: T2, fontWeight: 700, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Barlow Condensed', sans-serif" };
 
 // ── HELPERS ──
@@ -418,7 +418,7 @@ function ConfirmModal({ icon, title, body, confirmLabel, onConfirm, onCancel }) 
         <div style={{ fontSize: 14, color: T2, marginBottom: 24 }}>{body}</div>
         <div style={{ display: "flex", gap: 12 }}>
           <button style={{ ...btn("#ef4444"), flex: 1 }} onClick={onConfirm}>{confirmLabel || "Confirm"}</button>
-          <button style={{ ...btn("#252540"), flex: 1 }} onClick={onCancel}>Cancel</button>
+          <button style={{ ...btn("#333333"), flex: 1 }} onClick={onCancel}>Cancel</button>
         </div>
       </div>
     </div>
@@ -1106,25 +1106,25 @@ function App() {
 
   // ── LOGIN ──
   if (page === "login") return (
-    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, #f9731615 0%, transparent 70%)" }}>
-      <div style={{ width: 400, padding: "44px 40px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, #f9731610 0%, transparent 70%)" }}>
+      <div style={{ width: 400, padding: "44px 40px", background: CARD, border: `1.5px solid ${BORDER}`, borderRadius: 8, boxShadow: "0 4px 32px #00000014" }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <div className="wx-logo" style={{ fontSize: 42, color: ACC }}>WEBSITE X</div>
           <div style={{ fontSize: 11, color: T2, marginTop: 8, letterSpacing: "0.2em", textTransform: "uppercase" }}>Admin Control Center</div>
         </div>
         {__fbUncfg && (
-          <div style={{ background: "#ef444412", border: "1px solid #ef444430", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
+          <div style={{ background: "#ef444408", border: "1px solid #ef444430", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#dc2626", lineHeight: 1.6 }}>
             🔴 <strong>Firebase not configured.</strong> Replace the <code>REPLACE_ME</code> values in the Firebase config. Data is saving to localStorage only.
           </div>
         )}
         {fbError && (
-          <div style={{ background: "#f59e0b12", border: "1px solid #f59e0b30", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#f59e0b", lineHeight: 1.6 }}>
+          <div style={{ background: "#f59e0b08", border: "1px solid #f59e0b40", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#b45309", lineHeight: 1.6 }}>
             ⚠️ {fbError}
           </div>
         )}
         {__fbReady && !fbError && (
-          <div style={{ background: "#22c55e12", border: "1px solid #22c55e30", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#22c55e", lineHeight: 1.6 }}>
+          <div style={{ background: "#22c55e08", border: "1px solid #22c55e40", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#15803d", lineHeight: 1.6 }}>
             🟢 <strong>Firebase connected.</strong> Real-time sync active.
           </div>
         )}
@@ -1146,30 +1146,30 @@ function App() {
   if (page === "dashboard") return (
     <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
       {/* NAV BAR */}
-      <div style={{ background: "#0a0a0d", borderBottom: `2px solid ${ACC}`, padding: "0 36px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-        <div className="wx-logo" style={{ fontSize: 28, color: ACC }}>WEBSITE X</div>
+      <div style={{ background: "#111111", borderBottom: `3px solid ${ACC}`, padding: "0 36px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+        <div className="wx-logo" style={{ fontSize: 28, color: "#ffffff" }}>WEBSITE X</div>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <span style={{ fontSize: 11, padding: "4px 12px", background: ACC+"18", border: `1px solid ${ACC}40`, borderRadius: 3, fontWeight: 700, color: ACC, letterSpacing: "0.1em" }}>
+          <span style={{ fontSize: 11, padding: "4px 12px", background: ACC, borderRadius: 3, fontWeight: 700, color: "#fff", letterSpacing: "0.1em" }}>
             🔑 SUPER ADMIN
           </span>
-          <span style={{ fontSize: 12, color: T2 }}>{user?.email || ""}</span>
-          <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "7px 16px", fontSize: 12, cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" }}>Logout</button>
+          <span style={{ fontSize: 12, color: "#aaaaaa" }}>{user?.email || ""}</span>
+          <button onClick={logout} style={{ background: "none", border: `1px solid #444`, borderRadius: 4, color: "#aaaaaa", padding: "7px 16px", fontSize: 11, cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" }}>Logout</button>
         </div>
       </div>
       {/* HERO STRIP */}
-      <div style={{ background: "linear-gradient(135deg, #0f0f12 0%, #111115 100%)", borderBottom: `1px solid ${BORDER}`, padding: "28px 36px 24px" }}>
+      <div style={{ background: "#ffffff", borderBottom: `1px solid ${BORDER}`, padding: "28px 36px 24px" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
-          <div className="wx-heading" style={{ fontSize: 32, color: T1, marginBottom: 4 }}>LEAGUE NETWORK</div>
+          <div className="wx-heading" style={{ fontSize: 32, color: "#111111", marginBottom: 4 }}>LEAGUE NETWORK</div>
           <div style={{ fontSize: 13, color: T2, letterSpacing: "0.04em" }}>Command Center · All Leagues</div>
         </div>
       </div>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
         {/* STAT STRIP */}
-        <div style={{ display: "flex", gap: 2, marginBottom: 36, background: SURF, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: "hidden" }}>
+        <div style={{ display: "flex", gap: 0, marginBottom: 36, background: "#111111", border: `1.5px solid #111111`, borderRadius: 6, overflow: "hidden" }}>
           {[["LEAGUES",leagues.length],["TEAMS",leagues.reduce((a,l)=>a+(l.teams||[]).length,0)],["PLAYERS",leagues.reduce((a,l)=>a+(l.players||[]).length,0)],["GAMES",leagues.reduce((a,l)=>a+(l.schedule||[]).length,0)]].map(([label,val], i, arr) => (
-            <div key={label} style={{ flex: 1, textAlign: "center", padding: "20px 12px", borderRight: i < arr.length-1 ? `1px solid ${BORDER}` : "none" }}>
-              <div className="wx-heading" style={{ fontSize: 36, color: ACC, lineHeight: 1 }}>{val}</div>
-              <div className="wx-label" style={{ color: T2, marginTop: 6 }}>{label}</div>
+            <div key={label} style={{ flex: 1, textAlign: "center", padding: "20px 12px", borderRight: i < arr.length-1 ? `1px solid #333` : "none" }}>
+              <div className="wx-heading" style={{ fontSize: 36, color: "#ffffff", lineHeight: 1 }}>{val}</div>
+              <div className="wx-label" style={{ color: "#888888", marginTop: 6 }}>{label}</div>
             </div>
           ))}
         </div>
@@ -1190,9 +1190,9 @@ function App() {
           {visibleLeagues.map(l => {
             const lAdmins = users.filter(u => u.leagueId === l.id && (u.role === "admin" || u.role === "co-admin"));
             return (
-              <div key={l.id} style={{ ...card, borderRadius: 6, transition: "all 0.15s", borderLeft: `3px solid ${l.color}` }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor=l.color; e.currentTarget.style.background="#141418"; }}
-                onMouseLeave={e => { e.currentTarget.style.background=CARD; e.currentTarget.style.borderColor=l.color; }}>
+              <div key={l.id} style={{ ...card, borderRadius: 6, transition: "all 0.15s", borderLeft: `4px solid ${l.color}` }}
+                onMouseEnter={e => { e.currentTarget.style.background="#f9f9f9"; e.currentTarget.style.boxShadow="0 2px 16px #00000010"; }}
+                onMouseLeave={e => { e.currentTarget.style.background=CARD; e.currentTarget.style.boxShadow="none"; }}>
                 {/* Clickable main row */}
                 <div onClick={() => { setSelId(l.id); setPage("league"); setTab("teams"); }}
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
@@ -1294,7 +1294,7 @@ function App() {
                 {adminError && <div style={{ color: "#ef4444", fontSize: 13 }}>{adminError}</div>}
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                   <button style={{ ...btn(accentColor), flex: 1, ...(isCoAdmin?{color:"#000"}:{}) }} onClick={isCoAdmin ? createCoAdmin : createAdmin}>Create Account</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { isCoAdmin ? setCoAdminModal(null) : setAdminModal(null); setAdminError(""); }}>Cancel</button>
+                  <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => { isCoAdmin ? setCoAdminModal(null) : setAdminModal(null); setAdminError(""); }}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -1334,7 +1334,7 @@ function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
-              <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => {
+              <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => {
                 const txt = `${createdCreds.ownerName ? "Owner: "+createdCreds.ownerName+"\n" : ""}Login: ${window.location.href}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nLeague: ${createdCreds.leagueName}`;
                 navigator.clipboard.writeText(txt).then(() => showToast("Credentials copied!")).catch(() => showToast("Copy failed."));
               }}>📋 Copy All</button>
@@ -1374,7 +1374,7 @@ function App() {
                 {adminError && <div style={{ color: "#ef4444", fontSize: 12 }}>{adminError}</div>}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button style={{ ...btn(), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={resetOwnerPassword}>Save</button>
-                  <button style={{ ...btn("#252540"), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={() => { setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}>Cancel</button>
+                  <button style={{ ...btn("#333333"), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={() => { setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}>Cancel</button>
                 </div>
               </div>
             ) : (
@@ -1400,7 +1400,7 @@ function App() {
                   <button style={{ ...btn(), flex: 1, fontSize: 13 }} onClick={() => { setManageAdminId(null); setAdminModal(manageAdminId); setNewAdmin({firstName:"",lastName:"",email:"",phone:"",password:"",confirm:""}); setAdminError(""); }}>+ Assign Admin</button>
                 )}
                 <button style={{ ...btn("#f59e0b"), flex: 1, fontSize: 13, color: "#000", fontWeight: 700 }} onClick={() => { setManageAdminId(null); setCoAdminModal(manageAdminId); setNewAdmin({firstName:"",lastName:"",email:"",phone:"",password:"",confirm:""}); setAdminError(""); }}>🤝 Add Co-Admin</button>
-                <button style={{ ...btn("#252540"), flex: 1, fontSize: 13 }} onClick={() => { setManageAdminId(null); setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}>Close</button>
+                <button style={{ ...btn("#333333"), flex: 1, fontSize: 13 }} onClick={() => { setManageAdminId(null); setResetPwForm({ userId: null, password: "", confirm: "" }); setAdminError(""); }}>Close</button>
               </div>
             </div>
           </div>
@@ -1436,7 +1436,7 @@ function App() {
               </div>
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                 <button style={{ ...btn(), flex: 1 }} onClick={addLeague}>Create League</button>
-                <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setShowAdd(false)}>Cancel</button>
+                <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => setShowAdd(false)}>Cancel</button>
               </div>
             </div>
           </div>
@@ -1526,12 +1526,12 @@ function App() {
       <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
 
         {/* HEADER */}
-        <div style={{ background: "#0a0a0d", borderBottom: `2px solid ${ACC}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+        <div style={{ background: "#111111", borderBottom: `3px solid ${ACC}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "7px 14px", fontSize: 11, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>← {user?.role==="superadmin" ? "Dashboard" : "Logout"}</button>
-            <div style={{ width: 1, height: 28, background: BORDER }} />
-            <div className="wx-logo" style={{ fontSize: 24, color: ACC }}>WEBSITE X</div>
-            <div style={{ fontSize: 13, color: T2 }}>/ <span style={{ color: T1, fontWeight: 600 }}>{league.name}</span></div>
+            <button onClick={handleBack} style={{ background: "none", border: `1px solid #444`, borderRadius: 4, color: "#aaa", padding: "7px 14px", fontSize: 11, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>← {user?.role==="superadmin" ? "Dashboard" : "Logout"}</button>
+            <div style={{ width: 1, height: 28, background: "#333" }} />
+            <div className="wx-logo" style={{ fontSize: 24, color: "#ffffff" }}>WEBSITE X</div>
+            <div style={{ fontSize: 13, color: "#888" }}>/ <span style={{ color: "#ffffff", fontWeight: 600 }}>{league.name}</span></div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {lastSaved && !dirty && (
@@ -1541,12 +1541,11 @@ function App() {
               </span>
             )}
             <span style={{ fontSize: 11, padding: "4px 12px", borderRadius: 3, fontWeight: 700, letterSpacing: "0.1em",
-              background: user?.role==="superadmin" ? ACC+"18" : user?.role==="admin" ? "#6366f118" : "#f59e0b18",
-              border: `1px solid ${user?.role==="superadmin" ? ACC+"40" : user?.role==="admin" ? "#6366f140" : "#f59e0b40"}`,
-              color:      user?.role==="superadmin" ? ACC      : user?.role==="admin" ? "#818cf8"   : "#f59e0b" }}>
+              background: user?.role==="superadmin" ? ACC : user?.role==="admin" ? "#111111" : "#555555",
+              color: "#ffffff" }}>
               {user?.role==="superadmin" ? "🔑 SUPER ADMIN" : user?.role==="admin" ? "👤 LEAGUE ADMIN" : "🤝 CO-ADMIN"}
             </span>
-            <button onClick={handleLogout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "7px 14px", fontSize: 11, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>Logout</button>
+            <button onClick={handleLogout} style={{ background: "none", border: `1px solid #444`, borderRadius: 4, color: "#aaa", padding: "7px 14px", fontSize: 11, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>Logout</button>
           </div>
         </div>
 
@@ -1554,7 +1553,7 @@ function App() {
         {(league.categories || []).length > 0 && (() => {
           const cats = league.categories;
           return (
-            <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}` }}>
+            <div style={{ background: "#f4f4f4", borderBottom: `1px solid ${BORDER}` }}>
               {/* Mobile: dropdown */}
               <div className="cat-select-row">
                 <select style={{ ...inp, width: "100%" }} value={activeCatId || ""} onChange={e => setActiveCatId(e.target.value)}>
@@ -1586,7 +1585,7 @@ function App() {
         })()}
 
         {/* TAB BAR */}
-        <div style={{ background: "#0d0d10", borderBottom: `1px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
+        <div style={{ background: "#ffffff", borderBottom: `1.5px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
           {TABS.map(([t,label]) => (
             <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "18px 22px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", letterSpacing: "0.08em", fontFamily: "'Barlow Condensed', sans-serif", color: tab===t ? ACC : T2, borderBottom: tab===t ? `2px solid ${ACC}` : "2px solid transparent", transition: "color 0.15s" }}>{label}</button>
           ))}
@@ -2359,8 +2358,8 @@ service cloud.firestore {
 
                     {/* Action buttons */}
                     <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-                      <button onClick={copyPublicSnippet} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>📋 Copy Public Site Snippet</button>
-                      <button onClick={forceSync} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>⚡ Force Sync</button>
+                      <button onClick={copyPublicSnippet} style={{ ...btn("#333333"), fontSize: 13, padding: "9px 16px" }}>📋 Copy Public Site Snippet</button>
+                      <button onClick={forceSync} style={{ ...btn("#333333"), fontSize: 13, padding: "9px 16px" }}>⚡ Force Sync</button>
                     </div>
                     {lastUpdated && <div style={{ fontSize: 11, color: T2, marginTop: -14, marginBottom: 16 }}>Last sync: {new Date(parseInt(lastUpdated)).toLocaleTimeString()}</div>}
 
@@ -2394,12 +2393,12 @@ service cloud.firestore {
                       <div style={{ marginBottom: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b", marginBottom: 6 }}>Dev rules (open access — for testing only):</div>
                         <pre style={{ background: "#0a0a18", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "#a0a0c8", fontFamily: "monospace", whiteSpace: "pre-wrap", margin: 0, overflowX: "auto" }}>{devRules}</pre>
-                        <button onClick={() => navigator.clipboard.writeText(devRules).then(()=>showToast("Dev rules copied!")).catch(()=>{})} style={{ ...btn("#252540"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Dev Rules</button>
+                        <button onClick={() => navigator.clipboard.writeText(devRules).then(()=>showToast("Dev rules copied!")).catch(()=>{})} style={{ ...btn("#333333"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Dev Rules</button>
                       </div>
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: "#22c55e", marginBottom: 6 }}>Production rules (read-only for public, no user data exposed):</div>
                         <pre style={{ background: "#0a0a18", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "#a0a0c8", fontFamily: "monospace", whiteSpace: "pre-wrap", margin: 0, overflowX: "auto" }}>{prodRules}</pre>
-                        <button onClick={() => navigator.clipboard.writeText(prodRules).then(()=>showToast("Prod rules copied!")).catch(()=>{})} style={{ ...btn("#252540"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Prod Rules</button>
+                        <button onClick={() => navigator.clipboard.writeText(prodRules).then(()=>showToast("Prod rules copied!")).catch(()=>{})} style={{ ...btn("#333333"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Prod Rules</button>
                       </div>
                     </div>
                   </div>
@@ -2476,7 +2475,7 @@ service cloud.firestore {
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                   <button style={{ ...btn(), flex: 1 }} onClick={saveEditGame}>Save Changes</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditGame(null)}>Cancel</button>
+                  <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => setEditGame(null)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -2501,7 +2500,7 @@ service cloud.firestore {
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
                   <button style={{ ...btn(), flex: 1 }} onClick={saveEditScore}>Save Score</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditScore(null)}>Cancel</button>
+                  <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => setEditScore(null)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -2571,7 +2570,7 @@ service cloud.firestore {
                 {/* Footer */}
                 <div style={{ padding: "16px 28px 24px", borderTop: `1px solid ${BORDER}`, flexShrink: 0, display: "flex", gap: 12 }}>
                   <button style={{ ...btn(), flex: 1, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={saveStats}>{saving ? "Saving…" : "Save Stats"}</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditStats(null)}>Cancel</button>
+                  <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => setEditStats(null)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -2587,7 +2586,7 @@ service cloud.firestore {
               <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>Are you sure you want to apply these changes?<br/>This will update the live league data.</div>
               <div style={{ display: "flex", gap: 12 }}>
                 <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={confirmSave}>Confirm Save</button>
-                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingSave(false)}>Cancel</button>
+                <button style={{ ...btn("#333333"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingSave(false)}>Cancel</button>
               </div>
             </div>
           </div>
@@ -2625,7 +2624,7 @@ service cloud.firestore {
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                   <button style={{ ...btn(), flex: 1, opacity: (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) ? 0.45 : 1 }} onClick={addCategory}>Add Category</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "U15", gender: "Masculine", customAge: "" }); }}>Cancel</button>
+                  <button style={{ ...btn("#333333"), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "U15", gender: "Masculine", customAge: "" }); }}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -2658,7 +2657,7 @@ service cloud.firestore {
               <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 10 }}>Unsaved Changes</div>
               <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>You have unsaved changes. Leaving without saving will discard all edits made on this tab.</div>
               <div style={{ display: "flex", gap: 12 }}>
-                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingNavTab(null)}>Stay</button>
+                <button style={{ ...btn("#333333"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingNavTab(null)}>Stay</button>
                 <button style={{ ...btn("#ef4444"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={leaveWithoutSaving}>Leave Without Saving</button>
               </div>
             </div>
