@@ -66,8 +66,15 @@ const __fbCfg   = window.__wxFirebaseConfig        || null;
 const _db       = window.__wxDB                    || null;
 const _FS       = window.__wxFS                    || {};
 
+// ── SHA-256 helper ──
+async function sha256(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ── SUPER ADMIN (hardcoded, never stored in localStorage) ──
-const SUPERADMIN = { email: "leaguehunter.project@gmail.com", password: "LeagueX#2025!", role: "superadmin" };
+const SUPERADMIN_EMAIL = "leaguehunter.project@gmail.com";
+const SUPERADMIN_HASH  = "d634298ea22b3f0870de6026bf0292c5a15a2a44bd0cede09131cd4b0579e77d";
 
 // ── DYNAMIC OWNER ACCOUNTS (localStorage key: wxusers) ──
 function loadUsers() {
@@ -142,6 +149,18 @@ function initNPS(players, sport) {
     }
   });
   return s;
+}
+
+// ── SCHEDULE HELPERS ──
+const MONTHS_FR = ["JANVIER","FÉVRIER","MARS","AVRIL","MAI","JUIN","JUILLET","AOÛT","SEPTEMBRE","OCTOBRE","NOVEMBRE","DÉCEMBRE"];
+const DAYS_FR   = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+
+// ── PLAYER FIELDS HELPERS ──
+function getDefaultPlayerFields() {
+  return { height: false, weight: false, dob: false, photo: false, handedness: false, hometown: false, jersey: true };
+}
+function getPlayerFields(league) {
+  return { ...getDefaultPlayerFields(), ...(league.playerFields || {}) };
 }
 
 // ── TOGGLE SWITCH ──
@@ -336,7 +355,9 @@ function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [nL, setNL] = useState({ name: "", sport: "Basketball", domain: "", color: "#6366f1" });
   const [nT, setNT] = useState({ name: "", emoji: "⭐" });
-  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "" });
+  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "", height: "", weight: "", dob: "", handedness: "", hometown: "", photo: "" });
+  const [deleteTeamId, setDeleteTeamId] = useState(null);
+  const [deleteLeagueId, setDeleteLeagueId] = useState(null);
   const [nG, setNG] = useState({ date: "", home: "", away: "", time: "", venue: "" });
   const [nS, setNS] = useState({ gameId: "", homeScore: "", awayScore: "" });
   const [nPS, setNPS] = useState({});
@@ -405,8 +426,9 @@ function App() {
   const league = leagues.find(l => l.id === selId);
 
   async function login() {
-    if (email === SUPERADMIN.email && pass === SUPERADMIN.password) {
-      setUser(SUPERADMIN); setErr(""); setPage("dashboard"); return;
+    const passHash = await sha256(pass);
+    if (email === SUPERADMIN_EMAIL && passHash === SUPERADMIN_HASH) {
+      setUser({ email: SUPERADMIN_EMAIL, role: "superadmin" }); setErr(""); setPage("dashboard"); return;
     }
     let allUsers = users;
     if (__fbReady) {
@@ -601,8 +623,30 @@ function App() {
     setNL({ name: "", sport: "Basketball", domain: "", color: "#6366f1" }); setShowAdd(false);
   }
   function addTeam() { if (!nT.name || !league) return; upd({ ...league, teams: [...league.teams, { id: Date.now(), ...nT }] }); setNT({ name: "", emoji: "⭐" }); }
-  function delTeam(id) { if (league) upd({ ...league, teams: league.teams.filter(t => t.id !== id) }); }
-  function addPlayer() { if (!nP.name || !league) return; upd({ ...league, players: [...league.players, { id: Date.now(), ...nP }] }); setNP({ name: "", team: "", number: "", position: "" }); }
+  function delTeam(id) {
+    if (!league) return;
+    const teamToDelete = league.teams.find(t => t.id === id);
+    const remainingTeams = league.teams.filter(t => t.id !== id);
+    const remainingTeamNames = new Set(remainingTeams.map(t => t.name));
+    const remainingTeamIds   = new Set(remainingTeams.map(t => String(t.id)));
+    const remainingPlayers = (league.players || []).filter(p => {
+      if (teamToDelete && p.team   === teamToDelete.name)          return false;
+      if (teamToDelete && String(p.teamId) === String(id))         return false;
+      if (p.team   && p.team !== "" && !remainingTeamNames.has(p.team))   return false;
+      if (p.teamId && !remainingTeamIds.has(String(p.teamId)))            return false;
+      return true;
+    });
+    const remainingSchedule = teamToDelete
+      ? (league.schedule || []).filter(g => g.home !== teamToDelete.name && g.away !== teamToDelete.name)
+      : league.schedule;
+    upd({ ...league, teams: remainingTeams, players: remainingPlayers, schedule: remainingSchedule });
+  }
+  function addPlayer() {
+    if (!nP.name || !league) { showToast("Enter a player name."); return; }
+    const team = (league.teams || []).find(t => t.name === nP.team);
+    upd({ ...league, players: [...(league.players || []), { id: Date.now(), ...nP, teamId: team?.id || null }] });
+    setNP({ name: "", team: "", number: "", position: "", height: "", weight: "", dob: "", handedness: "", hometown: "", photo: "" });
+  }
   function delPlayer(id) { if (league) upd({ ...league, players: league.players.filter(p => p.id !== id) }); }
   function addGame() {
     if (!nG.date || !nG.home || !nG.away || !league) return;
@@ -635,6 +679,21 @@ function App() {
   function saveEditScore() { if (!editScore || !league) return; upd({ ...league, schedule: league.schedule.map(g => g.id === editScore.id ? { ...g, homeScore: editScore.homeScore, awayScore: editScore.awayScore } : g) }); setEditScore(null); }
   function deleteScore(id) { if (!league) return; upd({ ...league, schedule: league.schedule.map(g => g.id === id ? { ...g, played: false, homeScore: undefined, awayScore: undefined, playerStats: undefined } : g) }); setDeleteScoreId(null); }
   function setToggle(key, val) { if (!league) return; upd({ ...league, statToggles: { ...getToggles(league), [key]: val } }); }
+  function setPlayerField(key, val) { if (!league) return; upd({ ...league, playerFields: { ...getPlayerFields(league), [key]: val } }); }
+  async function deleteLeague(id) {
+    const updated = leagues.filter(l => l.id !== id);
+    setLeagues(updated);
+    localStorage.setItem("wxLeagues", JSON.stringify(updated));
+    if (__fbReady) {
+      try {
+        const { deleteDoc, doc } = _FS;
+        await deleteDoc(doc(_db, "leagues", String(id)));
+      } catch(e) { console.error("Firestore deleteLeague:", e); }
+    }
+    setDeleteLeagueId(null);
+    setPage("dashboard"); setSelId(null); setDirty(false);
+    showToast("League deleted.");
+  }
 
   // ── LOADING SCREEN ──
   if (loading) return (
@@ -910,7 +969,8 @@ function App() {
     const sport = league.sport;
     const unplayed = league.schedule.filter(g => !g.played);
     const played = league.schedule.filter(g => g.played);
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["settings","⚙️ Settings"]];
+    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule & Scores"],["stats","📊 Stats"],["settings","⚙️ Settings"]];
+    const pFields = getPlayerFields(league);
 
     const standings = league.teams.map(t => {
       const hg = played.filter(g => g.home===t.name), ag = played.filter(g => g.away===t.name);
@@ -1006,7 +1066,7 @@ function App() {
                       <span style={{ fontSize: 28 }}>{t.emoji}</span>
                       <div><div style={{ fontWeight: 700 }}>{t.name}</div><div style={{ fontSize: 12, color: T2 }}>{league.players.filter(p=>p.team===t.name).length} players</div></div>
                     </div>
-                    <button onClick={() => delTeam(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                    <button onClick={() => setDeleteTeamId(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 14px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>🗑 Delete</button>
                   </div>
                 ))
               }
@@ -1024,40 +1084,140 @@ function App() {
                   <input style={{ ...inp, flex: 0.5, minWidth: 64 }} value={nP.number} onChange={e=>setNP({...nP,number:e.target.value})} placeholder="#" />
                   <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nP.position} onChange={e=>setNP({...nP,position:e.target.value})} placeholder={sport==="Hockey"?"Center / Goalie":"Guard / Forward"} />
                   <select style={{ ...inp, flex: 1, minWidth: 130 }} value={nP.team} onChange={e=>setNP({...nP,team:e.target.value})}>
-                    <option value="">Select team</option>
-                    {league.teams.map(t => <option key={t.id}>{t.name}</option>)}
+                    <option value="">🆓 Free Agent (no team)</option>
+                    {league.teams.map(t => <option key={t.id} value={t.name}>{t.emoji} {t.name}</option>)}
                   </select>
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+                  {pFields.height    && <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nP.height}     onChange={e=>setNP({...nP,height:e.target.value})}     placeholder='Height (e.g. 6\'1")' />}
+                  {pFields.weight    && <input style={{ ...inp, flex: 1, minWidth: 100 }} value={nP.weight}     onChange={e=>setNP({...nP,weight:e.target.value})}     placeholder="Weight (lbs)" />}
+                  {pFields.dob       && <input type="date" style={{ ...inp, flex: 1, minWidth: 130 }} value={nP.dob} onChange={e=>setNP({...nP,dob:e.target.value})} />}
+                  {pFields.handedness && (
+                    <select style={{ ...inp, flex: 1, minWidth: 110 }} value={nP.handedness} onChange={e=>setNP({...nP,handedness:e.target.value})}>
+                      <option value="">Handedness</option>
+                      <option>Left</option><option>Right</option>
+                    </select>
+                  )}
+                  {pFields.hometown  && <input style={{ ...inp, flex: 1, minWidth: 120 }} value={nP.hometown}   onChange={e=>setNP({...nP,hometown:e.target.value})}   placeholder="Hometown" />}
+                </div>
+                {pFields.photo && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {nP.photo && <img src={nP.photo} alt="preview" style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover" }} />}
+                      <label style={{ ...btn(league.color || ACC), display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "8px 16px", fontSize: 13 }}>
+                        📸 {nP.photo ? "Change Photo" : "Upload Photo"}
+                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const MAX = 300;
+                              const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                              const canvas = document.createElement("canvas");
+                              canvas.width = img.width * scale; canvas.height = img.height * scale;
+                              canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+                              setNP(prev => ({ ...prev, photo: canvas.toDataURL("image/jpeg", 0.75) }));
+                            };
+                            img.src = ev.target.result;
+                          };
+                          reader.readAsDataURL(file);
+                          e.target.value = "";
+                        }} />
+                      </label>
+                      {nP.photo && <button type="button" onClick={() => setNP(prev=>({...prev,photo:""}))} style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:20 }}>×</button>}
+                    </div>
+                  </div>
+                )}
+                <div style={{ marginTop: 14 }}>
                   <button style={btn()} onClick={addPlayer}>Add Player</button>
                 </div>
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
               </div>
-              {league.players.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players yet.</div> :
-                league.teams.map(t => {
-                  const tp = league.players.filter(p => p.team===t.name);
-                  if (!tp.length) return null;
-                  return (
-                    <div key={t.id} style={{ marginBottom: 24 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>{t.emoji} {t.name}</div>
-                      {tp.map(p => (
-                        <div key={p.id} style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, background: "#23233a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: ACC }}>#{p.number}</div>
-                            <div><div style={{ fontWeight: 600 }}>{p.name}</div><div style={{ fontSize: 12, color: T2 }}>{p.position}{isGoalie(p)?" 🥅":""}</div></div>
+
+              {/* Teams with players */}
+              {league.teams.map(t => {
+                const tp = (league.players || []).filter(p => p.team===t.name);
+                if (!tp.length) return null;
+                return (
+                  <div key={t.id} style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>{t.emoji} {t.name}</div>
+                    {tp.map(p => (
+                      <div key={p.id} style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          {p.photo
+                            ? <img src={p.photo} alt={p.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
+                            : <div style={{ width: 40, height: 40, borderRadius: 8, background: "#23233a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: ACC }}>#{p.number||"?"}</div>
+                          }
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{p.name}</div>
+                            <div style={{ fontSize: 12, color: T2 }}>
+                              {p.position}{isGoalie(p)?" 🥅":""}
+                              {p.dob && ` · Age ${new Date().getFullYear()-new Date(p.dob).getFullYear()}`}
+                              {p.hometown && ` · ${p.hometown}`}
+                            </div>
                           </div>
+                        </div>
+                        <button onClick={() => delPlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+
+              {/* Free Agents */}
+              {(() => {
+                const freeAgents = (league.players || []).filter(p => !p.team || p.team === "");
+                if (!freeAgents.length) return null;
+                return (
+                  <div style={{ marginTop: 24 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T2 }}>🆓 FREE AGENTS</span>
+                      <span style={{ fontSize: 11, background: (league.color||ACC)+"22", color: league.color||ACC, borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{freeAgents.length}</span>
+                    </div>
+                    {freeAgents.map(p => (
+                      <div key={p.id} style={{ ...card, marginBottom: 8, borderLeft: `3px solid ${(league.color||ACC)}55` }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1 }}>
+                            {p.photo
+                              ? <img src={p.photo} alt={p.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
+                              : <div style={{ width: 40, height: 40, borderRadius: 8, background: "#23233a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: T2 }}>#{p.number||"?"}</div>
+                            }
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{p.name}</div>
+                              <div style={{ fontSize: 12, color: T2 }}>{p.position || "No position"}</div>
+                            </div>
+                          </div>
+                          <select style={{ ...inp, width: "auto", minWidth: 150, fontSize: 12, padding: "6px 10px" }}
+                            value=""
+                            onChange={e => {
+                              const teamName = e.target.value;
+                              if (!teamName) return;
+                              const team = league.teams.find(t => t.name === teamName);
+                              upd({ ...league, players: (league.players||[]).map(pl => pl.id===p.id ? { ...pl, team: teamName, teamId: team?.id || null } : pl) });
+                            }}>
+                            <option value="">Assign to team…</option>
+                            {league.teams.map(t => <option key={t.id} value={t.name}>{t.emoji} {t.name}</option>)}
+                          </select>
                           <button onClick={() => delPlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
                         </div>
-                      ))}
-                    </div>
-                  );
-                })
-              }
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {(league.players||[]).length===0 && <div style={{ textAlign: "center", color: T2, padding: 48 }}>No players yet.</div>}
             </div>
           )}
 
-          {/* ── SCHEDULE ── */}
+          {/* ── SCHEDULE & SCORES (unified) ── */}
           {tab==="schedule" && (
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Schedule</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Schedule &amp; Scores</div>
+
+              {/* Add Game form */}
               <div style={{ ...card, marginBottom: 24 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add Game</div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -1073,235 +1233,274 @@ function App() {
                   <button style={btn()} onClick={addGame}>Add Game</button>
                 </div>
               </div>
-              {league.schedule.length===0 ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No games scheduled.</div> : (
-                <div>
-                  {unplayed.length>0 && <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>Upcoming</div>}
-                  {unplayed.map(g => (
-                    <div key={g.id} style={{ ...card, marginBottom: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div><div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div><div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{g.date} · {g.time} · {g.venue}</div></div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12, color: "#f97316", padding: "4px 12px", background: "#f9731615", borderRadius: 6, fontWeight: 600 }}>Upcoming</span>
-                          <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                          <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+
+              {/* Enter Score form */}
+              {unplayed.length > 0 && (
+                <div style={{ ...card, marginBottom: 28 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Enter Score</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
+                    <div style={{ flex: 2, minWidth: 200 }}>
+                      <label style={lbl}>Select Game</label>
+                      <select style={inp} value={nS.gameId} onChange={e => {
+                        const gId = e.target.value;
+                        setNS({ ...nS, gameId: gId, homeScore: "", awayScore: "" });
+                        if (gId) { const g = league.schedule.find(x => x.id===parseInt(gId)); doInitPlayerStats(g); }
+                        else setNPS({});
+                      }}>
+                        <option value="">Choose a game...</option>
+                        {unplayed.map(g => <option key={g.id} value={g.id}>{g.home} vs {g.away} ({g.date})</option>)}
+                      </select>
+                    </div>
+                    {nS.gameId && (() => {
+                      const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
+                      return (<>
+                        <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.home} Score</label><input type="number" style={inp} value={nS.homeScore} onChange={e=>setNS({...nS,homeScore:e.target.value})} placeholder="0" /></div>
+                        <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.away} Score</label><input type="number" style={inp} value={nS.awayScore} onChange={e=>setNS({...nS,awayScore:e.target.value})} placeholder="0" /></div>
+                      </>);
+                    })()}
+                  </div>
+
+                  {/* Player stats — Hockey */}
+                  {nS.gameId && sport==="Hockey" && (() => {
+                    const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
+                    const gPlayers = getGamePlayers(g);
+                    if (!gPlayers.length) return null;
+                    const skaters = gPlayers.filter(p => !isGoalie(p));
+                    const goalies = gPlayers.filter(p => isGoalie(p));
+                    return (
+                      <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional)</span></div>
+                        {skaters.length > 0 && (
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
+                              <span style={{ flex: 3 }}>SKATER</span><span style={{ flex: 1, textAlign: "center" }}>GOALS</span><span style={{ flex: 1, textAlign: "center" }}>ASSISTS</span><span style={{ flex: 1, textAlign: "center" }}>PTS</span>
+                            </div>
+                            {[g.home, g.away].map(tn => {
+                              const tp = skaters.filter(p => p.team===tn);
+                              if (!tp.length) return null;
+                              return (
+                                <div key={tn} style={{ marginBottom: 12 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: T2, marginBottom: 6, paddingLeft: 4 }}>{tn}</div>
+                                  {tp.map(p => {
+                                    const ps = nPS[p.id]||{goals:"",assists:""};
+                                    const g2=parseInt(ps.goals)||0, a=parseInt(ps.assists)||0;
+                                    return (
+                                      <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                        <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                                          <span style={{ color: ACC, fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name}
+                                        </div>
+                                        <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goals} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goals:e.target.value}}))} placeholder="0" />
+                                        <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.assists} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],assists:e.target.value}}))} placeholder="0" />
+                                        <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: (g2+a)>0?ACC:T2, fontSize: 16 }}>{g2+a||"—"}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {goalies.length > 0 && (
+                          <div>
+                            <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
+                              <span style={{ flex: 3 }}>GOALIE</span><span style={{ flex: 1, textAlign: "center" }}>SAVES</span><span style={{ flex: 1, textAlign: "center" }}>GA</span><span style={{ flex: 1 }}></span>
+                            </div>
+                            {goalies.map(p => {
+                              const ps = nPS[p.id]||{saves:"",goalsAgainst:""};
+                              return (
+                                <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                  <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name} <span style={{ fontSize: 11, color: T2 }}>({p.team})</span>
+                                  </div>
+                                  <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.saves} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],saves:e.target.value}}))} placeholder="0" />
+                                  <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goalsAgainst} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goalsAgainst:e.target.value}}))} placeholder="0" />
+                                  <div style={{ flex: 1 }}></div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Player stats — Basketball */}
+                  {nS.gameId && sport==="Basketball" && (() => {
+                    const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
+                    const gPlayers = getGamePlayers(g);
+                    if (!gPlayers.length) return null;
+                    return (
+                      <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional)</span></div>
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                            <thead>
+                              <tr>
+                                <th style={{ textAlign: "left", color: T2, fontSize: 11, fontWeight: 700, padding: "4px 8px", minWidth: 160 }}>PLAYER</th>
+                                {["PTS","AST","REB","BLK","STL"].map(h => (
+                                  <th key={h} style={{ color: T2, fontSize: 11, fontWeight: 700, padding: "4px 6px", textAlign: "center", minWidth: 60 }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[g.home, g.away].map(tn => {
+                                const tp = gPlayers.filter(p => p.team===tn);
+                                if (!tp.length) return null;
+                                return [
+                                  <tr key={tn+"hdr"}><td colSpan={6} style={{ padding: "8px 8px 4px", fontSize: 12, fontWeight: 700, color: T2 }}>{tn}</td></tr>,
+                                  ...tp.map(p => {
+                                    const ps = nPS[p.id]||{points:"",assists:"",rebounds:"",blocks:"",steals:""};
+                                    return (
+                                      <tr key={p.id}>
+                                        <td style={{ padding: "4px 8px" }}><span style={{ color: ACC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}</td>
+                                        {["points","assists","rebounds","blocks","steals"].map(k => (
+                                          <td key={k} style={{ padding: "4px 4px" }}>
+                                            <input type="number" min="0" style={{ ...inp, padding: "6px 4px", textAlign: "center", fontSize: 13 }} value={ps[k]} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],[k]:e.target.value}}))} placeholder="0" />
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    );
+                                  })
+                                ];
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  {played.length>0 && <div style={{ fontSize: 13, fontWeight: 700, color: T2, margin: "16px 0 10px" }}>Completed</div>}
-                  {played.map(g => (
-                    <div key={g.id} style={{ ...card, marginBottom: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div><div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div><div style={{ fontSize: 12, color: T2, marginTop: 3 }}>{g.date} · {g.venue}</div></div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ fontWeight: 800, fontSize: 20, color: "#22c55e" }}>{g.homeScore} – {g.awayScore}</div>
-                          <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                          <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                        </div>
-                      </div>
-                      <BoxScore game={g} players={league.players} sport={sport} />
-                    </div>
-                  ))}
+                    );
+                  })()}
+
+                  <button style={btn()} onClick={submitScore}>Submit Score</button>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ── SCORES ── */}
-          {tab==="scores" && (
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Enter Scores</div>
-              <div style={{ ...card, marginBottom: 28 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Submit Result</div>
-                {unplayed.length===0 ? <div style={{ fontSize: 14, color: T2 }}>No upcoming games. Add games in Schedule first.</div> : (
-                  <div>
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
-                      <div style={{ flex: 2, minWidth: 200 }}>
-                        <label style={lbl}>Select Game</label>
-                        <select style={inp} value={nS.gameId} onChange={e => {
-                          const gId = e.target.value;
-                          setNS({ ...nS, gameId: gId, homeScore: "", awayScore: "" });
-                          if (gId) { const g = league.schedule.find(x => x.id===parseInt(gId)); doInitPlayerStats(g); }
-                          else setNPS({});
-                        }}>
-                          <option value="">Choose a game...</option>
-                          {unplayed.map(g => <option key={g.id} value={g.id}>{g.home} vs {g.away} ({g.date})</option>)}
-                        </select>
-                      </div>
-                      {nS.gameId && (() => {
-                        const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
-                        return (<>
-                          <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.home} Score</label><input type="number" style={inp} value={nS.homeScore} onChange={e=>setNS({...nS,homeScore:e.target.value})} placeholder="0" /></div>
-                          <div style={{ flex: 1, minWidth: 110 }}><label style={lbl}>{g?.away} Score</label><input type="number" style={inp} value={nS.awayScore} onChange={e=>setNS({...nS,awayScore:e.target.value})} placeholder="0" /></div>
-                        </>);
-                      })()}
-                    </div>
-
-                    {/* Player stats entry — Hockey */}
-                    {nS.gameId && sport==="Hockey" && (() => {
-                      const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
-                      const gPlayers = getGamePlayers(g);
-                      if (!gPlayers.length) return null;
-                      const skaters = gPlayers.filter(p => !isGoalie(p));
-                      const goalies = gPlayers.filter(p => isGoalie(p));
-                      return (
-                        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional — points auto-calculated)</span></div>
-                          {skaters.length > 0 && (
-                            <div style={{ marginBottom: 16 }}>
-                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
-                                <span style={{ flex: 3 }}>SKATER</span><span style={{ flex: 1, textAlign: "center" }}>GOALS</span><span style={{ flex: 1, textAlign: "center" }}>ASSISTS</span><span style={{ flex: 1, textAlign: "center" }}>PTS</span>
-                              </div>
-                              {[g.home, g.away].map(tn => {
-                                const tp = skaters.filter(p => p.team===tn);
-                                if (!tp.length) return null;
-                                return (
-                                  <div key={tn} style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: T2, marginBottom: 6, paddingLeft: 4 }}>{tn}</div>
-                                    {tp.map(p => {
-                                      const ps = nPS[p.id]||{goals:"",assists:""};
-                                      const g2=parseInt(ps.goals)||0, a=parseInt(ps.assists)||0;
-                                      return (
-                                        <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                                          <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                                            <span style={{ color: ACC, fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name}
-                                          </div>
-                                          <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goals} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goals:e.target.value}}))} placeholder="0" />
-                                          <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.assists} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],assists:e.target.value}}))} placeholder="0" />
-                                          <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: (g2+a)>0?ACC:T2, fontSize: 16 }}>{g2+a||"—"}</div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {goalies.length > 0 && (
-                            <div>
-                              <div style={{ display: "flex", gap: 8, fontSize: 11, color: T2, fontWeight: 700, padding: "0 4px", marginBottom: 6 }}>
-                                <span style={{ flex: 3 }}>GOALIE</span><span style={{ flex: 1, textAlign: "center" }}>SAVES</span><span style={{ flex: 1, textAlign: "center" }}>GA</span><span style={{ flex: 1 }}></span>
-                              </div>
-                              {goalies.map(p => {
-                                const ps = nPS[p.id]||{saves:"",goalsAgainst:""};
-                                return (
-                                  <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                                    <div style={{ flex: 3, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                                      <span style={{ color: "#38bdf8", fontWeight: 700, fontSize: 12, minWidth: 28 }}>#{p.number}</span>{p.name} <span style={{ fontSize: 11, color: T2 }}>({p.team})</span>
-                                    </div>
-                                    <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.saves} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],saves:e.target.value}}))} placeholder="0" />
-                                    <input type="number" min="0" style={{ ...inp, flex: 1, padding: "8px 10px", textAlign: "center" }} value={ps.goalsAgainst} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],goalsAgainst:e.target.value}}))} placeholder="0" />
-                                    <div style={{ flex: 1 }}></div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Player stats entry — Basketball */}
-                    {nS.gameId && sport==="Basketball" && (() => {
-                      const g = league.schedule.find(x => x.id===parseInt(nS.gameId));
-                      const gPlayers = getGamePlayers(g);
-                      if (!gPlayers.length) return null;
-                      return (
-                        <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 16, marginBottom: 16 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 12 }}>Player Stats <span style={{ fontWeight: 400 }}>(optional)</span></div>
-                          <div style={{ overflowX: "auto" }}>
+              {/* Month-grouped games table */}
+              {league.schedule.length === 0
+                ? <div style={{ textAlign: "center", color: T2, padding: 48 }}>No games scheduled.</div>
+                : (() => {
+                  const sorted = [...league.schedule].sort((a,b) => new Date(a.date) - new Date(b.date));
+                  const LC = league.color || ACC;
+                  // Group by month
+                  const groups = {};
+                  sorted.forEach(g => {
+                    const d = new Date(g.date + "T00:00:00");
+                    const key = `${d.getFullYear()}-${d.getMonth()}`;
+                    if (!groups[key]) groups[key] = { label: MONTHS_FR[d.getMonth()] + " " + d.getFullYear(), games: [] };
+                    groups[key].games.push(g);
+                  });
+                  return (
+                    <div>
+                      {Object.values(groups).map(({ label, games }) => (
+                        <div key={label} style={{ marginBottom: 32 }}>
+                          {/* Month header */}
+                          <div style={{ background: "#0d0d1e", borderBottom: `2px solid ${LC}`, padding: "10px 16px", borderRadius: "8px 8px 0 0", marginBottom: 0 }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: T2, letterSpacing: "0.12em" }}>{label}</span>
+                          </div>
+                          {/* Table */}
+                          <div style={{ overflowX: "auto", background: CARD, border: `1px solid ${BORDER}`, borderTop: "none", borderRadius: "0 0 8px 8px" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                               <thead>
-                                <tr>
-                                  <th style={{ textAlign: "left", color: T2, fontSize: 11, fontWeight: 700, padding: "4px 8px", minWidth: 160 }}>PLAYER</th>
-                                  {["PTS","AST","REB","BLK","STL"].map(h => (
-                                    <th key={h} style={{ color: T2, fontSize: 11, fontWeight: 700, padding: "4px 6px", textAlign: "center", minWidth: 60 }}>{h}</th>
+                                <tr style={{ background: "#0d0d1e" }}>
+                                  {["VISITEUR","","LOCAL","ENDROIT","DATE","RÉSULTAT",""].map((h,i) => (
+                                    <th key={i} style={{ padding: "10px 12px", textAlign: i===1||i===6?"center":"left", color: T2, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{h}</th>
                                   ))}
                                 </tr>
                               </thead>
                               <tbody>
-                                {[g.home, g.away].map(tn => {
-                                  const tp = gPlayers.filter(p => p.team===tn);
-                                  if (!tp.length) return null;
+                                {games.map((g, gi) => {
+                                  const isPlayed = g.played;
+                                  const d = new Date(g.date + "T00:00:00");
+                                  const isPast = d < new Date() && !isPlayed;
+                                  const dayStr = DAYS_FR[d.getDay()];
+                                  const homeWin = isPlayed && parseInt(g.homeScore) > parseInt(g.awayScore);
+                                  const awayWin = isPlayed && parseInt(g.awayScore) > parseInt(g.homeScore);
                                   return [
-                                    <tr key={tn+"hdr"}>
-                                      <td colSpan={6} style={{ padding: "8px 8px 4px", fontSize: 12, fontWeight: 700, color: T2 }}>{tn}</td>
+                                    <tr key={g.id} style={{ borderTop: gi>0?`1px solid ${BORDER}`:"none", background: "transparent" }}>
+                                      {/* Away */}
+                                      <td style={{ padding: "12px 12px", fontWeight: awayWin?700:400, color: awayWin?T1:T2 }}>{g.away}</td>
+                                      {/* VS */}
+                                      <td style={{ padding: "12px 8px", textAlign: "center", color: T2, fontSize: 11 }}>vs</td>
+                                      {/* Home */}
+                                      <td style={{ padding: "12px 12px", fontWeight: homeWin?700:400, color: homeWin?T1:T2 }}>{g.home}</td>
+                                      {/* Venue */}
+                                      <td style={{ padding: "12px 12px", color: T2, fontSize: 12 }}>{g.venue||"—"}</td>
+                                      {/* Date */}
+                                      <td style={{ padding: "12px 12px", color: T2, fontSize: 12, whiteSpace: "nowrap" }}>{dayStr} {g.date}{g.time?` · ${g.time}`:""}</td>
+                                      {/* Result / Status */}
+                                      <td style={{ padding: "12px 12px", whiteSpace: "nowrap" }}>
+                                        {isPlayed ? (
+                                          <span style={{ fontWeight: 800, fontSize: 15, color: "#22c55e" }}>{g.awayScore} – {g.homeScore}</span>
+                                        ) : isPast ? (
+                                          <button onClick={() => {
+                                            setNS({ gameId: String(g.id), homeScore: "", awayScore: "" });
+                                            doInitPlayerStats(g);
+                                            window.scrollTo({ top: 0, behavior: "smooth" });
+                                          }} style={{ ...btn(LC), fontSize: 11, padding: "4px 12px" }}>ENTRER</button>
+                                        ) : (
+                                          <span style={{ fontSize: 11, color: "#f97316", padding: "3px 10px", background: "#f9731615", borderRadius: 6, fontWeight: 700 }}>À VENIR</span>
+                                        )}
+                                      </td>
+                                      {/* Actions */}
+                                      <td style={{ padding: "12px 8px", whiteSpace: "nowrap" }}>
+                                        <div style={{ display: "flex", gap: 6 }}>
+                                          <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Edit</button>
+                                          {isPlayed && <button onClick={() => setEditScore({id:g.id,homeScore:g.homeScore,awayScore:g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Score</button>}
+                                          {isPlayed && <button onClick={() => setDeleteScoreId(g.id)} style={{ background: "none", border: "1px solid #f59e0b40", borderRadius: 6, color: "#f59e0b", padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Reset</button>}
+                                          <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>🗑</button>
+                                        </div>
+                                      </td>
                                     </tr>,
-                                    ...tp.map(p => {
-                                      const ps = nPS[p.id]||{points:"",assists:"",rebounds:"",blocks:"",steals:""};
-                                      return (
-                                        <tr key={p.id}>
-                                          <td style={{ padding: "4px 8px" }}>
-                                            <span style={{ color: ACC, fontWeight: 700, fontSize: 12, marginRight: 6 }}>#{p.number}</span>{p.name}
-                                          </td>
-                                          {["points","assists","rebounds","blocks","steals"].map(k => (
-                                            <td key={k} style={{ padding: "4px 4px" }}>
-                                              <input type="number" min="0" style={{ ...inp, padding: "6px 4px", textAlign: "center", fontSize: 13 }} value={ps[k]} onChange={e=>setNPS(prev=>({...prev,[p.id]:{...prev[p.id],[k]:e.target.value}}))} placeholder="0" />
-                                            </td>
-                                          ))}
-                                        </tr>
-                                      );
-                                    })
+                                    isPlayed && g.playerStats && (
+                                      <tr key={g.id+"_bs"} style={{ borderTop: `1px solid ${BORDER}22` }}>
+                                        <td colSpan={7} style={{ padding: "0 12px 12px" }}>
+                                          <BoxScore game={g} players={league.players} sport={sport} />
+                                        </td>
+                                      </tr>
+                                    )
                                   ];
                                 })}
                               </tbody>
                             </table>
                           </div>
                         </div>
-                      );
-                    })()}
+                      ))}
 
-                    <button style={btn()} onClick={submitScore}>Submit Score</button>
-                  </div>
-                )}
-              </div>
-
-              {played.length>0 && (
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Results</div>
-                  {played.map(g => {
-                    const hw = parseInt(g.homeScore)>parseInt(g.awayScore);
-                    return (
-                      <div key={g.id} style={{ ...card, marginBottom: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div><div style={{ fontWeight: 700 }}>{g.home} vs {g.away}</div><div style={{ fontSize: 12, color: T2 }}>{g.date}</div></div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontWeight: 800, fontSize: 20, color: hw?"#22c55e":T2 }}>{g.homeScore}</span>
-                            <span style={{ color: T2 }}>–</span>
-                            <span style={{ fontWeight: 800, fontSize: 20, color: !hw?"#22c55e":T2 }}>{g.awayScore}</span>
-                            <button onClick={() => setEditScore({id:g.id,homeScore:g.homeScore,awayScore:g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                            <button onClick={() => setDeleteScoreId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                      {/* Standings */}
+                      {standings.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Standings <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 400 }}>● Auto-calculated</span></div>
+                          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, overflow: "hidden" }}>
+                            <div style={{ background: "#0d0d1e", borderBottom: `2px solid ${LC}`, padding: "10px 16px" }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: T2, letterSpacing: "0.1em" }}>CLASSEMENT</span>
+                            </div>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                              <thead>
+                                <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                                  {["#","Équipe","PJ","V","D","PTS"].map(h => (
+                                    <th key={h} style={{ padding: "10px 12px", textAlign: h==="Équipe"?"left":"center", color: T2, fontSize: 12, fontWeight: 600 }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {standings.map((t,i) => (
+                                  <tr key={t.name} style={{ borderBottom: i<standings.length-1?`1px solid ${BORDER}`:"none", background: i===0?LC+"0a":"transparent" }}>
+                                    <td style={{ padding: 12, textAlign: "center", color: i===0?LC:T2, fontWeight: i===0?800:400 }}>{i+1}</td>
+                                    <td style={{ padding: 12, fontWeight: 600, color: i===0?T1:T1 }}>{t.emoji} {t.name}</td>
+                                    <td style={{ padding: 12, textAlign: "center", color: T2 }}>{t.gp}</td>
+                                    <td style={{ padding: 12, textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{t.wins}</td>
+                                    <td style={{ padding: 12, textAlign: "center", color: "#ef4444" }}>{t.losses}</td>
+                                    <td style={{ padding: 12, textAlign: "center", fontWeight: 800, color: i===0?LC:T1 }}>{t.wins*2}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
-                        <BoxScore game={g} players={league.players} sport={sport} />
-                      </div>
-                    );
-                  })}
-                  {standings.length>0 && (
-                    <div style={{ marginTop: 28 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Standings <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 400 }}>● Auto-calculated</span></div>
-                      <div style={card}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                          <thead><tr style={{ borderBottom: `1px solid ${BORDER}` }}>{["#","Team","GP","W","L","PTS"].map(h=><th key={h} style={{ padding: "8px 12px", textAlign: h==="Team"?"left":"center", color: T2, fontSize: 12, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-                          <tbody>
-                            {standings.map((t,i) => (
-                              <tr key={t.name} style={{ borderBottom: i<standings.length-1?`1px solid ${BORDER}`:"none" }}>
-                                <td style={{ padding: 12, textAlign: "center", color: i===0?ACC:T2, fontWeight: i===0?700:400 }}>{i+1}</td>
-                                <td style={{ padding: 12, fontWeight: 600 }}>{t.emoji} {t.name}</td>
-                                <td style={{ padding: 12, textAlign: "center", color: T2 }}>{t.gp}</td>
-                                <td style={{ padding: 12, textAlign: "center", color: "#22c55e", fontWeight: 700 }}>{t.wins}</td>
-                                <td style={{ padding: 12, textAlign: "center", color: "#ef4444" }}>{t.losses}</td>
-                                <td style={{ padding: 12, textAlign: "center", fontWeight: 800, color: ACC }}>{t.wins*2}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-              {played.length===0 && <div style={{ textAlign: "center", color: T2, padding: 48 }}>No results yet.</div>}
+                  );
+                })()
+              }
             </div>
           )}
 
@@ -1462,6 +1661,30 @@ function App() {
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>League Settings</div>
               <div style={{ fontSize: 13, color: T2, marginBottom: 28 }}>Toggle stat categories and manage your public site connection. Click <strong style={{ color: T1 }}>Save Changes</strong> to apply.</div>
 
+              {/* Player Profile Fields */}
+              <div style={{ ...card, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Player Profile Fields</div>
+                <div style={{ fontSize: 12, color: T2, marginBottom: 18 }}>Choose which optional fields appear when adding or editing players.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {[
+                    { key: "height",     label: "Height",      desc: "Player height (e.g. 6'1\")" },
+                    { key: "weight",     label: "Weight",      desc: "Player weight in lbs" },
+                    { key: "dob",        label: "Date of Birth", desc: "Auto-calculates player age" },
+                    { key: "handedness", label: "Handedness",  desc: "Left or Right" },
+                    { key: "hometown",   label: "Hometown",    desc: "Player's city of origin" },
+                    { key: "photo",      label: "Photo",       desc: "Upload a player photo from your device" },
+                  ].map(({ key, label, desc }) => (
+                    <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${BORDER}` }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: pFields[key] ? T1 : T2 }}>{label}</div>
+                        <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>{desc}</div>
+                      </div>
+                      <Toggle on={!!pFields[key]} onChange={() => setPlayerField(key, !pFields[key])} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div style={{ ...card, marginBottom: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 18 }}>Stat Categories — {sport}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -1618,6 +1841,16 @@ service cloud.firestore {
                   </div>
                 );
               })()}
+
+              {/* Danger Zone — Delete League (superadmin only) */}
+              {user?.role === "superadmin" && (
+                <div style={{ ...card, marginTop: 20, border: "1px solid #ef444430" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#ef4444", marginBottom: 4 }}>Danger Zone</div>
+                  <div style={{ fontSize: 13, color: T2, marginBottom: 16 }}>Permanently delete this league and all its data. This cannot be undone.</div>
+                  <button onClick={() => setDeleteLeagueId(league.id)} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 20px" }}>🗑 Delete League</button>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -1648,6 +1881,38 @@ service cloud.firestore {
         )}
 
         {/* ── MODALS ── */}
+
+        {/* Delete Team */}
+        {deleteTeamId && (() => {
+          const teamToDelete = (league.teams||[]).find(t => t.id === deleteTeamId);
+          const playerCount = (league.players||[]).filter(p =>
+            (teamToDelete && p.team === teamToDelete.name) ||
+            (teamToDelete && String(p.teamId) === String(deleteTeamId))
+          ).length;
+          return (
+            <ConfirmModal
+              icon="🗑️"
+              title={`Delete "${teamToDelete?.name}"?`}
+              body={`This will permanently delete the team and its ${playerCount} player${playerCount !== 1 ? "s" : ""}, and remove related games. This cannot be undone.`}
+              confirmLabel="Yes, Delete Team"
+              onConfirm={() => { delTeam(deleteTeamId); setDeleteTeamId(null); }}
+              onCancel={() => setDeleteTeamId(null)}
+            />
+          );
+        })()}
+
+        {/* Delete League */}
+        {deleteLeagueId && (
+          <ConfirmModal
+            icon="⚠️"
+            title={`Delete "${league.name}"?`}
+            body="This will permanently delete the league, all teams, players, and game data. This cannot be undone."
+            confirmLabel="Yes, Delete League"
+            onConfirm={() => deleteLeague(deleteLeagueId)}
+            onCancel={() => setDeleteLeagueId(null)}
+          />
+        )}
+
         {editGame && (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
             <div style={{ width: 500, ...card, padding: 32 }}>
