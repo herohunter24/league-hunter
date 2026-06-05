@@ -1510,7 +1510,7 @@ function App() {
         {/* HEADER */}
         <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {user?.role==="superadmin" && <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← Back</button>}
+            <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← {user?.role==="superadmin" ? "Dashboard" : "Logout"}</button>
             <div style={{ width: 1, height: 24, background: BORDER }} />
             <div style={{ fontSize: 18, fontWeight: 900, color: ACC }}>WEBSITE X</div>
             <div style={{ fontSize: 14, color: T2 }}>/ {league.name}</div>
