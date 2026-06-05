@@ -472,7 +472,7 @@ function App() {
   const [deleteOwnerId, setDeleteOwnerId] = useState(null);
   const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
   const [showFunderModal, setShowFunderModal] = useState(false);
-  const [newFunder, setNewFunder] = useState({ email: "", password: "", confirm: "" });
+  const [newFunder, setNewFunder] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
   const [funderError, setFunderError] = useState("");
   const [deleteLeagueId, setDeleteLeagueId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -809,17 +809,31 @@ function App() {
   }
 
   async function createFunder() {
-    const { email: e, password: p, confirm: c } = newFunder;
+    const { name: n, email: e, phone: ph, password: p, confirm: c } = newFunder;
+    if (!n.trim()) { setFunderError("Full name is required."); return; }
     if (!e.trim() || !p) { setFunderError("Email and password are required."); return; }
     if (p !== c) { setFunderError("Passwords do not match."); return; }
+    if (p.length < 8) { setFunderError("Password must be at least 8 characters."); return; }
     if (e.trim() === SUPERADMIN.email) { setFunderError("That email is already in use."); return; }
+    const phoneClean = ph.replace(/\D/g, "");
+    if (ph.trim() && phoneClean.length < 10) { setFunderError("Enter a valid phone number (at least 10 digits)."); return; }
     let fresh = loadUsers();
     if (__fbReady) {
       try { const { getDocs, collection } = _FS; const snap = await getDocs(collection(_db, "users")); fresh = snap.docs.map(d => d.data()); } catch(e2) {}
     }
     if (fresh.find(u => u.email === e.trim())) { setFunderError("An account with that email already exists."); return; }
     const hashedPw = await hashPassword(p);
-    const newUser = { id: "user_" + Date.now(), email: e.trim(), password: hashedPw, role: "funder", createdAt: new Date().toISOString().slice(0,10) };
+    const hashedPhone = ph.trim() ? await hashPassword(phoneClean) : "";
+    const newUser = {
+      id: "user_" + Date.now(),
+      name: n.trim(),
+      email: e.trim(),
+      phoneHash: hashedPhone,
+      phoneLast4: phoneClean.length >= 4 ? phoneClean.slice(-4) : "",
+      password: hashedPw,
+      role: "funder",
+      createdAt: new Date().toISOString().slice(0,10)
+    };
     const updated = [...fresh, newUser];
     saveUsers(updated);
     if (__fbReady) {
@@ -827,9 +841,9 @@ function App() {
     }
     setUsers(updated);
     setShowFunderModal(false);
-    setNewFunder({ email: "", password: "", confirm: "" });
+    setNewFunder({ name: "", email: "", phone: "", password: "", confirm: "" });
     setFunderError("");
-    setCreatedCreds({ email: newUser.email, password: p, leagueName: "All Leagues (Funder)" });
+    setCreatedCreds({ email: newUser.email, password: p, leagueName: "All Leagues (Funder)", name: newUser.name });
   }
 
   async function deleteFunder(userId) {
@@ -1286,8 +1300,9 @@ function App() {
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <span style={{ fontSize: 20 }}>⭐</span>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{f.email}</div>
-                      <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>Funder · Created {f.createdAt}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{f.name || f.email}</div>
+                      <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>{f.name ? f.email : ""}{f.phoneLast4 ? ` · ••••••${f.phoneLast4}` : ""}</div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 1 }}>Funder · Created {f.createdAt}</div>
                     </div>
                   </div>
                   <button onClick={() => deleteFunder(f.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
@@ -1308,9 +1323,18 @@ function App() {
               🔒 Passwords are hashed with SHA-256 before storage — plaintext is never saved.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label style={lbl}>Email</label><input style={inp} value={newFunder.email} onChange={e=>setNewFunder({...newFunder,email:e.target.value})} placeholder="funder@example.com" autoComplete="off" /></div>
-              <div><label style={lbl}>Password</label><input type="password" style={inp} value={newFunder.password} onChange={e=>setNewFunder({...newFunder,password:e.target.value})} placeholder="Choose a password" autoComplete="new-password" /></div>
-              <div><label style={lbl}>Confirm Password</label><input type="password" style={inp} value={newFunder.confirm} onChange={e=>setNewFunder({...newFunder,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&createFunder()} placeholder="Repeat password" autoComplete="new-password" /></div>
+              <div><label style={lbl}>Full Name <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newFunder.name} onChange={e=>setNewFunder({...newFunder,name:e.target.value})} placeholder="Jean Tremblay" autoComplete="off" /></div>
+              <div><label style={lbl}>Email <span style={{color:"#ef4444"}}>*</span></label><input style={inp} value={newFunder.email} onChange={e=>setNewFunder({...newFunder,email:e.target.value})} placeholder="funder@example.com" autoComplete="off" /></div>
+              <div>
+                <label style={lbl}>Phone Number <span style={{color:T2,fontWeight:400}}>(optional)</span></label>
+                <input style={inp} value={newFunder.phone} onChange={e=>setNewFunder({...newFunder,phone:e.target.value})} placeholder="514-555-0100" autoComplete="off" />
+                <div style={{fontSize:11,color:T2,marginTop:4}}>🔒 Stored as a SHA-256 hash — only last 4 digits are kept readable.</div>
+              </div>
+              <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:14}}>
+                <div style={{fontSize:12,color:T2,marginBottom:10}}>Login credentials — minimum 8 characters</div>
+              </div>
+              <div><label style={lbl}>Password <span style={{color:"#ef4444"}}>*</span></label><input type="password" style={inp} value={newFunder.password} onChange={e=>setNewFunder({...newFunder,password:e.target.value})} placeholder="Minimum 8 characters" autoComplete="new-password" /></div>
+              <div><label style={lbl}>Confirm Password <span style={{color:"#ef4444"}}>*</span></label><input type="password" style={inp} value={newFunder.confirm} onChange={e=>setNewFunder({...newFunder,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&createFunder()} placeholder="Repeat password" autoComplete="new-password" /></div>
               {funderError && <div style={{ color: "#ef4444", fontSize: 13 }}>{funderError}</div>}
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                 <button style={{ ...btn("#f59e0b"), flex: 1, color: "#000", fontWeight: 700 }} onClick={createFunder}>Create Funder</button>
@@ -1357,6 +1381,10 @@ function App() {
               <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials with the recipient. Screenshot or copy them now — the password will not be shown again.</div>
             </div>
             <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "20px 22px", marginBottom: 20, fontFamily: "monospace", fontSize: 13 }}>
+              {createdCreds.name && <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>NAME</div>
+                <div style={{ color: T1, fontWeight: 700 }}>{createdCreds.name}</div>
+              </div>}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>LOGIN URL</div>
                 <div style={{ color: T1, wordBreak: "break-all" }}>{window.location.href}</div>
@@ -1376,7 +1404,7 @@ function App() {
             </div>
             <div style={{ display: "flex", gap: 12 }}>
               <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => {
-                const txt = `Login: ${window.location.href}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nLeague: ${createdCreds.leagueName}`;
+                const txt = `${createdCreds.name ? "Name: "+createdCreds.name+"\n" : ""}Login: ${window.location.href}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nAccess: ${createdCreds.leagueName}`;
                 navigator.clipboard.writeText(txt).then(() => showToast("Credentials copied!")).catch(() => showToast("Copy failed."));
               }}>📋 Copy All</button>
               <button style={{ ...btn(), flex: 1 }} onClick={() => setCreatedCreds(null)}>Done</button>
