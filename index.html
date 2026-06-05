@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Website X — Admin Control Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
@@ -47,8 +49,11 @@
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #08080f; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: #060608; font-family: 'Barlow', 'Segoe UI', system-ui, sans-serif; }
   input, select, button { font-family: inherit; }
+  .wx-logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; letter-spacing: -1px; }
+  .wx-heading { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; }
+  .wx-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: #111120; }
   ::-webkit-scrollbar-thumb { background: #23233a; border-radius: 3px; }
@@ -107,13 +112,13 @@ const DEMO_LEAGUES = [
   },
 ];
 
-const BG = "#08080f", SURF = "#111120", CARD = "#16162a", BORDER = "#23233a";
-const ACC = "#f97316", T1 = "#e8e8f5", T2 = "#6868a0";
+const BG = "#060608", SURF = "#0d0d10", CARD = "#111115", BORDER = "#1e1e26";
+const ACC = "#f97316", T1 = "#f0f0f8", T2 = "#5a5a7a";
 
-const inp = { background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "10px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box" };
-const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 8, color: "#fff", padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" });
-const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px" };
-const lbl = { fontSize: 12, color: T2, fontWeight: 600, display: "block", marginBottom: 6 };
+const inp = { background: "#0a0a0e", border: `1px solid ${BORDER}`, borderRadius: 4, color: T1, padding: "11px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 4, color: bg === ACC ? "#000" : "#fff", padding: "11px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", letterSpacing: "0.04em", textTransform: "uppercase", fontFamily: "inherit" });
+const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "20px 24px" };
+const lbl = { fontSize: 11, color: T2, fontWeight: 700, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Barlow Condensed', sans-serif" };
 
 // ── HELPERS ──
 // ── MIGRATION: Ensure league has categories array ──
@@ -1093,44 +1098,45 @@ function App() {
   if (loading) return (
     <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px", marginBottom: 12 }}>WEBSITE X</div>
-        <div style={{ fontSize: 14, color: T2 }}>{__fbReady ? "Connecting to Firebase…" : "Loading…"}</div>
+        <div className="wx-logo" style={{ fontSize: 38, color: ACC, marginBottom: 12 }}>WEBSITE X</div>
+        <div style={{ fontSize: 13, color: T2, letterSpacing: "0.05em" }}>{__fbReady ? "Connecting…" : "Loading…"}</div>
       </div>
     </div>
   );
 
   // ── LOGIN ──
   if (page === "login") return (
-    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 380, padding: 40, ...card }}>
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>WEBSITE X</div>
-          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin Control Center</div>
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, #f9731615 0%, transparent 70%)" }}>
+      <div style={{ width: 400, padding: "44px 40px", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div className="wx-logo" style={{ fontSize: 42, color: ACC }}>WEBSITE X</div>
+          <div style={{ fontSize: 11, color: T2, marginTop: 8, letterSpacing: "0.2em", textTransform: "uppercase" }}>Admin Control Center</div>
         </div>
         {__fbUncfg && (
-          <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
-            🔴 <strong>Firebase not configured.</strong> Open index.html and replace the <code>REPLACE_ME</code> values in the Firebase module script. Data is saving to localStorage only.
+          <div style={{ background: "#ef444412", border: "1px solid #ef444430", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
+            🔴 <strong>Firebase not configured.</strong> Replace the <code>REPLACE_ME</code> values in the Firebase config. Data is saving to localStorage only.
           </div>
         )}
         {fbError && (
-          <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#f59e0b", lineHeight: 1.6 }}>
+          <div style={{ background: "#f59e0b12", border: "1px solid #f59e0b30", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#f59e0b", lineHeight: 1.6 }}>
             ⚠️ {fbError}
           </div>
         )}
         {__fbReady && !fbError && (
-          <div style={{ background: "#22c55e15", border: "1px solid #22c55e40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#22c55e", lineHeight: 1.6 }}>
-            🟢 <strong>Firebase connected.</strong> Data syncs across all devices and public sites in real time.
+          <div style={{ background: "#22c55e12", border: "1px solid #22c55e30", borderRadius: 4, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#22c55e", lineHeight: 1.6 }}>
+            🟢 <strong>Firebase connected.</strong> Real-time sync active.
           </div>
         )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div><label style={lbl}>Email</label><input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key==="Enter"&&login()} placeholder="your@email.com" /></div>
           <div><label style={lbl}>Password</label><input style={inp} type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key==="Enter"&&login()} placeholder="••••••••" /></div>
-          {err && <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}>{err}</div>}
-          <button style={{ ...btn(), width: "100%", padding: "12px 20px", fontSize: 15, marginTop: 4 }} onClick={login}>Sign In</button>
+          {err && <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center", padding: "8px 0" }}>{err}</div>}
+          <button style={{ ...btn(), width: "100%", padding: "14px 20px", fontSize: 14, marginTop: 4 }} onClick={login}>SIGN IN</button>
         </div>
-        <div style={{ marginTop: 24, padding: "12px 16px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
-          Admin access only — unauthorized entry prohibited<br/>
-          <span style={{ color: "#f59e0b", fontSize: 11 }}>⚠️ Local admin tool — do not use sensitive passwords</span>
+        <div style={{ marginTop: 28, borderTop: `1px solid ${BORDER}`, paddingTop: 20, fontSize: 11, color: T2, textAlign: "center", lineHeight: 1.8, letterSpacing: "0.03em" }}>
+          AUTHORIZED PERSONNEL ONLY<br/>
+          <span style={{ color: "#f59e0b60" }}>Do not use sensitive personal passwords</span>
         </div>
       </div>
     </div>
@@ -1139,22 +1145,31 @@ function App() {
   // ── DASHBOARD ──
   if (page === "dashboard") return (
     <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
-      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, color: ACC }}>WEBSITE X</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: 12, padding: "4px 10px", background: ACC+"20", borderRadius: 6, fontWeight: 700, color: ACC }}>
-            🔑 Super Admin
+      {/* NAV BAR */}
+      <div style={{ background: "#0a0a0d", borderBottom: `2px solid ${ACC}`, padding: "0 36px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+        <div className="wx-logo" style={{ fontSize: 28, color: ACC }}>WEBSITE X</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <span style={{ fontSize: 11, padding: "4px 12px", background: ACC+"18", border: `1px solid ${ACC}40`, borderRadius: 3, fontWeight: 700, color: ACC, letterSpacing: "0.1em" }}>
+            🔑 SUPER ADMIN
           </span>
-          <span style={{ fontSize: 13, color: T2 }}>{user?.email || ""}</span>
-          <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
+          <span style={{ fontSize: 12, color: T2 }}>{user?.email || ""}</span>
+          <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "7px 16px", fontSize: 12, cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" }}>Logout</button>
         </div>
       </div>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
-        <div style={{ display: "flex", gap: 16, marginBottom: 36 }}>
-          {[["Total Leagues",leagues.length],["Total Teams",leagues.reduce((a,l)=>a+(l.teams||[]).length,0)],["Total Players",leagues.reduce((a,l)=>a+(l.players||[]).length,0)],["Games Scheduled",leagues.reduce((a,l)=>a+(l.schedule||[]).length,0)]].map(([label,val]) => (
-            <div key={label} style={{ flex: 1, ...card, textAlign: "center" }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: ACC }}>{val}</div>
-              <div style={{ fontSize: 12, color: T2, marginTop: 4 }}>{label}</div>
+      {/* HERO STRIP */}
+      <div style={{ background: "linear-gradient(135deg, #0f0f12 0%, #111115 100%)", borderBottom: `1px solid ${BORDER}`, padding: "28px 36px 24px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <div className="wx-heading" style={{ fontSize: 32, color: T1, marginBottom: 4 }}>LEAGUE NETWORK</div>
+          <div style={{ fontSize: 13, color: T2, letterSpacing: "0.04em" }}>Command Center · All Leagues</div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
+        {/* STAT STRIP */}
+        <div style={{ display: "flex", gap: 2, marginBottom: 36, background: SURF, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: "hidden" }}>
+          {[["LEAGUES",leagues.length],["TEAMS",leagues.reduce((a,l)=>a+(l.teams||[]).length,0)],["PLAYERS",leagues.reduce((a,l)=>a+(l.players||[]).length,0)],["GAMES",leagues.reduce((a,l)=>a+(l.schedule||[]).length,0)]].map(([label,val], i, arr) => (
+            <div key={label} style={{ flex: 1, textAlign: "center", padding: "20px 12px", borderRight: i < arr.length-1 ? `1px solid ${BORDER}` : "none" }}>
+              <div className="wx-heading" style={{ fontSize: 36, color: ACC, lineHeight: 1 }}>{val}</div>
+              <div className="wx-label" style={{ color: T2, marginTop: 6 }}>{label}</div>
             </div>
           ))}
         </div>
@@ -1164,32 +1179,35 @@ function App() {
             : leagues;
           return (
         <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <div><div style={{ fontSize: 20, fontWeight: 700 }}>All Leagues</div><div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{visibleLeagues.length} league{visibleLeagues.length !== 1 ? "s" : ""} in your network</div></div>
-          {user?.role === "superadmin" && <button style={btn()} onClick={() => setShowAdd(true)}>+ Add League</button>}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <div className="wx-heading" style={{ fontSize: 22, color: T1 }}>ALL LEAGUES</div>
+            <div className="wx-label" style={{ color: T2, marginTop: 4 }}>{visibleLeagues.length} league{visibleLeagues.length !== 1 ? "s" : ""} in your network</div>
+          </div>
+          {user?.role === "superadmin" && <button style={btn()} onClick={() => setShowAdd(true)}>+ ADD LEAGUE</button>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {visibleLeagues.map(l => {
             const lAdmins = users.filter(u => u.leagueId === l.id && (u.role === "admin" || u.role === "co-admin"));
             return (
-              <div key={l.id} style={{ ...card, transition: "all 0.2s" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor=l.color; e.currentTarget.style.background="#1a1a2e"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor=BORDER; e.currentTarget.style.background=CARD; }}>
+              <div key={l.id} style={{ ...card, borderRadius: 6, transition: "all 0.15s", borderLeft: `3px solid ${l.color}` }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor=l.color; e.currentTarget.style.background="#141418"; }}
+                onMouseLeave={e => { e.currentTarget.style.background=CARD; e.currentTarget.style.borderColor=l.color; }}>
                 {/* Clickable main row */}
                 <div onClick={() => { setSelId(l.id); setPage("league"); setTab("teams"); }}
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: l.color+"25", border: `2px solid ${l.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                    <div style={{ width: 46, height: 46, borderRadius: 4, background: l.color+"18", border: `1px solid ${l.color}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
                       {l.sport==="Hockey"?"🏒":l.sport==="Basketball"?"🏀":"🏆"}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 16 }}>{l.name}</div>
-                      <div style={{ fontSize: 13, color: T2, marginTop: 3 }}><span style={{ color: l.color }}>●</span> {l.domain} · {l.sport}</div>
+                      <div className="wx-heading" style={{ fontSize: 20, color: T1, lineHeight: 1.1 }}>{l.name.toUpperCase()}</div>
+                      <div style={{ fontSize: 12, color: T2, marginTop: 4, letterSpacing: "0.04em" }}><span style={{ color: l.color, fontWeight: 700 }}>●</span> {l.sport.toUpperCase()} &nbsp;·&nbsp; {l.domain}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
                     {[["Teams",(l.teams||[]).length],["Players",(l.players||[]).length],["Games",(l.schedule||[]).length]].map(([lbl2,val]) => (
-                      <div key={lbl2} style={{ textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 800 }}>{val}</div><div style={{ fontSize: 11, color: T2 }}>{lbl2}</div></div>
+                      <div key={lbl2} style={{ textAlign: "center", minWidth: 48 }}><div className="wx-heading" style={{ fontSize: 24, color: T1 }}>{val}</div><div className="wx-label" style={{ color: T2, marginTop: 2 }}>{lbl2}</div></div>
                     ))}
                     <div style={{ color: T2, fontSize: 20 }}>›</div>
                   </div>
@@ -1508,26 +1526,27 @@ function App() {
       <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
 
         {/* HEADER */}
-        <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← {user?.role==="superadmin" ? "Dashboard" : "Logout"}</button>
-            <div style={{ width: 1, height: 24, background: BORDER }} />
-            <div style={{ fontSize: 18, fontWeight: 900, color: ACC }}>WEBSITE X</div>
-            <div style={{ fontSize: 14, color: T2 }}>/ {league.name}</div>
+        <div style={{ background: "#0a0a0d", borderBottom: `2px solid ${ACC}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "7px 14px", fontSize: 11, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>← {user?.role==="superadmin" ? "Dashboard" : "Logout"}</button>
+            <div style={{ width: 1, height: 28, background: BORDER }} />
+            <div className="wx-logo" style={{ fontSize: 24, color: ACC }}>WEBSITE X</div>
+            <div style={{ fontSize: 13, color: T2 }}>/ <span style={{ color: T1, fontWeight: 600 }}>{league.name}</span></div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {lastSaved && !dirty && (
-              <span style={{ fontSize: 11, color: "#22c55e", display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 11, color: "#22c55e", display: "flex", alignItems: "center", gap: 5, letterSpacing: "0.04em" }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-                Saved {lastSaved}
+                SAVED {lastSaved}
               </span>
             )}
-            <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, fontWeight: 600,
-              background: user?.role==="superadmin" ? ACC+"20" : user?.role==="admin" ? "#6366f120" : "#f59e0b20",
+            <span style={{ fontSize: 11, padding: "4px 12px", borderRadius: 3, fontWeight: 700, letterSpacing: "0.1em",
+              background: user?.role==="superadmin" ? ACC+"18" : user?.role==="admin" ? "#6366f118" : "#f59e0b18",
+              border: `1px solid ${user?.role==="superadmin" ? ACC+"40" : user?.role==="admin" ? "#6366f140" : "#f59e0b40"}`,
               color:      user?.role==="superadmin" ? ACC      : user?.role==="admin" ? "#818cf8"   : "#f59e0b" }}>
-              {user?.role==="superadmin" ? "🔑 Super Admin" : user?.role==="admin" ? "👤 League Admin" : "🤝 Co-Admin"}
+              {user?.role==="superadmin" ? "🔑 SUPER ADMIN" : user?.role==="admin" ? "👤 LEAGUE ADMIN" : "🤝 CO-ADMIN"}
             </span>
-            <button onClick={handleLogout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
+            <button onClick={handleLogout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 4, color: T2, padding: "7px 14px", fontSize: 11, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>Logout</button>
           </div>
         </div>
 
@@ -1535,7 +1554,7 @@ function App() {
         {(league.categories || []).length > 0 && (() => {
           const cats = league.categories;
           return (
-            <div style={{ background: BG, borderBottom: `1px solid ${BORDER}` }}>
+            <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}` }}>
               {/* Mobile: dropdown */}
               <div className="cat-select-row">
                 <select style={{ ...inp, width: "100%" }} value={activeCatId || ""} onChange={e => setActiveCatId(e.target.value)}>
@@ -1543,22 +1562,22 @@ function App() {
                 </select>
               </div>
               {/* Desktop: tab row */}
-              <div className="cat-tabs-row" style={{ paddingLeft: 24 }}>
+              <div className="cat-tabs-row" style={{ paddingLeft: 32 }}>
                 {cats.map(c => (
                   <button key={c.id} onClick={() => setActiveCatId(c.id)}
-                    style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: activeCatId===c.id ? ACC : T2, borderBottom: activeCatId===c.id ? `2px solid ${ACC}` : "2px solid transparent", transition: "all 0.15s" }}>
+                    style={{ background: "none", border: "none", padding: "12px 20px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "'Barlow Condensed', sans-serif", color: activeCatId===c.id ? ACC : T2, borderBottom: activeCatId===c.id ? `2px solid ${ACC}` : "2px solid transparent", transition: "all 0.15s" }}>
                     {c.displayName || c.name}
                   </button>
                 ))}
                 <button onClick={() => setShowCatModal(true)}
-                  style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
-                  + Add Category
+                  style={{ background: "none", border: "none", padding: "12px 18px", fontSize: 11, cursor: "pointer", color: T2, opacity: 0.5, whiteSpace: "nowrap", letterSpacing: "0.06em" }}>
+                  + ADD
                 </button>
                 <div style={{ flex: 1 }} />
                 {activeCatId && cats.length > 1 && (
                   <button onClick={() => setDeleteCatId(activeCatId)}
-                    style={{ background: "none", border: "none", padding: "11px 16px", fontSize: 12, cursor: "pointer", color: "#ef444488", whiteSpace: "nowrap" }}>
-                    🗑 Delete
+                    style={{ background: "none", border: "none", padding: "12px 16px", fontSize: 11, cursor: "pointer", color: "#ef444870", whiteSpace: "nowrap" }}>
+                    🗑 DELETE
                   </button>
                 )}
               </div>
@@ -1567,9 +1586,9 @@ function App() {
         })()}
 
         {/* TAB BAR */}
-        <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
+        <div style={{ background: "#0d0d10", borderBottom: `1px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
           {TABS.map(([t,label]) => (
-            <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "16px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: tab===t?ACC:T2, borderBottom: tab===t?`2px solid ${ACC}`:"2px solid transparent" }}>{label}</button>
+            <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "18px 22px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", letterSpacing: "0.08em", fontFamily: "'Barlow Condensed', sans-serif", color: tab===t ? ACC : T2, borderBottom: tab===t ? `2px solid ${ACC}` : "2px solid transparent", transition: "color 0.15s" }}>{label}</button>
           ))}
         </div>
 
