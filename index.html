@@ -883,9 +883,15 @@ function App() {
     if (!league) return;
     const teamToDelete = league.teams.find(t => t.id === id);
     const remainingTeams = league.teams.filter(t => t.id !== id);
+    const remainingTeamNames = new Set(remainingTeams.map(t => t.name));
+    const remainingTeamIds   = new Set(remainingTeams.map(t => String(t.id)));
     const remainingPlayers = league.players.filter(p => {
+      // Remove players explicitly on the deleted team
       if (teamToDelete && p.team   === teamToDelete.name)   return false;
       if (teamToDelete && String(p.teamId) === String(id))  return false;
+      // Remove any orphaned players whose team no longer exists
+      if (p.team   && !remainingTeamNames.has(p.team))   return false;
+      if (p.teamId && !remainingTeamIds.has(String(p.teamId))) return false;
       return true;
     });
     // Also remove games that involved this team
@@ -2689,7 +2695,10 @@ service cloud.firestore {
 
         {deleteTeamId && (() => {
           const teamToDelete = league.teams.find(t => t.id === deleteTeamId);
-          const playerCount = (league.players || []).filter(p => p.team === teamToDelete?.name).length;
+          const playerCount = (league.players || []).filter(p =>
+            (teamToDelete && p.team === teamToDelete.name) ||
+            (teamToDelete && String(p.teamId) === String(deleteTeamId))
+          ).length;
           return (
             <ConfirmModal
               icon="🗑️"
