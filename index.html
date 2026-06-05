@@ -1736,7 +1736,39 @@ function App() {
                         <option value="">—</option><option>Right</option><option>Left</option><option>Switch</option>
                       </select></div>}
                     {pFields.hometown && <div style={{ flex: 2, minWidth: 160 }}><label style={lbl}>Hometown / City</label><input style={inp} value={nP.hometown} onChange={e=>setNP({...nP,hometown:e.target.value})} placeholder="e.g. Montréal, QC" /></div>}
-                    {pFields.photo    && <div style={{ flex: 2, minWidth: 200 }}><label style={lbl}>Photo URL</label><input style={inp} value={nP.photo} onChange={e=>setNP({...nP,photo:e.target.value})} placeholder="https://…" /></div>}
+                    {pFields.photo && (
+                      <div style={{ flex: 2, minWidth: 200 }}>
+                        <label style={lbl}>Photo</label>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {nP.photo && <img src={nP.photo} alt="preview" style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: `1px solid ${BORDER}` }} />}
+                          <label style={{ ...btn(LC), display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, padding: "9px 16px" }}>
+                            📸 {nP.photo ? "Change Photo" : "Upload Photo"}
+                            <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => {
+                                // Compress via canvas to keep storage small (~300px wide)
+                                const img = new Image();
+                                img.onload = () => {
+                                  const MAX = 300;
+                                  const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                                  const canvas = document.createElement("canvas");
+                                  canvas.width = img.width * scale;
+                                  canvas.height = img.height * scale;
+                                  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+                                  setNP(prev => ({ ...prev, photo: canvas.toDataURL("image/jpeg", 0.75) }));
+                                };
+                                img.src = ev.target.result;
+                              };
+                              reader.readAsDataURL(file);
+                              e.target.value = "";
+                            }} />
+                          </label>
+                          {nP.photo && <button type="button" onClick={() => setNP(prev=>({...prev,photo:""}))} style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:18, lineHeight:1 }}>×</button>}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
@@ -2277,7 +2309,7 @@ function App() {
                     { key: "weight",     label: "Weight",        desc: "Player weight in pounds (lbs)",                             icon: "⚖️", color: "#a78bfa" },
                     { key: "handedness", label: "Handedness",    desc: "Shooting/throwing hand — Right, Left, or Switch",           icon: "🤚", color: "#22c55e" },
                     { key: "hometown",   label: "Hometown / City", desc: "Player's city or region of origin",                      icon: "📍", color: "#f472b6" },
-                    { key: "photo",      label: "Photo (URL)",   desc: "Link to a profile picture — displays on player cards",      icon: "📸", color: LC },
+                    { key: "photo",      label: "Photo",         desc: "Upload a profile picture from your device — displays on player cards", icon: "📸", color: LC },
                   ].map(({ key, label, desc, icon, color }, i, arr) => (
                     <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "15px 0", borderBottom: i < arr.length-1 ? `1px solid ${BORDER}` : "none" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
