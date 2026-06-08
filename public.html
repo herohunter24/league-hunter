@@ -832,6 +832,7 @@ footer { background: var(--ink); color: oklch(75% 0.01 260); padding: 60px clamp
     window.__wxFS         = { doc, getDoc, collection, getDocs, onSnapshot, setDoc, updateDoc };
     window.__wxLeagueId   = LEAGUE_ID;
     window.__wxFirebaseReady = true;
+    window.dispatchEvent(new Event('wxFirebaseReady'));
   }
 </script>
 
@@ -2965,7 +2966,16 @@ function init() {
   }
 
   // Firebase path — direct onSnapshot listeners on each sub-collection
-  if (__fbReady && LEAGUE_ID) {
+  // Wrapped in startFirebaseListeners() so it can be deferred until the
+  // type="module" init script fires the 'wxFirebaseReady' event.
+  function startFirebaseListeners() {
+    const __fbReady = !!window.__wxFirebaseReady;
+    const _db       = window.__wxDB        || null;
+    const _FS       = window.__wxFS        || {};
+    const LEAGUE_ID = window.__wxLeagueId  ? String(window.__wxLeagueId) : null;
+
+    if (!__fbReady || !LEAGUE_ID || !_db) return false;
+
     const { doc, collection, onSnapshot } = _FS;
     writeHeartbeat();
 
@@ -3056,7 +3066,15 @@ function init() {
       playerStatsUnsubs.forEach(u => u());
     });
 
-    return; // onSnapshot handles all future updates automatically
+    return true; // onSnapshot handles all future updates automatically
+  }
+
+  // Start listeners now if module already ran, otherwise wait for the ready event
+  if (window.__wxFirebaseReady) {
+    startFirebaseListeners();
+    return;
+  } else {
+    window.addEventListener('wxFirebaseReady', () => { startFirebaseListeners(); }, { once: true });
   }
 
   // Not configured banner
