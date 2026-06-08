@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -806,7 +806,7 @@ footer { background: var(--ink); color: oklch(75% 0.01 260); padding: 60px clamp
 
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
-<!-- League Hunter — paste into your public site <head> -->
+<!-- League Hunter — Multi-league public page -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, getDoc, collection, getDocs, onSnapshot, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -819,14 +819,20 @@ footer { background: var(--ink); color: oklch(75% 0.01 260); padding: 60px clamp
   "messagingSenderId": "356722740419",
   "appId": "1:356722740419:web:59e10cb552f5f4fa02e676"
 };
-  const LEAGUE_ID = "1776898968417"; // basket summer TEST
 
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
-  window.__wxDB         = db;
-  window.__wxFS         = { doc, getDoc, collection, getDocs, onSnapshot, setDoc, updateDoc };
-  window.__wxLeagueId   = LEAGUE_ID;
-  window.__wxFirebaseReady = true;
+  const LEAGUE_ID = new URLSearchParams(window.location.search).get('league');
+
+  if (!LEAGUE_ID) {
+    window.__wxNoLeagueId = true;
+    window.__wxFirebaseReady = false;
+  } else {
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+    window.__wxDB         = db;
+    window.__wxFS         = { doc, getDoc, collection, getDocs, onSnapshot, setDoc, updateDoc };
+    window.__wxLeagueId   = LEAGUE_ID;
+    window.__wxFirebaseReady = true;
+  }
 </script>
 
 </head>
@@ -3666,3 +3672,4 @@ document.addEventListener('DOMContentLoaded', () => { init(); });
 
 </body>
 </html>
+

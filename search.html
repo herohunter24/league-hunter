@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Search | League Hunter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfMttfJLMvEW-LB3TIkFgebR5Cb7-1Wi4",
+    authDomain: "league-hunter.firebaseapp.com",
+    projectId: "league-hunter",
+    storageBucket: "league-hunter.firebasestorage.app",
+    messagingSenderId: "356722740419",
+    appId: "1:356722740419:web:59e10cb552f5f4fa02e676"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  window.__sDB = db;
+  window.__sDocs = { collection, getDocs };
+  window.__sReady = true;
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--green:oklch(48% 0.14 148);--border:oklch(88% 0.01 80);--ink:oklch(18% 0.01 260);--ink-mid:oklch(42% 0.01 260);--ink-soft:oklch(62% 0.01 260);--white:oklch(99% 0.005 80);--off:oklch(97% 0.008 80);--shadow:0 2px 24px oklch(18% 0.01 260/0.07);--radius:14px;--ff:'DM Sans',system-ui,sans-serif;--ff-d:'DM Serif Display',Georgia,serif;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--ff);background:var(--off);color:var(--ink);min-height:100vh;}
+header{background:var(--white);border-bottom:1.5px solid var(--border);padding:0 clamp(16px,5vw,80px);height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:var(--ff-d);font-size:20px;color:var(--ink);text-decoration:none;}
+.logo span{color:var(--green);}
+.back-link{font-size:13px;color:var(--ink-soft);text-decoration:none;display:flex;align-items:center;gap:4px;}
+.back-link:hover{color:var(--green);}
+main{max-width:860px;margin:0 auto;padding:clamp(24px,4vw,56px) clamp(16px,4vw,40px);}
+h1{font-family:var(--ff-d);font-size:clamp(28px,4vw,42px);margin-bottom:8px;}
+.sub{font-size:15px;color:var(--ink-soft);margin-bottom:32px;}
+.search-wrap{position:relative;margin-bottom:32px;}
+.search-input{width:100%;padding:16px 20px 16px 52px;font-size:17px;border:2px solid var(--border);border-radius:var(--radius);font-family:var(--ff);color:var(--ink);background:var(--white);outline:none;transition:border-color 0.15s;}
+.search-input:focus{border-color:var(--green);}
+.search-icon{position:absolute;left:18px;top:50%;transform:translateY(-50%);font-size:20px;pointer-events:none;}
+.search-clear{position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink-soft);display:none;}
+.league-group{margin-bottom:32px;}
+.league-group-header{font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+.result-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;transition:all 0.15s;box-shadow:var(--shadow);}
+.result-card:hover{border-color:var(--green);transform:translateY(-1px);}
+.result-photo{width:52px;height:52px;border-radius:50%;background:oklch(94% 0.04 148);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:var(--green);flex-shrink:0;overflow:hidden;}
+.result-photo img{width:100%;height:100%;object-fit:cover;}
+.result-info{flex:1;min-width:0;}
+.result-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.result-team{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+.result-stats{font-size:11px;color:var(--ink-mid);margin-top:4px;display:flex;gap:10px;}
+.result-tier{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-top:5px;}
+.empty{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+.empty-icon{font-size:48px;margin-bottom:16px;}
+.empty-title{font-family:var(--ff-d);font-size:24px;color:var(--ink-mid);margin-bottom:8px;}
+.loading{text-align:center;padding:60px;color:var(--ink-soft);font-size:14px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner2{width:24px;height:24px;border:2.5px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;margin-bottom:12px;}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">League <span>Hunter</span></a>
+  <a href="javascript:history.back()" class="back-link">&#8592; Back</a>
+</header>
+<main>
+  <h1>Player Search</h1>
+  <p class="sub">Search for any player across all leagues in real time.</p>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input id="search-input" class="search-input" type="search" placeholder="Type a player name…" autocomplete="off" oninput="onSearchInput(this.value)" />
+    <button class="search-clear" id="search-clear" onclick="clearSearch()">✕</button>
+  </div>
+  <div id="results"></div>
+</main>
+
+<script>
+// ── TIER CONSTANTS (duplicated for standalone page) ──
+const RANK_TIERS_S = [
+  {id:"bronze",label:"Bronze",minRP:0,color:"#cd7f32",icon:"🥉"},
+  {id:"silver",label:"Silver",minRP:150,color:"#c0c0c0",icon:"🥈"},
+  {id:"gold",  label:"Gold",  minRP:450,color:"#ffd700",icon:"🥇"},
+  {id:"platinum",label:"Platinum",minRP:1000,color:"#e5e4e2",icon:"💎"},
+  {id:"diamond",label:"Diamond",minRP:2200,color:"#b9f2ff",icon:"💠"},
+  {id:"elite", label:"Elite", minRP:4500,color:"#ff4ecd",icon:"⚡"},
+  {id:"legend",label:"Legend",minRP:9000,color:"#ffcc00",icon:"👑"},
+];
+function getTierS(rp){let t=RANK_TIERS_S[0];for(const x of RANK_TIERS_S){if(rp>=x.minRP)t=x;}return t;}
+function calcRPSimple(player,allGames,league){
+  const pid=String(player.id);
+  const resetAt=(league?.season?.resetAt)||0;
+  const games=(allGames||[]).filter(g=>{if(!g.playerStats||g.playerStats[pid]===undefined)return false;if(resetAt){const gt=new Date((g.date||'9999')+'T00:00').getTime();if(gt<resetAt)return false;}return true;});
+  if(!games.length)return 0;
+  const base=games.map(g=>{const ps=g.playerStats[pid]||{};return Math.max(0,(+(ps.points||0))*1+(+(ps.rebounds||0))*0.7+(+(ps.assists||0))*1.2+(+(ps.steals||0))*1.5+(+(ps.blocks||0))*1.5-(+(ps.turnovers||0))*1);});
+  return Math.round(base.reduce((s,x)=>s+x,0));
+}
+
+var _allData = null;
+var _searchTimer = null;
+
+async function loadAllLeagues() {
+  if (!window.__sReady || !window.__sDB) return [];
+  const { collection, getDocs } = window.__sDocs;
+  const db = window.__sDB;
+  const resultsEl = document.getElementById('results');
+  resultsEl.innerHTML = '<div class="loading"><div class="spinner2"></div><br>Loading leagues…</div>';
+  try {
+    const leaguesSnap = await getDocs(collection(db, 'leagues'));
+    const leagues = [];
+    for (const ldoc of leaguesSnap.docs) {
+      const meta = ldoc.data();
+      const [playersSnap, gamesSnap] = await Promise.all([
+        getDocs(collection(db,'leagues',ldoc.id,'players')),
+        getDocs(collection(db,'leagues',ldoc.id,'games')),
+      ]);
+      const players = playersSnap.docs.map(d=>d.data());
+      const games   = gamesSnap.docs.map(d=>({...d.data(),id:d.id}));
+      if (players.length) leagues.push({ id:ldoc.id, name:meta.name||'League', sport:meta.sport||'', players, games, season:meta.season||{} });
+    }
+    _allData = leagues;
+    resultsEl.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Start typing to search</div><p>Search by player name across all leagues.</p></div>';
+    return leagues;
+  } catch(e) {
+    console.error(e);
+    resultsEl.innerHTML = '<div class="empty"><div class="empty-icon">❌</div><div class="empty-title">Could not load data</div><p>Check your connection and try again.</p></div>';
+    return [];
+  }
+}
+
+function onSearchInput(val) {
+  const clearBtn = document.getElementById('search-clear');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  clearTimeout(_searchTimer);
+  if (!val.trim()) {
+    document.getElementById('results').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Start typing to search</div></div>';
+    return;
+  }
+  _searchTimer = setTimeout(() => doSearch(val.trim()), 300);
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  document.getElementById('results').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Start typing to search</div></div>';
+}
+
+function doSearch(query) {
+  if (!_allData) return;
+  const q = query.toLowerCase();
+  const resultsEl = document.getElementById('results');
+  const groups = [];
+
+  _allData.forEach(league => {
+    const matches = league.players.filter(p => (p.name||'').toLowerCase().includes(q) || (p.position||'').toLowerCase().includes(q));
+    if (!matches.length) return;
+    const cards = matches.map(p => {
+      const pid = String(p.id);
+      const rp  = calcRPSimple(p, league.games||[], league);
+      const tier = getTierS(rp);
+      const gs   = (league.games||[]).filter(g=>g.playerStats&&g.playerStats[pid]!==undefined);
+      const gp   = gs.length||1;
+      const ppg  = gs.length ? (gs.reduce((s,g)=>s+(+(g.playerStats[pid].points||0)),0)/gp).toFixed(1) : '—';
+      const rpg  = gs.length ? (gs.reduce((s,g)=>s+(+(g.playerStats[pid].rebounds||0)),0)/gp).toFixed(1) : '—';
+      const apg  = gs.length ? (gs.reduce((s,g)=>s+(+(g.playerStats[pid].assists||0)),0)/gp).toFixed(1) : '—';
+      const href = `public.html?league=${league.id}&player=${p.id}`;
+      const initials = (p.name||'?')[0].toUpperCase();
+      const photoInner = p.photoUrl
+        ? `<img src="${p.photoUrl}" alt="" onerror="this.parentElement.textContent='${initials}'">`
+        : initials;
+      return `<a href="${href}" class="result-card">
+        <div class="result-photo" style="border:2.5px solid ${tier.color};">${photoInner}</div>
+        <div class="result-info">
+          <div class="result-name">${p.name||'—'}</div>
+          <div class="result-team">${p.team||''} ${p.position?'· '+p.position:''}</div>
+          <div class="result-stats"><span>🏀 ${ppg} PPG</span><span>🔄 ${rpg} RPG</span><span>🎯 ${apg} APG</span></div>
+          <div class="result-tier" style="color:${tier.color};">${tier.icon} ${tier.label} · ${rp} RP</div>
+        </div>
+      </a>`;
+    });
+    groups.push({ leagueName: league.name, sport: league.sport, cards });
+  });
+
+  if (!groups.length) {
+    resultsEl.innerHTML = `<div class="empty"><div class="empty-icon">🤷</div><div class="empty-title">No results found</div><p>No players match "<strong>${query}</strong>".</p></div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = groups.map(g => `
+    <div class="league-group">
+      <div class="league-group-header">${g.sport?g.sport+' · ':''} ${g.leagueName} <span style="background:var(--border);border-radius:100px;padding:2px 8px;font-size:10px;">${g.cards.length}</span></div>
+      <div class="results-grid">${g.cards.join('')}</div>
+    </div>`).join('');
+}
+
+// Load all leagues on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const waitForFb = setInterval(() => {
+    if (window.__sReady) { clearInterval(waitForFb); loadAllLeagues(); }
+  }, 100);
+  setTimeout(() => clearInterval(waitForFb), 5000);
+});
+</script>
+</body>
+</html>
