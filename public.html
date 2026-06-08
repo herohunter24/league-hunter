@@ -3031,16 +3031,21 @@ function init() {
         });
 
         // Remove playerStats listeners for games that no longer exist
-        const currentGameIds = new Set(liveLeague.schedule.map(g => g.id));
+        const currentGameIds = new Set(liveLeague.schedule.map(g => String(g.id)));
         for (const [gid, unsub] of playerStatsUnsubs.entries()) {
           if (!currentGameIds.has(gid)) { unsub(); playerStatsUnsubs.delete(gid); }
         }
 
         // Add playerStats listeners for new games
         liveLeague.schedule.forEach(game => {
-          if (!playerStatsUnsubs.has(game.id)) {
+          // Guard: skip if game.id is missing or invalid (prevents Firestore TypeError)
+          if (!game.id || (typeof game.id !== 'string' && typeof game.id !== 'number')) {
+            console.warn('[League Hunter] Skipping playerStats listener for game with invalid id:', game);
+            return;
+          }
+          if (!playerStatsUnsubs.has(String(game.id))) {
             const psUnsub = onSnapshot(
-              collection(_db, 'leagues', String(LEAGUE_ID), 'games', game.id, 'playerStats'),
+              collection(_db, 'leagues', String(LEAGUE_ID), 'games', String(game.id), 'playerStats'),
               psSnap => {
                 const gameInState = liveLeague.schedule.find(g => g.id === game.id);
                 if (gameInState) {
@@ -3051,7 +3056,7 @@ function init() {
               },
               err => console.error(`[League Hunter] PlayerStats listen error for game ${game.id}:`, err)
             );
-            playerStatsUnsubs.set(game.id, psUnsub);
+            playerStatsUnsubs.set(String(game.id), psUnsub);
           }
         });
 
