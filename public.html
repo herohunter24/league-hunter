@@ -2964,50 +2964,98 @@ function init() {
     setTimeout(renderRecapPage, 800);
   }
 
-  // Firebase path — onSnapshot on meta doc detects _updatedAt changes, then reloads sub-collections
+  // Firebase path — direct onSnapshot listeners on each sub-collection
   if (__fbReady && LEAGUE_ID) {
-    const { doc, onSnapshot } = _FS;
+    const { doc, collection, onSnapshot } = _FS;
     writeHeartbeat();
-    let lastUpdatedAt = 0;
-    let reloadInProgress = false;
 
-    async function reloadFromFirestore() {
-      if (reloadInProgress) return;
-      reloadInProgress = true;
-      try {
-        const league = await loadLeagueFromSubcollections(LEAGUE_ID);
-        if (league) renderAll(league);
-        else showNoDataState('No league found with that ID in Firestore. Check the LEAGUE_ID in your module script.');
-      } catch(e) {
-        console.error('[League Hunter] Sub-collection reload error:', e);
-        const league = loadLeague();
-        if (league) renderAll(league);
-      } finally { reloadInProgress = false; }
-    }
+    // Live state accumulated from each listener
+    const liveLeague = { teams: [], players: [], schedule: [] };
+    let leagueMeta = null;
 
-    const unsub = onSnapshot(
+    const unsubs = [];
+
+    // Listener 1: Root league document (name, sport, settings, colour)
+    unsubs.push(onSnapshot(
       doc(_db, 'leagues', String(LEAGUE_ID)),
-      snapshot => {
-        if (!snapshot.exists()) {
-          showNoDataState('No league found with that ID in Firestore. Check the LEAGUE_ID in your module script.');
-          return;
-        }
-        const updatedAt = snapshot.data()._updatedAt || 0;
-        if (updatedAt <= lastUpdatedAt) return; // no real change, skip
-        lastUpdatedAt = updatedAt;
-        reloadFromFirestore();
+      snap => {
+        if (!snap.exists()) { showNoDataState('No league found with that ID in Firestore. Check the LEAGUE_ID in your module script.'); return; }
+        leagueMeta = snap.data();
+        renderAll({ ...leagueMeta, ...liveLeague });
       },
-      error => {
-        console.error('[League Hunter] Firestore listen error:', error);
-        const league = loadLeague();
-        if (league) renderAll(league);
-        else {
-          showNoDataState('Firebase error — falling back to local data.');
-          if (typeof window.__wxLoadingError === 'function') window.__wxLoadingError('Could not connect to server. Retrying...');
-        }
+      err => {
+        console.error('[League Hunter] League doc listen error:', err);
+        showNoDataState('Connection error — please refresh');
       }
-    );
-    window.addEventListener('pagehide', () => unsub());
+    ));
+
+    // Listener 2: Teams sub-collection
+    unsubs.push(onSnapshot(
+      collection(_db, 'leagues', String(LEAGUE_ID), 'teams'),
+      snap => {
+        liveLeague.teams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (leagueMeta) renderAll({ ...leagueMeta, ...liveLeague });
+      },
+      err => console.error('[League Hunter] Teams listen error:', err)
+    ));
+
+    // Listener 3: Players sub-collection
+    unsubs.push(onSnapshot(
+      collection(_db, 'leagues', String(LEAGUE_ID), 'players'),
+      snap => {
+        liveLeague.players = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (leagueMeta) renderAll({ ...leagueMeta, ...liveLeague });
+      },
+      err => console.error('[League Hunter] Players listen error:', err)
+    ));
+
+    // Listener 4: Games sub-collection + nested playerStats per game
+    const playerStatsUnsubs = new Map(); // gameId -> unsub function
+    unsubs.push(onSnapshot(
+      collection(_db, 'leagues', String(LEAGUE_ID), 'games'),
+      snap => {
+        liveLeague.schedule = snap.docs.map(d => {
+          // Preserve any playerStats already fetched for this game
+          const existing = liveLeague.schedule.find(g => g.id === d.id);
+          return { id: d.id, ...d.data(), playerStats: (existing && existing.playerStats) || {} };
+        });
+
+        // Remove playerStats listeners for games that no longer exist
+        const currentGameIds = new Set(liveLeague.schedule.map(g => g.id));
+        for (const [gid, unsub] of playerStatsUnsubs.entries()) {
+          if (!currentGameIds.has(gid)) { unsub(); playerStatsUnsubs.delete(gid); }
+        }
+
+        // Add playerStats listeners for new games
+        liveLeague.schedule.forEach(game => {
+          if (!playerStatsUnsubs.has(game.id)) {
+            const psUnsub = onSnapshot(
+              collection(_db, 'leagues', String(LEAGUE_ID), 'games', game.id, 'playerStats'),
+              psSnap => {
+                const gameInState = liveLeague.schedule.find(g => g.id === game.id);
+                if (gameInState) {
+                  gameInState.playerStats = {};
+                  psSnap.docs.forEach(ps => { gameInState.playerStats[ps.id] = ps.data(); });
+                  if (leagueMeta) renderAll({ ...leagueMeta, ...liveLeague });
+                }
+              },
+              err => console.error(`[League Hunter] PlayerStats listen error for game ${game.id}:`, err)
+            );
+            playerStatsUnsubs.set(game.id, psUnsub);
+          }
+        });
+
+        if (leagueMeta) renderAll({ ...leagueMeta, ...liveLeague });
+      },
+      err => console.error('[League Hunter] Games listen error:', err)
+    ));
+
+    // Cleanup all listeners on page unload
+    window.addEventListener('pagehide', () => {
+      unsubs.forEach(u => u());
+      playerStatsUnsubs.forEach(u => u());
+    });
+
     return; // onSnapshot handles all future updates automatically
   }
 
