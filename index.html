@@ -1179,6 +1179,7 @@ function App() {
   const [editTeam, setEditTeam] = useState(null);     // { id, name, emoji }
   const [editPlayer, setEditPlayer] = useState(null); // { id, name, number, position, team, email }
   const [editEmojiErr, setEditEmojiErr] = useState("");
+  const [deleteTeamId, setDeleteTeamId] = useState(null);
   // FEATURE 5 — Delete player with stats warning
   const [deletePlayerId, setDeletePlayerId] = useState(null); // { id, gamesCount }
   // FIX 3 — Superadmin manage users view
@@ -1900,8 +1901,33 @@ function App() {
     const remainingSchedule = teamToDelete
       ? league.schedule.filter(g => g.home !== teamToDelete.name && g.away !== teamToDelete.name)
       : league.schedule;
+    // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
+    if (__fbReady && _db) {
+      try {
+        const { deleteDoc, doc } = _FS;
+        await deleteDoc(doc(_db, 'leagues', String(league.id), 'teams', String(id)));
+        // Delete players on this team
+        const playersToRemove = league.players.filter(p =>
+          (teamToDelete && p.team === teamToDelete.name) || String(p.teamId) === String(id)
+        );
+        for (const p of playersToRemove) {
+          await deleteDoc(doc(_db, 'leagues', String(league.id), 'players', String(p.id)));
+        }
+        // Delete games involving this team
+        const gamesToRemove = teamToDelete
+          ? league.schedule.filter(g => g.home === teamToDelete.name || g.away === teamToDelete.name)
+          : [];
+        for (const g of gamesToRemove) {
+          await deleteDoc(doc(_db, 'leagues', String(league.id), 'games', String(g.id)));
+        }
+      } catch (e) {
+        console.error('[League Hunter] Direct deleteDoc failed in delTeam:', e);
+        // Continue to writeLeagueNow as fallback
+      }
+    }
     const updated = { ...league, teams: remainingTeams, players: remainingPlayers, schedule: remainingSchedule };
     await writeLeagueNow(updated);
+    setDeleteTeamId(null);
     setDirty(false);
   }
 
@@ -1948,6 +1974,16 @@ function App() {
       delete ps[String(id)];
       return { ...g, playerStats: ps };
     });
+    // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
+    if (__fbReady && _db) {
+      try {
+        const { deleteDoc, doc } = _FS;
+        await deleteDoc(doc(_db, 'leagues', String(league.id), 'players', String(id)));
+      } catch (e) {
+        console.error('[League Hunter] Direct deleteDoc failed in delPlayer:', e);
+        // Continue to writeLeagueNow as fallback
+      }
+    }
     const updated = { ...league, players: league.players.filter(p => p.id !== id), schedule: cleanedSchedule };
     await writeLeagueNow(updated);
     setDirty(false);
@@ -2090,6 +2126,21 @@ function App() {
   }
   async function deleteGame(id) {
     if (!league) return;
+    // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
+    if (__fbReady && _db) {
+      try {
+        const { deleteDoc, getDocs, collection, doc } = _FS;
+        // Delete nested playerStats sub-collection first (Firestore doesn't cascade)
+        const psSnap = await getDocs(collection(_db, 'leagues', String(league.id), 'games', String(id), 'playerStats'));
+        for (const psDoc of psSnap.docs) {
+          await deleteDoc(doc(_db, 'leagues', String(league.id), 'games', String(id), 'playerStats', psDoc.id));
+        }
+        await deleteDoc(doc(_db, 'leagues', String(league.id), 'games', String(id)));
+      } catch (e) {
+        console.error('[League Hunter] Direct deleteDoc failed in deleteGame:', e);
+        // Continue to writeLeagueNow as fallback
+      }
+    }
     const updated = { ...league, schedule: league.schedule.filter(g => g.id !== id) };
     await writeLeagueNow(updated);
     setDirty(false);
@@ -3070,7 +3121,7 @@ function App() {
                       )}
                       {/* FEATURE 2: Edit team */}
                       <button onClick={() => { setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }} title="Edit team">✏️</button>
-                      <button onClick={() => delTeam(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                      <button onClick={() => setDeleteTeamId(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
                     </div>
                   </div>
                 ))
@@ -4635,6 +4686,10 @@ service cloud.firestore {
           </div>
           );
         })()}
+
+        {deleteTeamId && (
+          <ConfirmModal icon="🗑️" title="Delete this team?" body="All players assigned to it and games involving it will also be removed. This cannot be undone." confirmLabel="Yes, Delete Team" onConfirm={() => delTeam(deleteTeamId)} onCancel={() => setDeleteTeamId(null)} />
+        )}
 
         {deleteGameId && (
           <ConfirmModal icon="🗑️" title="Delete this game?" body="This action cannot be undone. The game and all associated data will be permanently removed." confirmLabel="Yes, Delete" onConfirm={() => deleteGame(deleteGameId)} onCancel={() => setDeleteGameId(null)} />
