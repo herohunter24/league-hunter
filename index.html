@@ -1038,6 +1038,170 @@ function ConfirmModal({ icon, title, body, confirmLabel, onConfirm, onCancel }) 
   );
 }
 
+// ══════════════════════════════════════════════════════════════════
+// ACTION CONFIRM MODAL — reusable confirmation for all admin actions
+// Props:
+//   open              bool     — show/hide
+//   onCancel          fn       — close without acting
+//   onConfirm         fn       — execute the action
+//   actionType        string   — 'add' | 'edit' | 'delete' | 'modify'
+//   entityType        string   — 'team' | 'player' | 'game' | 'score' | 'stats'
+//   entityLabel       string   — e.g. "Wolves", "Marc Tremblay"
+//   summary           string   — human-readable sentence about the action
+//   details           array    — [{ label, oldValue, newValue }] — shown as change table
+//   requiresTypedConfirm bool  — if true, user must type confirmWord to enable button
+//   confirmWord       string   — word user must type (default "DELETE")
+//   confirmLabel      string   — button label
+//   dangerStyle       bool     — red confirm button (for destructive actions)
+// ══════════════════════════════════════════════════════════════════
+function ActionConfirmModal({
+  open, onCancel, onConfirm,
+  actionType = 'modify', entityType = '', entityLabel = '',
+  summary = '', details = [],
+  requiresTypedConfirm = false, confirmWord = 'DELETE',
+  confirmLabel = 'Confirm', dangerStyle = false,
+}) {
+  const [typed, setTyped] = React.useState('');
+  const inputRef = React.useRef(null);
+
+  // Reset typed input whenever modal opens
+  React.useEffect(() => {
+    if (open) {
+      setTyped('');
+      if (requiresTypedConfirm) {
+        // Small delay so the DOM is mounted before focusing
+        setTimeout(() => inputRef.current && inputRef.current.focus(), 50);
+      }
+    }
+  }, [open, requiresTypedConfirm]);
+
+  // Esc to cancel, Enter to confirm (when allowed)
+  React.useEffect(() => {
+    if (!open) return;
+    function handleKey(e) {
+      if (e.key === 'Escape') { onCancel(); }
+      if (e.key === 'Enter'  && canConfirm) { onConfirm(); }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  });
+
+  if (!open) return null;
+
+  const canConfirm = !requiresTypedConfirm || typed === confirmWord;
+
+  // Icon + title derived from actionType
+  const ACTION_META = {
+    add:    { icon: '➕', verb: 'Add'    },
+    edit:   { icon: '✏️',  verb: 'Edit'   },
+    delete: { icon: '🗑️', verb: 'Delete' },
+    modify: { icon: '⚙️', verb: 'Modify' },
+  };
+  const meta       = ACTION_META[actionType] || ACTION_META.modify;
+  const entityCap  = entityType ? entityType.charAt(0).toUpperCase() + entityType.slice(1) : '';
+  const autoTitle  = `${meta.icon} ${meta.verb}${entityCap ? ' ' + entityCap : ''}${entityLabel ? ': ' + entityLabel : ''}`;
+
+  const confirmBg  = dangerStyle ? '#ef4444' : ACC;
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: '#00000095', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div style={{ width: 440, ...card, padding: 32 }}>
+
+        {/* Header */}
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{autoTitle}</div>
+
+        {/* Summary sentence */}
+        {summary && (
+          <div style={{ fontSize: 14, color: T2, marginBottom: details.length ? 16 : 24 }}>{summary}</div>
+        )}
+
+        {/* Details table — "Field: old → new" for edits, "Field: value" for adds */}
+        {details.length > 0 && (
+          <div style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
+            {details.map((row, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', borderBottom: i < details.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+                <span style={{ color: T2, flexShrink: 0, marginRight: 12 }}>{row.label}</span>
+                {row.oldValue !== undefined
+                  ? <span style={{ color: T1, textAlign: 'right' }}>
+                      <span style={{ color: '#ef4444', textDecoration: 'line-through', marginRight: 6 }}>{row.oldValue}</span>
+                      <span style={{ color: T2, marginRight: 6 }}>→</span>
+                      <span style={{ color: '#22c55e' }}>{row.newValue}</span>
+                    </span>
+                  : <span style={{ color: T1, textAlign: 'right' }}>{row.value}</span>
+                }
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Typed confirm input */}
+        {requiresTypedConfirm && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: T2, marginBottom: 8 }}>
+              Type <strong style={{ color: '#ef4444' }}>{confirmWord}</strong> to confirm
+            </div>
+            <input
+              ref={inputRef}
+              value={typed}
+              onChange={e => setTyped(e.target.value)}
+              placeholder={confirmWord}
+              style={{ width: '100%', boxSizing: 'border-box', background: BG, border: `1px solid ${typed === confirmWord ? '#22c55e' : BORDER}`, borderRadius: 8, color: T1, padding: '10px 14px', fontSize: 14, outline: 'none' }}
+            />
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            style={{ ...btn(confirmBg), flex: 1, opacity: canConfirm ? 1 : 0.4, cursor: canConfirm ? 'pointer' : 'not-allowed' }}
+            onClick={() => { if (canConfirm) onConfirm(); }}
+            disabled={!canConfirm}
+          >{confirmLabel}</button>
+          <button style={{ ...btn('#252540'), flex: 1 }} onClick={onCancel}>Cancel</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ── useActionConfirm — hook for imperative modal API ──
+// Usage:
+//   const askConfirm = useActionConfirm();
+//   askConfirm({ actionType:'add', entityType:'team', entityLabel:'Wolves',
+//                summary:"You are about to add team 'Wolves' to category 'U17'.",
+//                onConfirm: () => doActualAdd() });
+//   // In JSX: <ActionConfirmModal {...askConfirm.modalProps} />
+function useActionConfirm() {
+  const [state, setState] = React.useState(null); // null = closed
+
+  function ask(opts) {
+    setState(opts);
+  }
+
+  const modalProps = state
+    ? {
+        open:                 true,
+        onCancel:             () => setState(null),
+        onConfirm:            () => { setState(null); state.onConfirm && state.onConfirm(); },
+        actionType:           state.actionType           || 'modify',
+        entityType:           state.entityType           || '',
+        entityLabel:          state.entityLabel          || '',
+        summary:              state.summary              || '',
+        details:              state.details              || [],
+        requiresTypedConfirm: state.requiresTypedConfirm || false,
+        confirmWord:          state.confirmWord          || 'DELETE',
+        confirmLabel:         state.confirmLabel         || 'Confirm',
+        dangerStyle:          state.dangerStyle          || false,
+      }
+    : { open: false, onCancel: () => {}, onConfirm: () => {} };
+
+  return { ask, modalProps };
+}
+
 // ── STAT CELL (total + avg stacked) ──
 function StatCell({ val, gp, color }) {
   return (
