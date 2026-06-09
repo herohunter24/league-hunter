@@ -1312,9 +1312,7 @@ function App() {
   const [nS, setNS] = useState({ gameId: "", homeScore: "", awayScore: "" });
   const [nPS, setNPS] = useState({});
   const [editGame, setEditGame] = useState(null);
-  const [deleteGameId, setDeleteGameId] = useState(null);
   const [editScore, setEditScore] = useState(null);
-  const [deleteScoreId, setDeleteScoreId] = useState(null);
   const [editStats, setEditStats] = useState(null); // { game, stats: { pid: { key: val } } }
   const [dirty, setDirty] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
@@ -1330,7 +1328,6 @@ function App() {
   const [manageOwnerId, setManageOwnerId] = useState(null);
   const [deleteOwnerId, setDeleteOwnerId] = useState(null);
   const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
-  const [deleteLeagueId, setDeleteLeagueId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [activeCatId, setActiveCatId] = useState(null);
   const [showCatModal, setShowCatModal] = useState(false);
@@ -1343,9 +1340,8 @@ function App() {
   const [editTeam, setEditTeam] = useState(null);     // { id, name, emoji }
   const [editPlayer, setEditPlayer] = useState(null); // { id, name, number, position, team, email }
   const [editEmojiErr, setEditEmojiErr] = useState("");
-  const [deleteTeamId, setDeleteTeamId] = useState(null);
-  // FEATURE 5 — Delete player with stats warning
-  const [deletePlayerId, setDeletePlayerId] = useState(null); // { id, gamesCount }
+  // DELETE CONFIRM — single useActionConfirm instance handles all delete actions
+  const deleteConfirm = useActionConfirm();
   // FIX 3 — Superadmin manage users view
   const [showManageUsers, setShowManageUsers] = useState(false);
   // SYSTEMS — Missing score alert + live refresh
@@ -2091,7 +2087,6 @@ function App() {
     }
     const updated = { ...league, teams: remainingTeams, players: remainingPlayers, schedule: remainingSchedule };
     await writeLeagueNow(updated);
-    setDeleteTeamId(null);
     setDirty(false);
   }
 
@@ -2196,7 +2191,6 @@ function App() {
     const updated = leagues.filter(l => l.id !== id);
     setLeagues(updated);
     localStorage.setItem("wxLeagues", JSON.stringify(updated));
-    setDeleteLeagueId(null);
     if (selId === id) { setSelId(null); setPage("dashboard"); setDirty(false); }
     showToast("League deleted.");
   }
@@ -2258,15 +2252,32 @@ function App() {
     showToast("Player updated!");
   }
 
-  // ── FEATURE 5: DELETE PLAYER WITH STATS WARNING ──
+  // ── FEATURE 5: DELETE PLAYER — uses deleteConfirm.ask for both cases ──
   function handleDeletePlayer(id) {
     if (!league) return;
+    const p = league.players.find(pl => pl.id === id);
+    if (!p) return;
     const gamesCount = (league.schedule || []).filter(g => g.playerStats && (g.playerStats[id] !== undefined || g.playerStats[String(id)] !== undefined)).length;
-    if (gamesCount > 0) {
-      setDeletePlayerId({ id, gamesCount });
-    } else {
-      delPlayer(id);
-    }
+    const totalPts   = (league.schedule || []).reduce((sum, g) => sum + (+(g.playerStats?.[id]?.points || g.playerStats?.[String(id)]?.points || 0)), 0);
+    deleteConfirm.ask({
+      actionType: 'delete',
+      entityType: 'player',
+      entityLabel: p.name,
+      summary: gamesCount > 0
+        ? `You are about to permanently delete "${p.name}". This will also remove their stats from ${gamesCount} recorded game${gamesCount !== 1 ? 's' : ''}. This cannot be undone.`
+        : `You are about to permanently delete player "${p.name}". This cannot be undone.`,
+      details: [
+        { label: 'Player',   value: p.name },
+        { label: 'Team',     value: p.team || '—' },
+        { label: 'Games',    value: String(gamesCount) },
+        ...(gamesCount > 0 ? [{ label: 'Points recorded', value: String(totalPts) }] : []),
+      ],
+      requiresTypedConfirm: true,
+      confirmWord: 'DELETE',
+      confirmLabel: 'Yes, Delete Player',
+      dangerStyle: true,
+      onConfirm: () => delPlayer(id),
+    });
   }
 
   async function addGame() {
@@ -2308,7 +2319,6 @@ function App() {
     const updated = { ...league, schedule: league.schedule.filter(g => g.id !== id) };
     await writeLeagueNow(updated);
     setDirty(false);
-    setDeleteGameId(null);
   }
 
   function doInitPlayerStats(gameObj) {
@@ -2535,7 +2545,6 @@ function App() {
     };
     await writeLeagueNow(updated);
     setDirty(false);
-    setDeleteScoreId(null);
   }
   async function setToggle(key, val) {
     if (!league) return;
@@ -2980,12 +2989,8 @@ function App() {
         <ConfirmModal icon="🗑️" title="Delete Owner Account?" body={`This will permanently remove the login credentials for ${users.find(u=>u.id===deleteOwnerId)?.email}. The league data is unaffected.`} confirmLabel="Yes, Delete Account" onConfirm={() => deleteOwner(deleteOwnerId)} onCancel={() => setDeleteOwnerId(null)} />
       )}
 
-      {deleteLeagueId && (() => {
-        const lg = leagues.find(l => l.id === deleteLeagueId);
-        return (
-          <ConfirmModal icon="⚠️" title={`Delete "${lg?.name}"?`} body="This will permanently delete the league and all its teams, players, games, and scores from Firestore. This cannot be undone." confirmLabel="Yes, Delete League" onConfirm={() => deleteLeague(deleteLeagueId)} onCancel={() => setDeleteLeagueId(null)} />
-        );
-      })()}
+      {/* DELETE CONFIRM — single ActionConfirmModal for all delete actions */}
+      <ActionConfirmModal {...deleteConfirm.modalProps} />
 
       {showAdd && (
         <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
@@ -3285,7 +3290,18 @@ function App() {
                       )}
                       {/* FEATURE 2: Edit team */}
                       <button onClick={() => { setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }} title="Edit team">✏️</button>
-                      <button onClick={() => setDeleteTeamId(t.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                      <button onClick={() => deleteConfirm.ask({
+                          actionType: 'delete', entityType: 'team', entityLabel: t.name,
+                          summary: `You are about to permanently delete team "${t.name}". All players assigned to it and all games involving it will also be removed. This cannot be undone.`,
+                          details: [
+                            { label: 'Team',             value: t.name },
+                            { label: 'Players to remove', value: String(league.players.filter(p => p.team === t.name || String(p.teamId) === String(t.id)).length) },
+                            { label: 'Games to remove',   value: String(league.schedule.filter(g => g.home === t.name || g.away === t.name).length) },
+                          ],
+                          requiresTypedConfirm: true, confirmWord: 'DELETE',
+                          confirmLabel: 'Yes, Delete Team', dangerStyle: true,
+                          onConfirm: () => delTeam(t.id),
+                        })} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
                     </div>
                   </div>
                 ))
@@ -3472,7 +3488,18 @@ function App() {
                                   : <span style={{ fontSize: 12, color: "#6b7280", padding: "4px 12px", background: "#6b728015", borderRadius: 6, fontWeight: 600 }}>Upcoming</span>
                                 }
                                 <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                                <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                                <button onClick={() => deleteConfirm.ask({
+                                    actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
+                                    summary: `You are about to permanently delete this game. This cannot be undone.`,
+                                    details: [
+                                      { label: 'Matchup', value: `${g.home} vs ${g.away}` },
+                                      { label: 'Date',    value: g.date || '—' },
+                                      { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
+                                    ],
+                                    requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                    confirmLabel: 'Yes, Delete Game', dangerStyle: true,
+                                    onConfirm: () => deleteGame(g.id),
+                                  })} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
                               </div>
                             </div>
                           </div>
@@ -3546,7 +3573,18 @@ function App() {
                                   );
                                 })()}
                                 <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                                <button onClick={() => setDeleteGameId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                                <button onClick={() => deleteConfirm.ask({
+                                    actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
+                                    summary: `You are about to permanently delete this game. This cannot be undone.`,
+                                    details: [
+                                      { label: 'Matchup', value: `${g.home} vs ${g.away}` },
+                                      { label: 'Date',    value: g.date || '—' },
+                                      { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
+                                    ],
+                                    requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                    confirmLabel: 'Yes, Delete Game', dangerStyle: true,
+                                    onConfirm: () => deleteGame(g.id),
+                                  })} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
                               </div>
                             </div>
                             {hasScore && <BoxScore game={g} players={league.players} sport={sport} toggles={toggles} />}
@@ -3725,7 +3763,18 @@ function App() {
                             <span style={{ color: T2 }}>–</span>
                             <span style={{ fontWeight: 800, fontSize: 20, color: !hw?"#22c55e":T2 }}>{g.awayScore}</span>
                             <button onClick={() => setEditScore({id:g.id,homeScore:g.homeScore,awayScore:g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                            <button onClick={() => setDeleteScoreId(g.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                            <button onClick={() => deleteConfirm.ask({
+                                actionType: 'delete', entityType: 'score', entityLabel: `${g.home} vs ${g.away}`,
+                                summary: `You are about to reset this game result. The score and all player stats will be cleared and the game returns to Upcoming status. This cannot be undone.`,
+                                details: [
+                                  { label: 'Game',       value: `${g.home} vs ${g.away}` },
+                                  { label: 'Date',       value: g.date || '—' },
+                                  { label: 'Score',      value: `${g.homeScore} – ${g.awayScore}` },
+                                ],
+                                requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                confirmLabel: 'Yes, Reset Score', dangerStyle: true,
+                                onConfirm: () => deleteScore(g.id),
+                              })} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
                           </div>
                         </div>
                         <BoxScore game={g} players={league.players} sport={sport} toggles={toggles} />
@@ -4665,7 +4714,19 @@ function App() {
                 <div style={{ fontSize: 13, color: T2, marginBottom: 14, lineHeight: 1.6 }}>
                   Permanently delete this league and all its data from Firestore. This cannot be undone.
                 </div>
-                <button onClick={() => setDeleteLeagueId(league.id)} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
+                <button onClick={() => deleteConfirm.ask({
+                    actionType: 'delete', entityType: 'league', entityLabel: league.name,
+                    summary: `You are about to permanently delete "${league.name}" and all its data from Firestore. This cannot be undone.`,
+                    details: [
+                      { label: 'League',  value: league.name },
+                      { label: 'Teams',   value: String((league.teams || []).length) },
+                      { label: 'Players', value: String((league.players || []).length) },
+                      { label: 'Games',   value: String((league.schedule || []).length) },
+                    ],
+                    requiresTypedConfirm: true, confirmWord: league.name,
+                    confirmLabel: 'Yes, Delete League', dangerStyle: true,
+                    onConfirm: () => deleteLeague(league.id),
+                  })} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
                   Delete League
                 </button>
               </div>
@@ -4851,13 +4912,6 @@ service cloud.firestore {
           );
         })()}
 
-        {deleteTeamId && (
-          <ConfirmModal icon="🗑️" title="Delete this team?" body="All players assigned to it and games involving it will also be removed. This cannot be undone." confirmLabel="Yes, Delete Team" onConfirm={() => delTeam(deleteTeamId)} onCancel={() => setDeleteTeamId(null)} />
-        )}
-
-        {deleteGameId && (
-          <ConfirmModal icon="🗑️" title="Delete this game?" body="This action cannot be undone. The game and all associated data will be permanently removed." confirmLabel="Yes, Delete" onConfirm={() => deleteGame(deleteGameId)} onCancel={() => setDeleteGameId(null)} />
-        )}
 
         {editScore && (() => {
           const g = league.schedule.find(x => x.id===editScore.id);
@@ -4879,9 +4933,6 @@ service cloud.firestore {
           );
         })()}
 
-        {deleteScoreId && (
-          <ConfirmModal icon="↩️" title="Reset this game result?" body="The score and player stats will be cleared. The game returns to Upcoming status." confirmLabel="Yes, Reset" onConfirm={() => deleteScore(deleteScoreId)} onCancel={() => setDeleteScoreId(null)} />
-        )}
 
         {/* ── STATS ENTRY MODAL ── */}
         {editStats && (() => {
@@ -5143,17 +5194,6 @@ service cloud.firestore {
           </div>
         )}
 
-        {/* ── FEATURE 5: DELETE PLAYER WITH STATS WARNING ── */}
-        {deletePlayerId && (
-          <ConfirmModal
-            icon="⚠️"
-            title="Delete player with stats?"
-            body={`This player has stats recorded in ${deletePlayerId.gamesCount} game${deletePlayerId.gamesCount !== 1 ? "s" : ""}. Removing them will permanently delete all their recorded stats. This cannot be undone.`}
-            confirmLabel="Yes, Remove Player & Stats"
-            onConfirm={() => { delPlayer(deletePlayerId.id); setDeletePlayerId(null); }}
-            onCancel={() => setDeletePlayerId(null)}
-          />
-        )}
 
         {/* ── RESET SEASON CONFIRM ── */}
         {showResetConfirm && (
