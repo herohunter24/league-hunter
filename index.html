@@ -1346,6 +1346,8 @@ function App() {
   const addConfirm = useActionConfirm();
   // EDIT CONFIRM — single useActionConfirm instance handles all edit/save actions
   const editConfirm = useActionConfirm();
+  // PLAYERS TAB — expand/collapse game log per player
+  const [expandedPlayerId, setExpandedPlayerId] = useState(null);
   // FIX 3 — Superadmin manage users view
   const [showManageUsers, setShowManageUsers] = useState(false);
   // SYSTEMS — Missing score alert + live refresh
@@ -3383,9 +3385,19 @@ function App() {
                       </div>
                       {tp.map(p => {
                         const ss = getPlayerSeasonStats(p, catSchedule, sport);
+                        const isExpanded = expandedPlayerId === p.id;
+                        // Games this player has stats recorded for, newest first
+                        const playerGames = catSchedule
+                          .filter(g => isGamePast(g) && g.playerStats && g.playerStats[p.id] !== undefined && (g.home === p.team || g.away === p.team))
+                          .sort((a, b) => new Date(`${b.date}T${b.time || '00:00'}`) - new Date(`${a.date}T${a.time || '00:00'}`));
+                        // Active stats for this player's sport/position (respects toggles)
+                        const activeStatDef = getActiveStats(sport, p, toggles);
                         return (
                           <div key={p.id} style={{ ...card, marginBottom: 8 }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div
+                              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+                              onClick={() => setExpandedPlayerId(isExpanded ? null : p.id)}
+                            >
                               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                                 {/* Player photo or jersey number box */}
                                 {p.photoUrl
@@ -3408,15 +3420,17 @@ function App() {
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 {_storage && (
-                                  <label style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: uploadingId === `player_${p.id}` ? "not-allowed" : "pointer", opacity: uploadingId === `player_${p.id}` ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                                  <label onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: uploadingId === `player_${p.id}` ? "not-allowed" : "pointer", opacity: uploadingId === `player_${p.id}` ? 0.6 : 1, whiteSpace: "nowrap" }}>
                                     {uploadingId === `player_${p.id}` ? "Uploading…" : (p.photoUrl ? "📷 Change Photo" : "📷 Photo")}
                                     <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} disabled={!!uploadingId} onChange={e => { const f = e.target.files?.[0]; if (f) uploadPlayerPhoto(p.id, f); e.target.value = ""; }} />
                                   </label>
                                 )}
                                 {/* FEATURE 2: Edit player */}
-                                <button onClick={() => setEditPlayer({ id: p.id, name: p.name, number: p.number || "", position: p.position || "", team: p.team || "", email: p.email || "" })} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }} title="Edit player">✏️</button>
+                                <button onClick={e => { e.stopPropagation(); setEditPlayer({ id: p.id, name: p.name, number: p.number || "", position: p.position || "", team: p.team || "", email: p.email || "" }); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }} title="Edit player">✏️</button>
                                 {/* FEATURE 5: Warn before delete if stats exist */}
-                                <button onClick={() => handleDeletePlayer(p.id)} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                                <button onClick={e => { e.stopPropagation(); handleDeletePlayer(p.id); }} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                                {/* Expand/collapse chevron */}
+                                <span style={{ color: T2, fontSize: 11, marginLeft: 4, minWidth: 10 }}>{isExpanded ? '▼' : '▶'}</span>
                               </div>
                             </div>
                             {ss.gamesPlayed > 0 && (
@@ -3427,6 +3441,75 @@ function App() {
                                     <span key={key} style={{ fontSize: 12, color: T2 }}>{avg}: <strong style={{ color: ACC }}>{ss.averages[key]}{isPct ? "%" : ""}</strong></span>
                                   )
                                 ))}
+                              </div>
+                            )}
+                            {/* ── GAME LOG (expanded) ── */}
+                            {isExpanded && (
+                              <div style={{ marginTop: 12, padding: 16, background: '#0d0d1a', borderRadius: 8, borderTop: `1px solid ${BORDER}` }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 10 }}>
+                                  Game History — {playerGames.length} game{playerGames.length !== 1 ? 's' : ''} played
+                                </div>
+                                {playerGames.length === 0 ? (
+                                  <div style={{ color: T2, fontSize: 13, fontStyle: 'italic' }}>No recorded stats yet for this player.</div>
+                                ) : (
+                                  <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                      <thead>
+                                        <tr style={{ color: T2, textAlign: 'left' }}>
+                                          <th style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>Date</th>
+                                          <th style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>Opponent</th>
+                                          <th style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>Score</th>
+                                          {activeStatDef.map(({ key, label }) => (
+                                            <th key={key} style={{ padding: '6px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</th>
+                                          ))}
+                                          <th style={{ padding: '6px 8px' }}></th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {playerGames.map(g => {
+                                          const opponent = g.home === p.team ? g.away : g.home;
+                                          const isHome   = g.home === p.team;
+                                          const scoreStr = g.homeScore !== undefined && g.awayScore !== undefined
+                                            ? (isHome ? `${g.homeScore}–${g.awayScore}` : `${g.awayScore}–${g.homeScore}`)
+                                            : '—';
+                                          const pStats = (g.playerStats || {})[p.id] || {};
+                                          return (
+                                            <tr key={g.id} style={{ borderTop: `1px solid ${BORDER}` }}>
+                                              <td style={{ padding: '8px 8px', whiteSpace: 'nowrap', color: T2 }}>{g.date}</td>
+                                              <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{opponent}</td>
+                                              <td style={{ padding: '8px 8px', whiteSpace: 'nowrap', color: T2, fontVariantNumeric: 'tabular-nums' }}>{scoreStr}</td>
+                                              {activeStatDef.map(({ key, isPct }) => (
+                                                <td key={key} style={{ padding: '8px 8px', textAlign: 'center', color: (pStats[key] || 0) > 0 ? T1 : T2 }}>
+                                                  {pStats[key] ?? 0}{isPct ? '%' : ''}
+                                                </td>
+                                              ))}
+                                              <td style={{ padding: '8px 8px', textAlign: 'right' }}>
+                                                <button
+                                                  onClick={e => {
+                                                    e.stopPropagation();
+                                                    // Open existing stats editor pre-filled with all players for this game
+                                                    const gamePlayers = league.players.filter(pl => pl.team === g.home || pl.team === g.away);
+                                                    const stats = {};
+                                                    gamePlayers.forEach(pl => {
+                                                      const existing = (g.playerStats || {})[pl.id] || {};
+                                                      const def = getSportStats(sport, pl);
+                                                      const defaults = {};
+                                                      def.forEach(({ key }) => { defaults[key] = 0; });
+                                                      stats[pl.id] = { ...defaults, ...existing };
+                                                    });
+                                                    setEditStats({ game: g, stats });
+                                                    setStatsValidationError(null);
+                                                  }}
+                                                  style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                                                >Edit</button>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
