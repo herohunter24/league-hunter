@@ -739,6 +739,18 @@ function parseTimeTo24h(t) {
   return `${String(h).padStart(2, "0")}:${min}`;
 }
 
+function formatHeight(height, units) {
+  if (!height && height !== 0) return '';
+  if (units === 'metric') return `${height} cm`;
+  const ft = Math.floor(height / 12);
+  const inches = height % 12;
+  return `${ft}'${inches}"`;
+}
+function formatWeight(weight, units) {
+  if (!weight && weight !== 0) return '';
+  return units === 'metric' ? `${weight} kg` : `${weight} lbs`;
+}
+
 const SPORT_DURATION_MS = { Basketball: 2 * 3600000, Hockey: 2.5 * 3600000 };
 function getGameDateTime(game) {
   if (!game.date || !game.time) return null;
@@ -1307,7 +1319,7 @@ function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [nL, setNL] = useState({ name: "", sport: "Basketball", domain: "", color: "#6366f1" });
   const [nT, setNT] = useState({ name: "", emoji: "⭐" });
-  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "", email: "" });
+  const [nP, setNP] = useState({ name: "", team: "", number: "", position: "", email: "", heightFt: "", heightIn: "", heightCm: "", weight: "" });
   const [nG, setNG] = useState({ date: "", home: "", away: "", time: "", venue: "" });
   const [nS, setNS] = useState({ gameId: "", homeScore: "", awayScore: "" });
   const [nPS, setNPS] = useState({});
@@ -1415,7 +1427,7 @@ function App() {
   // Reset add-forms when switching tabs so stale input doesn't persist
   useEffect(() => {
     setNT({ name: "", emoji: "⭐", categoryId: "" });
-    setNP({ name: "", team: "", number: "", position: "", email: "" });
+    setNP({ name: "", team: "", number: "", position: "", email: "", heightFt: "", heightIn: "", heightCm: "", weight: "" });
     setNG({ date: "", home: "", away: "", time: "", venue: "" });
   }, [tab]);
 
@@ -2111,7 +2123,13 @@ function App() {
     if (!nP.name || !nP.team || !league) { if (!nP.team) showToast("Select a team for this player."); return; }
     const team = league.teams.find(t => t.name === nP.team);
     const catId = team?.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
-    const newPlayer = { id: Date.now(), ...nP, categoryId: catId, teamId: team?.id };
+    const units = league.units || 'imperial';
+    const { heightFt, heightIn, heightCm, weight: weightRaw, ...npRest } = nP;
+    const computedHeight = units === 'metric'
+      ? (heightCm ? parseInt(heightCm) || undefined : undefined)
+      : ((heightFt || heightIn) ? (parseInt(heightFt||0)*12 + parseInt(heightIn||0)) || undefined : undefined);
+    const computedWeight = weightRaw ? parseInt(weightRaw) || undefined : undefined;
+    const newPlayer = { id: Date.now(), ...npRest, ...(computedHeight != null ? { height: computedHeight } : {}), ...(computedWeight != null ? { weight: computedWeight } : {}), categoryId: catId, teamId: team?.id };
     const updated = { ...league, players: [...league.players, newPlayer] };
     await writeLeagueNow(updated);
     setDirty(false);
@@ -2128,7 +2146,7 @@ function App() {
         unsubscribe_url: playerUrl,
       }).catch(()=>{});
     }
-    setNP({ name: "", team: "", number: "", position: "", email: "" });
+    setNP({ name: "", team: "", number: "", position: "", email: "", heightFt: "", heightIn: "", heightCm: "", weight: "" });
   }
   async function delPlayer(id) {
     if (!league) return;
@@ -2235,8 +2253,11 @@ function App() {
       return;
     }
     const team = league.teams.find(t => t.name === editPlayer.team);
+    const _saveUnits = league.units || 'imperial';
+    const _saveH = _saveUnits==='metric' ? (editPlayer.heightCm?parseInt(editPlayer.heightCm)||undefined:undefined) : ((editPlayer.heightFt||editPlayer.heightIn)?(parseInt(editPlayer.heightFt||0)*12+parseInt(editPlayer.heightIn||0))||undefined:undefined);
+    const _saveW = editPlayer.weight ? parseInt(editPlayer.weight)||undefined : undefined;
     const updatedPlayers = league.players.map(p => p.id === editPlayer.id
-      ? { ...p, name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "" }
+      ? { ...p, name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : { height: undefined }), ...(_saveW != null ? { weight: _saveW } : { weight: undefined }) }
       : p);
     const updated = { ...league, players: updatedPlayers };
     await writeLeagueNow(updated);
@@ -3344,6 +3365,13 @@ function App() {
                     {catTeams.map(t => <option key={t.id}>{t.name}</option>)}
                   </select>
                   <input style={{ ...inp, flex: 2, minWidth: 160 }} type="email" value={nP.email||""} onChange={e=>setNP({...nP,email:e.target.value})} placeholder="player@email.com (optional)" />
+                  {(league.units || 'imperial') === 'imperial' ? (<>
+                    <input style={{ ...inp, flex: 0.5, minWidth: 64 }} type="number" min="0" max="8" value={nP.heightFt} onChange={e=>setNP({...nP,heightFt:e.target.value})} placeholder="Ft" title="Height — feet (optional)" />
+                    <input style={{ ...inp, flex: 0.5, minWidth: 64 }} type="number" min="0" max="11" value={nP.heightIn} onChange={e=>setNP({...nP,heightIn:e.target.value})} placeholder="In" title="Height — inches (optional)" />
+                  </>) : (
+                    <input style={{ ...inp, flex: 1, minWidth: 90 }} type="number" min="0" value={nP.heightCm} onChange={e=>setNP({...nP,heightCm:e.target.value})} placeholder="cm (opt.)" title="Height in cm (optional)" />
+                  )}
+                  <input style={{ ...inp, flex: 0.8, minWidth: 80 }} type="number" min="0" value={nP.weight} onChange={e=>setNP({...nP,weight:e.target.value})} placeholder={(league.units||'imperial')==='metric' ? 'kg (opt.)' : 'lbs (opt.)'} title="Weight (optional)" />
                   <button style={btn()} onClick={() => {
                     if (!nP.name || !nP.name.trim() || !nP.team) return;
                     addConfirm.ask({
@@ -3355,6 +3383,8 @@ function App() {
                         ...(nP.number   ? [{ label: 'Jersey #',  value: nP.number }]   : []),
                         ...(nP.position ? [{ label: 'Position',  value: nP.position }] : []),
                         ...(nP.email    ? [{ label: 'Email',     value: nP.email }]    : []),
+                        ...(() => { const units = league.units||'imperial'; const h = units==='metric'?(nP.heightCm?parseInt(nP.heightCm):0):((nP.heightFt||nP.heightIn)?parseInt(nP.heightFt||0)*12+parseInt(nP.heightIn||0):0); return h ? [{ label: 'Height', value: formatHeight(h, units) }] : []; })(),
+                        ...(nP.weight ? [{ label: 'Weight', value: formatWeight(parseInt(nP.weight), league.units||'imperial') }] : []),
                       ],
                       confirmLabel: 'Yes, Add Player',
                       onConfirm: () => addPlayer(),
@@ -3416,6 +3446,13 @@ function App() {
                                     })()}
                                   </div>
                                   <div style={{ fontSize: 12, color: T2 }}>#{p.number} · {p.position}{isGoalie(p)?" 🥅":""}</div>
+                                  {(p.height || p.weight) && (
+                                    <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
+                                      {formatHeight(p.height, league.units || 'imperial')}
+                                      {p.height && p.weight ? ' • ' : ''}
+                                      {formatWeight(p.weight, league.units || 'imperial')}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3426,7 +3463,7 @@ function App() {
                                   </label>
                                 )}
                                 {/* FEATURE 2: Edit player */}
-                                <button onClick={e => { e.stopPropagation(); setEditPlayer({ id: p.id, name: p.name, number: p.number || "", position: p.position || "", team: p.team || "", email: p.email || "" }); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }} title="Edit player">✏️</button>
+                                <button onClick={e => { e.stopPropagation(); const _units = league.units||'imperial'; setEditPlayer({ id: p.id, name: p.name, number: p.number || "", position: p.position || "", team: p.team || "", email: p.email || "", heightFt: (p.height && _units==='imperial') ? String(Math.floor(p.height/12)) : "", heightIn: (p.height && _units==='imperial') ? String(p.height%12) : "", heightCm: (p.height && _units==='metric') ? String(p.height) : "", weight: p.weight ? String(p.weight) : "" }); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }} title="Edit player">✏️</button>
                                 {/* FEATURE 5: Warn before delete if stats exist */}
                                 <button onClick={e => { e.stopPropagation(); handleDeletePlayer(p.id); }} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
                                 {/* Expand/collapse chevron */}
@@ -4249,6 +4286,25 @@ function App() {
                       </div>
                       <span style={{ fontSize: 12, color: T2 }}>Sport cannot be changed after creation</span>
                     </div>
+                  </div>
+                  <div>
+                    <label style={lbl}>Measurement Units</label>
+                    <select style={inp} value={league.units || 'imperial'} onChange={e => {
+                      const newUnits = e.target.value;
+                      if (newUnits === (league.units || 'imperial')) return;
+                      const playersWithMeasurements = (league.players || []).filter(p => p.height || p.weight).length;
+                      if (playersWithMeasurements > 0) {
+                        const confirmed = window.confirm(
+                          `Switching units will not convert existing player measurements.\n\n${playersWithMeasurements} player${playersWithMeasurements > 1 ? 's have' : ' has'} height or weight data that will display incorrectly until re-entered.\n\nContinue with the unit change?`
+                        );
+                        if (!confirmed) return;
+                      }
+                      upd({ ...league, units: newUnits });
+                    }}>
+                      <option value="imperial">Imperial (ft/in, lbs)</option>
+                      <option value="metric">Metric (cm, kg)</option>
+                    </select>
+                    <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Used for player height &amp; weight display.</div>
                   </div>
                 </div>
               </div>
@@ -5417,16 +5473,33 @@ service cloud.firestore {
                   <label style={lbl}>Email <span style={{color:T2,fontWeight:400}}>(optional)</span></label>
                   <input style={inp} type="email" value={editPlayer.email||""} onChange={e=>setEditPlayer({...editPlayer,email:e.target.value})} placeholder="player@email.com" />
                 </div>
+                <div>
+                  <label style={lbl}>Height &amp; Weight <span style={{color:T2,fontWeight:400}}>(optional)</span></label>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {(league.units||'imperial') === 'imperial' ? (<>
+                      <input style={{ ...inp, flex: 1 }} type="number" min="0" max="8" value={editPlayer.heightFt||""} onChange={e=>setEditPlayer({...editPlayer,heightFt:e.target.value})} placeholder="Ft" />
+                      <input style={{ ...inp, flex: 1 }} type="number" min="0" max="11" value={editPlayer.heightIn||""} onChange={e=>setEditPlayer({...editPlayer,heightIn:e.target.value})} placeholder="In" />
+                    </>) : (
+                      <input style={{ ...inp, flex: 1 }} type="number" min="0" value={editPlayer.heightCm||""} onChange={e=>setEditPlayer({...editPlayer,heightCm:e.target.value})} placeholder="Height (cm)" />
+                    )}
+                    <input style={{ ...inp, flex: 1 }} type="number" min="0" value={editPlayer.weight||""} onChange={e=>setEditPlayer({...editPlayer,weight:e.target.value})} placeholder={(league.units||'imperial')==='metric'?'Weight (kg)':'Weight (lbs)'} />
+                  </div>
+                </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                   <button style={{ ...btn(), flex: 1 }} onClick={() => {
                     if (!editPlayer) return;
                     const orig = league.players.find(p => p.id === editPlayer.id);
                     const changes = [];
+                    const _units = league.units || 'imperial';
                     if (orig && editPlayer.name.trim() !== orig.name) changes.push({ label: 'Name', oldValue: orig.name, newValue: editPlayer.name.trim() });
                     if (orig && editPlayer.team !== orig.team) changes.push({ label: 'Team', oldValue: orig.team || '—', newValue: editPlayer.team || '—' });
                     if (orig && String(editPlayer.number || '') !== String(orig.number || '')) changes.push({ label: 'Jersey #', oldValue: orig.number || '—', newValue: editPlayer.number || '—' });
                     if (orig && (editPlayer.position || '') !== (orig.position || '')) changes.push({ label: 'Position', oldValue: orig.position || '—', newValue: editPlayer.position || '—' });
                     if (orig && (editPlayer.email || '') !== (orig.email || '')) changes.push({ label: 'Email', oldValue: orig.email || '—', newValue: editPlayer.email || '—' });
+                    const newH = _units==='metric' ? (editPlayer.heightCm?parseInt(editPlayer.heightCm)||0:0) : ((editPlayer.heightFt||editPlayer.heightIn)?parseInt(editPlayer.heightFt||0)*12+parseInt(editPlayer.heightIn||0):0);
+                    const newW = editPlayer.weight ? parseInt(editPlayer.weight)||0 : 0;
+                    if (orig && newH !== (orig.height||0)) changes.push({ label: 'Height', oldValue: formatHeight(orig.height, _units)||'—', newValue: formatHeight(newH, _units)||'—' });
+                    if (orig && newW !== (orig.weight||0)) changes.push({ label: 'Weight', oldValue: formatWeight(orig.weight, _units)||'—', newValue: formatWeight(newW, _units)||'—' });
                     if (changes.length === 0) { setEditPlayer(null); return; }
                     editConfirm.ask({
                       actionType: 'edit', entityType: 'player', entityLabel: orig?.name || editPlayer.name,

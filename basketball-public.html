@@ -1287,6 +1287,17 @@ const RANK_TIERS = [
   { id: "elite",    label: "Elite",    minRP: 4500,  color: "#ff4ecd", glow: "#ff00aa", border: "fire-animated",   icon: "⚡" },
   { id: "legend",   label: "Legend",   minRP: 9000,  color: "#ffcc00", glow: "#ff6600", border: "legendary",       icon: "👑" },
 ];
+function formatHeight(height, units) {
+  if (!height && height !== 0) return '';
+  if (units === 'metric') return `${height} cm`;
+  const ft = Math.floor(height / 12);
+  const inches = height % 12;
+  return `${ft}'${inches}"`;
+}
+function formatWeight(weight, units) {
+  if (!weight && weight !== 0) return '';
+  return units === 'metric' ? `${weight} kg` : `${weight} lbs`;
+}
 function getTier(rp) {
   let tier = RANK_TIERS[0];
   for (const t of RANK_TIERS) { if (rp >= t.minRP) tier = t; }
@@ -2246,6 +2257,7 @@ function buildTradingCard(player, league, sizeMod) {
           </div>
           ${label && tier.id !== 'bronze' ? `<div class="tc-label" style="color:${tier.color};">${label.label}</div>` : ''}
           <div class="tc-team">${team ? team.emoji+' '+team.name : (player.team||'')}</div>
+          ${(() => { const _u=league.units||'imperial'; const fh=formatHeight(player.height,_u); const fw=formatWeight(player.weight,_u); return (fh||fw)?`<div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">${fh}${fh&&fw?' · ':''}${fw}</div>`:''; })()}
           <div class="tc-stats">
             <div class="tc-stat"><div class="tc-stat-val" style="color:${tier.color};">${ppg}</div><div class="tc-stat-key">PPG</div></div>
             <div class="tc-stat"><div class="tc-stat-val" style="color:${tier.color};">${rpg}</div><div class="tc-stat-key">RPG</div></div>
@@ -2407,7 +2419,7 @@ function tcOpenCard(playerId) {
       </div>
       <div class="tc-overlay-detail">
         <div style="font-family:var(--ff-display);font-size:28px;margin-bottom:4px;">${player.name||'—'}</div>
-        <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:20px;">${player.team||''} · ${player.position||'Player'} · ${games.length} GP</div>
+        <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:20px;">${player.team||''} · ${player.position||'Player'} · ${games.length} GP${(()=>{const _u=league.units||'imperial';const fh=formatHeight(player.height,_u);const fw=formatWeight(player.weight,_u);return (fh||fw)?' · '+[fh,fw].filter(Boolean).join(' / '):''})()}</div>
         <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
           ${statKeys.map(([k,v])=>`
             <div style="text-align:center;background:rgba(255,255,255,0.06);border-radius:10px;padding:12px 16px;">
