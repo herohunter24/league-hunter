@@ -1344,6 +1344,8 @@ function App() {
   const deleteConfirm = useActionConfirm();
   // ADD CONFIRM — single useActionConfirm instance handles all add actions
   const addConfirm = useActionConfirm();
+  // EDIT CONFIRM — single useActionConfirm instance handles all edit/save actions
+  const editConfirm = useActionConfirm();
   // FIX 3 — Superadmin manage users view
   const [showManageUsers, setShowManageUsers] = useState(false);
   // SYSTEMS — Missing score alert + live refresh
@@ -3789,7 +3791,26 @@ function App() {
                       );
                     })()}
 
-                    <button style={{ ...btn(), opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={submitScore}>{saving ? "Saving…" : "Submit Score"}</button>
+                    <button style={{ ...btn(), opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={() => {
+                      if (!nS.gameId || saving) return;
+                      const hs = parseInt(nS.homeScore), as2 = parseInt(nS.awayScore);
+                      if (isNaN(hs) || isNaN(as2) || hs < 0 || as2 < 0) return;
+                      const g = catSchedule.find(x => x.id === parseInt(nS.gameId));
+                      if (!g) return;
+                      const winner = hs > as2 ? g.home : (as2 > hs ? g.away : 'Tie');
+                      editConfirm.ask({
+                        actionType: 'modify', entityType: 'score', entityLabel: `${g.home} vs ${g.away}`,
+                        summary: `You are about to save the final score for ${g.home} vs ${g.away} (${g.date}). Standings will update accordingly.`,
+                        details: [
+                          { label: 'Date',   value: g.date },
+                          { label: 'Home',   value: `${g.home}: ${hs}` },
+                          { label: 'Away',   value: `${g.away}: ${as2}` },
+                          { label: 'Winner', value: winner },
+                        ],
+                        confirmLabel: 'Yes, Submit Score',
+                        onConfirm: () => submitScore(),
+                      });
+                    }}>{saving ? "Saving…" : "Submit Score"}</button>
                   </div>
                 )}
               </div>
@@ -4948,7 +4969,24 @@ service cloud.firestore {
                   </select>
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1 }} onClick={saveEditGame}>Save Changes</button>
+                  <button style={{ ...btn(), flex: 1 }} onClick={() => {
+                    if (!editGame) return;
+                    const orig = league.schedule.find(g => g.id === editGame.id);
+                    const changes = [];
+                    if (orig && editGame.date !== orig.date) changes.push({ label: 'Date', oldValue: orig.date || '—', newValue: editGame.date || '—' });
+                    if (orig && (editGame.time || '') !== (orig.time || '')) changes.push({ label: 'Time', oldValue: orig.time || '—', newValue: editGame.time || '—' });
+                    if (orig && editGame.home !== orig.home) changes.push({ label: 'Home Team', oldValue: orig.home || '—', newValue: editGame.home || '—' });
+                    if (orig && editGame.away !== orig.away) changes.push({ label: 'Away Team', oldValue: orig.away || '—', newValue: editGame.away || '—' });
+                    if (orig && (editGame.venue || '') !== (orig.venue || '')) changes.push({ label: 'Venue', oldValue: orig.venue || '—', newValue: editGame.venue || '—' });
+                    if (changes.length === 0) { setEditGame(null); return; }
+                    editConfirm.ask({
+                      actionType: 'edit', entityType: 'game', entityLabel: `${editGame.home} vs ${editGame.away}`,
+                      summary: `You are about to update this game.`,
+                      details: changes,
+                      confirmLabel: 'Yes, Save Changes',
+                      onConfirm: () => saveEditGame(),
+                    });
+                  }}>Save Changes</button>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditGame(null)}>Cancel</button>
                 </div>
               </div>
@@ -4970,7 +5008,25 @@ service cloud.firestore {
                   <div style={{ flex: 1 }}><label style={lbl}>{g?.away}</label><input type="number" min="0" style={inp} value={editScore.awayScore} onChange={e=>setEditScore({...editScore,awayScore:e.target.value})} /></div>
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
-                  <button style={{ ...btn(), flex: 1 }} onClick={saveEditScore}>Save Score</button>
+                  <button style={{ ...btn(), flex: 1 }} onClick={() => {
+                    if (!editScore || !g) return;
+                    const newH = parseInt(editScore.homeScore), newA = parseInt(editScore.awayScore);
+                    if (isNaN(newH) || isNaN(newA) || newH < 0 || newA < 0) return;
+                    const newWinner = newH > newA ? g.home : (newA > newH ? g.away : 'Tie');
+                    editConfirm.ask({
+                      actionType: 'modify', entityType: 'score', entityLabel: `${g.home} vs ${g.away}`,
+                      summary: `You are about to CORRECT the previously saved score for ${g.home} vs ${g.away} (${g.date}). Previous standings and stats will be recalculated.`,
+                      details: [
+                        { label: 'Date',           value: g.date },
+                        { label: 'Previous score', value: `${g.homeScore} – ${g.awayScore}` },
+                        { label: 'New score',      value: `${newH} – ${newA}` },
+                        { label: 'New winner',     value: newWinner },
+                      ],
+                      confirmLabel: 'Yes, Correct Score',
+                      dangerStyle: true,
+                      onConfirm: () => saveEditScore(),
+                    });
+                  }}>Save Score</button>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditScore(null)}>Cancel</button>
                 </div>
               </div>
@@ -5090,7 +5146,26 @@ service cloud.firestore {
                 {/* Footer */}
                 <div style={{ padding: "16px 28px 24px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
                   <div className="stat-footer-btns" style={{ display: "flex", gap: 10 }}>
-                    <button style={{ ...btn("#22c55e"), flex: 2, opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} disabled={saving} onClick={() => saveStats(false)}>
+                    <button style={{ ...btn("#22c55e"), flex: 2, opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} disabled={saving} onClick={() => {
+                      if (!editStats || saving) return;
+                      const g = editStats.game;
+                      const playersWithStats = Object.entries(editStats.stats || {}).filter(([, s]) =>
+                        s && Object.values(s).some(v => v && v !== '0' && v !== 0)
+                      ).length;
+                      editConfirm.ask({
+                        actionType: 'modify', entityType: 'stats', entityLabel: `${g.home} vs ${g.away}`,
+                        summary: `You are about to save player stats for ${g.home} vs ${g.away} (${g.date}). Rankings and averages will update accordingly.`,
+                        details: [
+                          { label: 'Date',                    value: g.date },
+                          { label: 'Players with stats',      value: String(playersWithStats) },
+                          ...(g.homeScore !== undefined && g.awayScore !== undefined
+                            ? [{ label: 'Score', value: `${g.homeScore} – ${g.awayScore}` }]
+                            : []),
+                        ],
+                        confirmLabel: 'Yes, Save Stats',
+                        onConfirm: () => saveStats(false),
+                      });
+                    }}>
                       {saving ? <><span className="spinner" style={{ width: 14, height: 14 }} /> Saving…</> : "Save Stats"}
                     </button>
                     <button style={{ ...btn("#f97316"), flex: 1 }} disabled={saving} onClick={saveStatsForce}>Save Anyway</button>
@@ -5206,7 +5281,21 @@ service cloud.firestore {
                   <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Enter a single emoji character. Name changes will cascade to all players and games.</div>
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1 }} onClick={saveEditTeam}>Save Changes</button>
+                  <button style={{ ...btn(), flex: 1 }} onClick={() => {
+                    if (!editTeam) return;
+                    const orig = league.teams.find(t => t.id === editTeam.id);
+                    const changes = [];
+                    if (orig && editTeam.name.trim() !== orig.name) changes.push({ label: 'Name', oldValue: orig.name, newValue: editTeam.name.trim() });
+                    if (orig && (editTeam.emoji || '⭐') !== (orig.emoji || '⭐')) changes.push({ label: 'Emoji', oldValue: orig.emoji || '⭐', newValue: editTeam.emoji || '⭐' });
+                    if (changes.length === 0) { setEditTeam(null); setEditEmojiErr(""); return; }
+                    editConfirm.ask({
+                      actionType: 'edit', entityType: 'team', entityLabel: orig?.name || editTeam.name,
+                      summary: `You are about to update team "${orig?.name || editTeam.name}".`,
+                      details: changes,
+                      confirmLabel: 'Yes, Save Changes',
+                      onConfirm: () => saveEditTeam(),
+                    });
+                  }}>Save Changes</button>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setEditTeam(null); setEditEmojiErr(""); }}>Cancel</button>
                 </div>
               </div>
@@ -5246,7 +5335,24 @@ service cloud.firestore {
                   <input style={inp} type="email" value={editPlayer.email||""} onChange={e=>setEditPlayer({...editPlayer,email:e.target.value})} placeholder="player@email.com" />
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1 }} onClick={saveEditPlayer}>Save Changes</button>
+                  <button style={{ ...btn(), flex: 1 }} onClick={() => {
+                    if (!editPlayer) return;
+                    const orig = league.players.find(p => p.id === editPlayer.id);
+                    const changes = [];
+                    if (orig && editPlayer.name.trim() !== orig.name) changes.push({ label: 'Name', oldValue: orig.name, newValue: editPlayer.name.trim() });
+                    if (orig && editPlayer.team !== orig.team) changes.push({ label: 'Team', oldValue: orig.team || '—', newValue: editPlayer.team || '—' });
+                    if (orig && String(editPlayer.number || '') !== String(orig.number || '')) changes.push({ label: 'Jersey #', oldValue: orig.number || '—', newValue: editPlayer.number || '—' });
+                    if (orig && (editPlayer.position || '') !== (orig.position || '')) changes.push({ label: 'Position', oldValue: orig.position || '—', newValue: editPlayer.position || '—' });
+                    if (orig && (editPlayer.email || '') !== (orig.email || '')) changes.push({ label: 'Email', oldValue: orig.email || '—', newValue: editPlayer.email || '—' });
+                    if (changes.length === 0) { setEditPlayer(null); return; }
+                    editConfirm.ask({
+                      actionType: 'edit', entityType: 'player', entityLabel: orig?.name || editPlayer.name,
+                      summary: `You are about to update player "${orig?.name || editPlayer.name}".`,
+                      details: changes,
+                      confirmLabel: 'Yes, Save Changes',
+                      onConfirm: () => saveEditPlayer(),
+                    });
+                  }}>Save Changes</button>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditPlayer(null)}>Cancel</button>
                 </div>
               </div>
@@ -5326,6 +5432,8 @@ service cloud.firestore {
       <ActionConfirmModal {...deleteConfirm.modalProps} />
       {/* ADD CONFIRM — single ActionConfirmModal for all add actions */}
       <ActionConfirmModal {...addConfirm.modalProps} />
+      {/* EDIT CONFIRM — single ActionConfirmModal for all edit/save actions */}
+      <ActionConfirmModal {...editConfirm.modalProps} />
 
       {/* ── TOAST STACK ── */}
       {toasts.length > 0 && (
