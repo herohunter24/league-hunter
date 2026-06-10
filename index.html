@@ -1342,6 +1342,8 @@ function App() {
   const [editEmojiErr, setEditEmojiErr] = useState("");
   // DELETE CONFIRM — single useActionConfirm instance handles all delete actions
   const deleteConfirm = useActionConfirm();
+  // ADD CONFIRM — single useActionConfirm instance handles all add actions
+  const addConfirm = useActionConfirm();
   // FIX 3 — Superadmin manage users view
   const [showManageUsers, setShowManageUsers] = useState(false);
   // SYSTEMS — Missing score alert + live refresh
@@ -3254,7 +3256,22 @@ function App() {
                       {(league.categories || []).map(c => <option key={c.id} value={c.id}>{c.displayName || c.name}</option>)}
                     </select>
                   )}
-                  <button style={btn()} onClick={addTeam}>Add Team</button>
+                  <button style={btn()} onClick={() => {
+                    if (!nT.name || !nT.name.trim()) return;
+                    const catId = nT.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
+                    const catName = (league.categories || []).find(c => c.id === catId)?.displayName || (league.categories || []).find(c => c.id === catId)?.name || '—';
+                    addConfirm.ask({
+                      actionType: 'add', entityType: 'team', entityLabel: nT.name.trim(),
+                      summary: `You are about to add team "${nT.name.trim()}"${catName !== '—' ? ` to category "${catName}"` : ''}.`,
+                      details: [
+                        { label: 'Team Name', value: nT.name.trim() },
+                        { label: 'Emoji',     value: nT.emoji || '⭐' },
+                        ...(catName !== '—' ? [{ label: 'Category', value: catName }] : []),
+                      ],
+                      confirmLabel: 'Yes, Add Team',
+                      onConfirm: () => addTeam(),
+                    });
+                  }}>Add Team</button>
                 </div>
               </div>
               {catTeams.length===0 ? (
@@ -3323,7 +3340,22 @@ function App() {
                     {catTeams.map(t => <option key={t.id}>{t.name}</option>)}
                   </select>
                   <input style={{ ...inp, flex: 2, minWidth: 160 }} type="email" value={nP.email||""} onChange={e=>setNP({...nP,email:e.target.value})} placeholder="player@email.com (optional)" />
-                  <button style={btn()} onClick={addPlayer}>Add Player</button>
+                  <button style={btn()} onClick={() => {
+                    if (!nP.name || !nP.name.trim() || !nP.team) return;
+                    addConfirm.ask({
+                      actionType: 'add', entityType: 'player', entityLabel: nP.name.trim(),
+                      summary: `You are about to add player "${nP.name.trim()}" to team "${nP.team}".`,
+                      details: [
+                        { label: 'Name',     value: nP.name.trim() },
+                        { label: 'Team',     value: nP.team },
+                        ...(nP.number   ? [{ label: 'Jersey #',  value: nP.number }]   : []),
+                        ...(nP.position ? [{ label: 'Position',  value: nP.position }] : []),
+                        ...(nP.email    ? [{ label: 'Email',     value: nP.email }]    : []),
+                      ],
+                      confirmLabel: 'Yes, Add Player',
+                      onConfirm: () => addPlayer(),
+                    });
+                  }}>Add Player</button>
                 </div>
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>💡 Set position to <strong style={{ color: T1 }}>Goalie</strong> to track saves &amp; goals against separately.</div>}
                 {catTeams.length === 0 && <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 10 }}>⚠️ Add a team in this category first before adding players.</div>}
@@ -3434,7 +3466,23 @@ function App() {
                       </select>
                       <input type="time" style={{ ...inp, flex: 1, minWidth: 100 }} value={nG.time} onChange={e=>setNG({...nG,time:e.target.value})} />
                       <input style={{ ...inp, flex: 2, minWidth: 140 }} value={nG.venue} onChange={e=>setNG({...nG,venue:e.target.value})} placeholder="Venue / Arena" />
-                      <button style={{ ...btn(), opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={addGame}>{saving ? "Saving…" : "Add Game"}</button>
+                      <button style={{ ...btn(), opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={() => {
+                        if (!nG.date || !nG.home || !nG.away || saving) return;
+                        if (nG.home === nG.away) return;
+                        addConfirm.ask({
+                          actionType: 'add', entityType: 'game', entityLabel: `${nG.home} vs ${nG.away}`,
+                          summary: `You are about to schedule a game between "${nG.home}" and "${nG.away}" on ${nG.date}.`,
+                          details: [
+                            { label: 'Date',      value: nG.date },
+                            { label: 'Home team', value: nG.home },
+                            { label: 'Away team', value: nG.away },
+                            ...(nG.time  ? [{ label: 'Time',  value: nG.time }]  : []),
+                            ...(nG.venue ? [{ label: 'Venue', value: nG.venue }] : []),
+                          ],
+                          confirmLabel: 'Yes, Add Game',
+                          onConfirm: () => addGame(),
+                        });
+                      }}>{saving ? "Saving…" : "Add Game"}</button>
                     </div>
                     {venueOptions.length > 0 && (
                       <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -5100,7 +5148,22 @@ service cloud.firestore {
                   </strong>
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1, opacity: (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) ? 0.45 : 1 }} onClick={addCategory}>Add Category</button>
+                  <button style={{ ...btn(), flex: 1, opacity: (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) ? 0.45 : 1 }} onClick={() => {
+                    if (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) return;
+                    const ageLabel   = nCat.ageGroup === "Custom" ? nCat.customAge.trim() : nCat.ageGroup;
+                    const displayName = nCat.gender ? `${ageLabel} ${nCat.gender}` : ageLabel;
+                    addConfirm.ask({
+                      actionType: 'add', entityType: 'category', entityLabel: displayName,
+                      summary: `You are about to add category "${displayName}" to this league.`,
+                      details: [
+                        { label: 'Age Group', value: ageLabel },
+                        ...(nCat.gender ? [{ label: 'Gender', value: nCat.gender }] : []),
+                        { label: 'Display Name', value: displayName },
+                      ],
+                      confirmLabel: 'Yes, Add Category',
+                      onConfirm: () => addCategory(),
+                    });
+                  }}>Add Category</button>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "U15", gender: "Masculine", customAge: "" }); }}>Cancel</button>
                 </div>
               </div>
@@ -5261,6 +5324,8 @@ service cloud.firestore {
 
       {/* DELETE CONFIRM — single ActionConfirmModal for all delete actions */}
       <ActionConfirmModal {...deleteConfirm.modalProps} />
+      {/* ADD CONFIRM — single ActionConfirmModal for all add actions */}
+      <ActionConfirmModal {...addConfirm.modalProps} />
 
       {/* ── TOAST STACK ── */}
       {toasts.length > 0 && (
