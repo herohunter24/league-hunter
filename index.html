@@ -2989,9 +2989,6 @@ function App() {
         <ConfirmModal icon="🗑️" title="Delete Owner Account?" body={`This will permanently remove the login credentials for ${users.find(u=>u.id===deleteOwnerId)?.email}. The league data is unaffected.`} confirmLabel="Yes, Delete Account" onConfirm={() => deleteOwner(deleteOwnerId)} onCancel={() => setDeleteOwnerId(null)} />
       )}
 
-      {/* DELETE CONFIRM — single ActionConfirmModal for all delete actions */}
-      <ActionConfirmModal {...deleteConfirm.modalProps} />
-
       {showAdd && (
         <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
           <div style={{ width: 460, ...card, padding: 32 }}>
@@ -5261,6 +5258,9 @@ service cloud.firestore {
             </div>
           </div>
         )}
+
+      {/* DELETE CONFIRM — single ActionConfirmModal for all delete actions */}
+      <ActionConfirmModal {...deleteConfirm.modalProps} />
 
       {/* ── TOAST STACK ── */}
       {toasts.length > 0 && (
