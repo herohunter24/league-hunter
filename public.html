@@ -1038,7 +1038,7 @@ footer { background: var(--ink); color: oklch(75% 0.01 260); padding: 60px clamp
 <section class="hero" id="hero">
   <div class="hero-content">
     <div class="hero-badge reveal">🌿 <span id="hero-season">2025 Summer Season — Now Live</span></div>
-    <h1 class="reveal reveal-delay-1">
+    <h1 class="reveal reveal-delay-1" id="hero-title">
       Where <em>Champions</em><br>Are Made.
     </h1>
     <p class="hero-sub reveal reveal-delay-2" id="hero-sub">
@@ -2839,6 +2839,40 @@ function renderPowerRankings(league) {
   </div>`;
 }
 
+// ── PUBLIC SETTINGS — owner-controlled section visibility (real-time via root doc listener) ──
+const PS_SECTION_MAP = {
+  showStandings:   ['standings'],
+  showSchedule:    ['schedule', 'scores'],
+  showPlayers:     ['players'],
+  showPlayerCards: ['rankings', 'lb'],
+  showStats:       ['leaders'],
+  showLeagueInfo:  ['hero'],
+};
+function applyPublicSettings(league) {
+  const ps = {
+    showStandings: true, showSchedule: true, showPlayers: true,
+    showPlayerCards: true, showStats: true, showLeagueInfo: true,
+    ...(league.publicSettings || {}),
+  };
+  for (const [key, ids] of Object.entries(PS_SECTION_MAP)) {
+    const visible = ps[key] !== false;
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = visible ? '' : 'none';
+      // Hide matching nav links (desktop <li> wrappers + mobile direct <a>)
+      document.querySelectorAll(`a[href="#${id}"]`).forEach(a => {
+        const li = a.closest('li');
+        (li || a).style.display = visible ? '' : 'none';
+      });
+    }
+  }
+  // Custom header/description override (fall back to defaults when blank)
+  const titleEl = document.getElementById('hero-title');
+  if (titleEl && ps.customHeader) titleEl.textContent = ps.customHeader;
+  const subEl = document.getElementById('hero-sub');
+  if (subEl && ps.customDescription) subEl.textContent = ps.customDescription;
+}
+
 // ── RENDER ALL ──
 function renderAll(league) {
   _currentLeague = league;
@@ -2859,6 +2893,7 @@ function renderAll(league) {
   renderLeaders(league);
   renderSchedule(league);
   renderRankingsLB(league);
+  applyPublicSettings(league);
   setTimeout(attachReveal, 100);
   if (typeof window.__loadingBarDone === 'function') window.__loadingBarDone();
   // Handle direct player link: ?player={playerId}
