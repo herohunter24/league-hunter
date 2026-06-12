@@ -1767,7 +1767,17 @@ function App() {
   // ── CUSTOM PUBLIC SITE URL — immediate write, no dirty flag ──
   async function saveCustomPublicUrl(lg, url) {
     if (!lg) return;
-    const clean = (url || '').trim();
+    let clean = (url || '').trim();
+    // Auto-append ?league={id} if missing — preserves any #hash (e.g. #statistiques)
+    if (clean) {
+      try {
+        const u = new URL(clean);
+        if (!u.searchParams.get('league')) {
+          u.searchParams.set('league', String(lg.id));
+          clean = u.toString();
+        }
+      } catch (e) { /* invalid URL — saved as-is; Test Connection will flag it */ }
+    }
     if (clean === (lg.customPublicSiteUrl || '')) return;
     setLeagues(prev => prev.map(l => l.id === lg.id ? { ...l, customPublicSiteUrl: clean } : l));
     if (__fbReady && _db) {
@@ -1790,15 +1800,17 @@ function App() {
     const url = (lg.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${lg.id}`;
     setTestingConn(true);
     let connected = false, error = '';
-    // Step 1 — URL format (must be http/https)
+    let isFileUrl = false;
+    // Step 1 — URL format (http/https for hosted sites, file:// for local pages)
     try {
       const parsed = new URL(url);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('bad protocol');
+      isFileUrl = parsed.protocol === 'file:';
+      if (!isFileUrl && parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('bad protocol');
     } catch {
-      error = 'URL format is invalid (must start with http:// or https://)';
+      error = 'URL format is invalid (must start with http://, https:// or file://)';
     }
-    // Step 2 — HTTP reachability
-    if (!error) {
+    // Step 2 — HTTP reachability (browsers cannot fetch file:// — skip for local pages)
+    if (!error && !isFileUrl) {
       try {
         const res = await fetch(url, { method: 'GET', cache: 'no-store' });
         if (!res.ok) {
