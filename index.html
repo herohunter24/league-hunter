@@ -742,7 +742,7 @@ function parseTimeTo24h(t) {
 const DEFAULT_PUBLIC_SETTINGS = {
   showStandings: true, showSchedule: true, showPlayers: true,
   showPlayerCards: true, showStats: true, showLeagueInfo: true,
-  customHeader: '', customDescription: '',
+  customHeader: '', customDescription: '', accentColor: '',
 };
 function getPublicSettings(league) {
   return { ...DEFAULT_PUBLIC_SETTINGS, ...((league && league.publicSettings) || {}) };
@@ -4389,7 +4389,8 @@ function App() {
             ];
             const draftHeader = psDraft && psDraft.customHeader      !== undefined ? psDraft.customHeader      : (ps.customHeader || '');
             const draftDesc   = psDraft && psDraft.customDescription !== undefined ? psDraft.customDescription : (ps.customDescription || '');
-            const textDirty = draftHeader !== (ps.customHeader || '') || draftDesc !== (ps.customDescription || '');
+            const draftAccent = psDraft && psDraft.accentColor       !== undefined ? psDraft.accentColor       : (ps.accentColor || '');
+            const textDirty = draftHeader !== (ps.customHeader || '') || draftDesc !== (ps.customDescription || '') || draftAccent !== (ps.accentColor || '');
             return (
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Public Page Settings</div>
@@ -4440,14 +4441,23 @@ function App() {
                     </div>
                     <div>
                       <label style={lbl}>League Description</label>
-                      <input style={inp} value={draftDesc} onChange={e => setPsDraft({ ...(psDraft || {}), customDescription: e.target.value, customHeader: draftHeader })} placeholder="e.g. La ligue de basketball d'excellence" />
+                      <input style={inp} value={draftDesc} onChange={e => setPsDraft({ ...(psDraft || {}), customDescription: e.target.value, customHeader: draftHeader, accentColor: draftAccent })} placeholder="e.g. La ligue de basketball d'excellence" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Accent Color</label>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <input type="color" value={draftAccent || '#ff6b1a'} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, customHeader: draftHeader, customDescription: draftDesc })} style={{ height: 40, width: 64, borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 3 }} />
+                        <input style={{ ...inp, maxWidth: 130 }} value={draftAccent} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, customHeader: draftHeader, customDescription: draftDesc })} placeholder="#ff6b1a" />
+                        {draftAccent && <button style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 12px", fontSize: 12, cursor: "pointer" }} onClick={() => setPsDraft({ ...(psDraft || {}), accentColor: '', customHeader: draftHeader, customDescription: draftDesc })}>Reset to default</button>}
+                      </div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Overrides the public site's accent color. Leave blank to use the site's default.</div>
                     </div>
                     <div>
                       <button
                         style={{ ...btn(), opacity: textDirty ? 1 : 0.5, cursor: textDirty ? "pointer" : "default" }}
                         disabled={!textDirty}
-                        onClick={() => { savePublicSettings(league, { ...ps, customHeader: draftHeader.trim(), customDescription: draftDesc.trim() }); setPsDraft(null); }}
-                      >Save Custom Text</button>
+                        onClick={() => { savePublicSettings(league, { ...ps, customHeader: draftHeader.trim(), customDescription: draftDesc.trim(), accentColor: draftAccent.trim() }); setPsDraft(null); }}
+                      >Save Customization</button>
                     </div>
                   </div>
                 </div>
@@ -4553,13 +4563,20 @@ function App() {
                         disabled={testingConn}
                         onClick={() => testPublicSiteConnection(league)}
                       >{testingConn ? '⏳ Testing…' : '🔌 Test Connection'}</button>
-                      <a
-                        href={isConnected ? effectiveUrl : undefined}
-                        target="_blank" rel="noopener noreferrer"
-                        onClick={e => { if (!isConnected) e.preventDefault(); }}
-                        style={{ ...btn(isConnected ? "#16a34a" : "#252540"), textDecoration: "none", fontSize: 13, padding: "9px 20px", display: "inline-flex", alignItems: "center", gap: 6, opacity: isConnected ? 1 : 0.5, cursor: isConnected ? "pointer" : "not-allowed" }}
+                      <button
+                        onClick={() => {
+                          if (!isConnected) return;
+                          if (effectiveUrl.startsWith('file:') && window.location.protocol !== 'file:') {
+                            showToast('Browsers block opening file:// links from a hosted page — open the local file directly, or use the hosted URL.', 'warning');
+                            return;
+                          }
+                          const win = window.open(effectiveUrl, '_blank');
+                          if (!win) showToast('Popup blocked — allow popups for this site or copy the URL below.', 'warning');
+                        }}
+                        disabled={!isConnected}
+                        style={{ ...btn(isConnected ? "#16a34a" : "#252540"), fontSize: 13, padding: "9px 20px", display: "inline-flex", alignItems: "center", gap: 6, opacity: isConnected ? 1 : 0.5, cursor: isConnected ? "pointer" : "not-allowed" }}
                         title={isConnected ? 'Open public site in a new tab' : 'Run Test Connection first'}
-                      >↗ Open Public Site</a>
+                      >↗ Open Public Site</button>
                     </div>
 
                     {/* Connection status badge */}

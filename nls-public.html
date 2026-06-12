@@ -833,6 +833,12 @@ function App() {
     ...(view.ps || {}),
   };
 
+  // Owner-set accent color (publicSettings.accentColor) — falls back to NLS orange
+  useEffect(() => {
+    const c = (ps.accentColor || '').trim();
+    document.documentElement.style.setProperty('--orange', /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ff6b1a');
+  }, [ps.accentColor]);
+
   // standings
   const [sortKey, setSortKey] = useState('rank');
   const [openTeam, setOpenTeam] = useState(null);

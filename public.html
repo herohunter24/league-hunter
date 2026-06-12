@@ -2871,6 +2871,11 @@ function applyPublicSettings(league) {
   if (titleEl && ps.customHeader) titleEl.textContent = ps.customHeader;
   const subEl = document.getElementById('hero-sub');
   if (subEl && ps.customDescription) subEl.textContent = ps.customDescription;
+  // Accent color override (runs after renderMeta's league.color, so it wins when set)
+  const accent = (ps.accentColor || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(accent)) {
+    try { document.documentElement.style.setProperty('--green', accent); } catch(e) {}
+  }
 }
 
 // ── RENDER ALL ──
