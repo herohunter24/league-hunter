@@ -406,6 +406,18 @@
   .modal-close { float: right; background: none; border: none; color: var(--ink-soft); font-size: 20px; cursor: pointer; }
   .modal-close:hover { color: var(--ink); }
 
+  /* ── LANDING SECTIONS (showcase + mission) ── */
+  .landing-sec { max-width: 1180px; margin: 0 auto; padding: clamp(50px, 8vw, 90px) clamp(18px, 4vw, 40px); text-align: center; }
+  .landing-sec .lsec-title { font-family: var(--ff-display); font-size: clamp(28px, 5vw, 48px); text-transform: uppercase; margin-bottom: 10px; }
+  .landing-sec .lsec-sub { color: var(--ink-mid); font-size: 15px; max-width: 560px; margin: 0 auto 36px; line-height: 1.6; }
+  .showcase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 22px; max-width: 920px; margin: 0 auto 34px; }
+  .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
+  .mission-pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 880px; margin: 0 auto 36px; text-align: left; }
+  .pillar { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .pillar-icon { font-size: 26px; margin-bottom: 10px; }
+  .pillar-t { font-weight: 800; font-size: 16px; margin-bottom: 6px; }
+  .pillar-d { font-size: 13px; color: var(--ink-mid); line-height: 1.6; }
+
   /* ── CATEGORY-FIRST NAVIGATION ── */
   .cat-selector { max-width: 720px; margin: 0 auto; padding: clamp(60px, 10vw, 110px) clamp(18px, 4vw, 40px); text-align: center; }
   .cat-selector h2 { font-family: var(--ff-display); font-size: clamp(28px, 5vw, 46px); text-transform: uppercase; margin-bottom: 10px; }
@@ -502,6 +514,13 @@ const STR = {
     opponent: "Adversaire", noGamesYet: "Aucun match joué.", gp: "MJ",
     selectCat: "Sélectionnez une catégorie", selectCatSub: "Choisissez une catégorie pour explorer la ligue",
     changeCat: "← Changer de catégorie", searchCat: "Rechercher une catégorie…", noCatMatch: "Aucune catégorie trouvée.",
+    showcaseTitle: "Découvre ta carte de joueur", showcaseSub: "Chaque joueur, sa carte à collectionner — du Bronze à la Légende.",
+    missionTitle: "Le message derrière le mouvement", missionSub: "L'excellence sportive, sans compromis.",
+    missionP1: "Depuis des années, NLS CRÉATION habille les champions. Cette ligue prolonge la mission sur le terrain : offrir aux athlètes d'ici une plateforme à la hauteur de leur talent.",
+    missionP2: "Chaque match, chaque statistique et chaque carte de joueur célèbrent la progression, la communauté et la fierté du sport d'ici.",
+    pillarExcellence: "Excellence", pillarExcellenceD: "Des standards de calibre professionnel pour chaque équipe.",
+    pillarCommunity: "Communauté", pillarCommunityD: "Rassembler joueurs, familles et partisans autour du jeu.",
+    pillarProgress: "Progression", pillarProgressD: "Suivre chaque pas, du Bronze jusqu'à la Légende.",
     schedKicker: "Tous les matchs", schedTitle: "Calendrier",
     fUpcoming: "À venir", fPast: "Résultats", fAll: "Tous", allTeams: "Toutes les équipes",
     final: "Final", upcoming: "À venir",
@@ -530,6 +549,13 @@ const STR = {
     opponent: "Opponent", noGamesYet: "No games played yet.", gp: "GP",
     selectCat: "Select a category", selectCatSub: "Choose a category to explore the league",
     changeCat: "← Change category", searchCat: "Search category…", noCatMatch: "No category found.",
+    showcaseTitle: "See your player card", showcaseSub: "Every player, their own collectible card — Bronze to Legend.",
+    missionTitle: "The message behind the movement", missionSub: "Sporting excellence, no compromise.",
+    missionP1: "For years, NLS CRÉATION has dressed champions. This league carries that mission onto the court: giving local athletes a platform worthy of their talent.",
+    missionP2: "Every game, every stat, and every player card celebrates progress, community, and the pride of the game.",
+    pillarExcellence: "Excellence", pillarExcellenceD: "Pro-calibre standards for every team.",
+    pillarCommunity: "Community", pillarCommunityD: "Bringing players, families, and fans together around the game.",
+    pillarProgress: "Progression", pillarProgressD: "Track every step, from Bronze to Legend.",
     schedKicker: "All games", schedTitle: "Schedule",
     fUpcoming: "Upcoming", fPast: "Results", fAll: "All", allTeams: "All teams",
     final: "Final", upcoming: "Upcoming",
@@ -1110,6 +1136,20 @@ function App() {
     .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
     .sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
 
+  // Open the explorer and scroll to the category selector — shared by every "Explore" button
+  const openExplorer = () => { setShowExplorer(true); setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); };
+
+  // Showcase: best player from up to 4 distinct categories (fills with next-best if fewer categories)
+  const showcasePlayers = useMemo(() => {
+    const ranked = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0));
+    const byCat = new Map();
+    ranked.forEach(p => { const c = p.categoryId || '__none__'; if (!byCat.has(c)) byCat.set(c, p); });
+    const picks = Array.from(byCat.values()).slice(0, 4);
+    const ids = new Set(picks.map(p => p.id));
+    for (const p of ranked) { if (picks.length >= 4) break; if (!ids.has(p.id)) { picks.push(p); ids.add(p.id); } }
+    return picks;
+  }, [PLAYERS]);
+
   // PNG export
   function shareCard(p) {
     const el = document.getElementById(`pcard-${p.id}`);
@@ -1146,8 +1186,7 @@ function App() {
           <div className="hero-kicker">{live && view.meta && view.meta.name ? view.meta.name.toUpperCase() : t.kicker}</div>
           <h1 className="hero-title">{ps.customHeader || t.heroTitle}</h1>
           <p className="hero-sub">{ps.customDescription || t.heroSub}</p>
-          <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }}
-            onClick={() => { setShowExplorer(true); setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); }}>
+          <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
             {t.cta} →
           </button>
         </div>
@@ -1168,6 +1207,44 @@ function App() {
             <div style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{t.notFound}</div>
           </div>
         </div>
+      )}
+
+      {/* ── LANDING SECTIONS (shown before the visitor enters the explorer) ── */}
+      {!showExplorer && (
+        <>
+          {/* Section 1 — Player Cards Showcase */}
+          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
+            <section className="landing-sec">
+              <div className="lsec-title">{t.showcaseTitle}</div>
+              <div className="lsec-sub">{t.showcaseSub}</div>
+              <div className="showcase-grid">
+                {showcasePlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+              </div>
+              <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
+            </section>
+          )}
+
+          {/* Section 2 — League Message / Mission */}
+          <section className="landing-sec">
+            <div className="sec-kicker">{t.missionSub}</div>
+            <div className="lsec-title">{t.missionTitle}</div>
+            <div className="mission-body">{t.missionP1}<br /><br />{t.missionP2}</div>
+            <div className="mission-pillars">
+              {[
+                ['🏆', t.pillarExcellence, t.pillarExcellenceD],
+                ['🤝', t.pillarCommunity, t.pillarCommunityD],
+                ['📈', t.pillarProgress, t.pillarProgressD],
+              ].map(([icon, title, desc]) => (
+                <div key={title} className="pillar">
+                  <div className="pillar-icon">{icon}</div>
+                  <div className="pillar-t">{title}</div>
+                  <div className="pillar-d">{desc}</div>
+                </div>
+              ))}
+            </div>
+            <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
+          </section>
+        </>
       )}
 
       {/* ── CATEGORY SELECTOR (shown after Explore, before a category is chosen) ── */}
