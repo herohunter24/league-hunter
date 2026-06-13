@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, collection, getDocs, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     "apiKey": "AIzaSyDfMttfJLMvEW-LB3TIkFgebR5Cb7-1Wi4",
@@ -39,7 +39,7 @@
     const app = initializeApp(firebaseConfig);
     const db  = getFirestore(app);
     window.__wxDB            = db;
-    window.__wxFS            = { doc, getDoc, collection, getDocs, onSnapshot };
+    window.__wxFS            = { doc, getDoc, collection, getDocs, onSnapshot, setDoc };
     window.__wxLeagueId      = LEAGUE_ID;
     window.__wxFirebaseReady = true;
     window.dispatchEvent(new Event('wxFirebaseReady'));
@@ -550,6 +550,13 @@ const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 
 /* ═══════════ LIVE DATA — League Hunter platform (same RP/tier engine as public.html) ═══════════ */
 const LIVE_LEAGUE_ID = new URLSearchParams(window.location.search).get('league');
 
+// Per-session visitor id (persists for the browser session) — used by page-view analytics
+function getAnalyticsSessionId() {
+  let id = sessionStorage.getItem('analytics_session_id');
+  if (!id) { id = 'session_' + Math.random().toString(36).substring(2, 15); sessionStorage.setItem('analytics_session_id', id); }
+  return id;
+}
+
 const RANK_TIERS = [
   { id: "bronze",   minRP: 0     },
   { id: "silver",   minRP: 150   },
@@ -838,6 +845,26 @@ function App() {
     const c = (ps.accentColor || '').trim();
     document.documentElement.style.setProperty('--orange', /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ff6b1a');
   }, [ps.accentColor]);
+
+  // ── PAGE VIEW ANALYTICS — record on load + on hash (section) change ──
+  useEffect(() => {
+    if (!LIVE_LEAGUE_ID) return;
+    function track() {
+      const _db = window.__wxDB, _FS = window.__wxFS || {};
+      if (!window.__wxFirebaseReady || !_db || !_FS.setDoc || !_FS.doc) return;
+      const section = (window.location.hash || '').replace('#', '') || 'home';
+      const today = new Date().toISOString().split('T')[0];
+      const viewId = 'v_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      _FS.setDoc(_FS.doc(_db, 'leagues', String(LIVE_LEAGUE_ID), 'pageViews', viewId), {
+        timestamp: Date.now(), date: today, section,
+        sessionId: getAnalyticsSessionId(), userAgent: navigator.userAgent || '',
+      }).catch(e => console.error('[NLS Analytics] track error:', e));
+    }
+    if (window.__wxFirebaseReady) track();
+    else window.addEventListener('wxFirebaseReady', track, { once: true });
+    window.addEventListener('hashchange', track);
+    return () => window.removeEventListener('hashchange', track);
+  }, []);
 
   // standings
   const [sortKey, setSortKey] = useState('rank');
