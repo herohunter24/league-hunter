@@ -453,7 +453,8 @@ const STR = {
     cta: "Explorer la Ligue",
     navStandings: "Classement", navSchedule: "Calendrier", navPlayers: "Joueurs", navStats: "Statistiques",
     standingsKicker: "Saison 2026", standingsTitle: "Classement",
-    thRank: "Rang", thTeam: "Équipe", thRecord: "V-D", thPct: "% Vict.", thLast5: "5 Derniers",
+    thRank: "Rang", thTeam: "Équipe", thRecord: "V-D", thPct: "% Vict.", thPF: "PF", thPA: "PC", thLast5: "5 Derniers",
+    allCats: "Toutes les catégories", viewAllPlayers: "Voir tous les joueurs", showTop5: "← Afficher le top 5",
     schedKicker: "Tous les matchs", schedTitle: "Calendrier",
     fUpcoming: "À venir", fPast: "Résultats", fAll: "Tous", allTeams: "Toutes les équipes",
     final: "Final", upcoming: "À venir",
@@ -475,7 +476,8 @@ const STR = {
     cta: "Explore the League",
     navStandings: "Standings", navSchedule: "Schedule", navPlayers: "Players", navStats: "Stats",
     standingsKicker: "2026 Season", standingsTitle: "Standings",
-    thRank: "Rank", thTeam: "Team", thRecord: "W-L", thPct: "Win %", thLast5: "Last 5",
+    thRank: "Rank", thTeam: "Team", thRecord: "W-L", thPct: "Win %", thPF: "PF", thPA: "PA", thLast5: "Last 5",
+    allCats: "All categories", viewAllPlayers: "View all players", showTop5: "← Show top 5",
     schedKicker: "All games", schedTitle: "Schedule",
     fUpcoming: "Upcoming", fPast: "Results", fAll: "All", allTeams: "All teams",
     final: "Final", upcoming: "Upcoming",
@@ -506,12 +508,12 @@ const TIER_ORDER = ['legend','champion','diamond','platinum','gold','silver','br
 
 /* ═══════════ DEMO DATA — fallback when no ?league= param (showcase mode) ═══════════ */
 const DEMO_TEAMS = [
-  { id: 1, name: 'Dynastie MTL',     emoji: '👑', color: '#e8b54a', w: 15, l: 3,  last5: [1,1,1,0,1] },
-  { id: 2, name: 'Vipères Laval',    emoji: '🐍', color: '#34d27b', w: 14, l: 4,  last5: [1,1,0,1,1] },
-  { id: 3, name: 'Tonnerre Québec',  emoji: '⚡', color: '#7fb8ff', w: 11, l: 7,  last5: [0,1,1,1,0] },
-  { id: 4, name: 'Phénix Longueuil', emoji: '🔥', color: '#ff6b1a', w: 9,  l: 9,  last5: [1,0,1,0,0] },
-  { id: 5, name: 'Loups du Nord',    emoji: '🐺', color: '#b9b9c4', w: 6,  l: 12, last5: [0,0,1,0,1] },
-  { id: 6, name: 'Royaux Verdun',    emoji: '🏰', color: '#c084fc', w: 3,  l: 15, last5: [0,0,0,1,0] },
+  { id: 1, name: 'Dynastie MTL',     emoji: '👑', color: '#e8b54a', w: 15, l: 3,  pf: 1632, pa: 1421, last5: [1,1,1,0,1] },
+  { id: 2, name: 'Vipères Laval',    emoji: '🐍', color: '#34d27b', w: 14, l: 4,  pf: 1588, pa: 1402, last5: [1,1,0,1,1] },
+  { id: 3, name: 'Tonnerre Québec',  emoji: '⚡', color: '#7fb8ff', w: 11, l: 7,  pf: 1494, pa: 1457, last5: [0,1,1,1,0] },
+  { id: 4, name: 'Phénix Longueuil', emoji: '🔥', color: '#ff6b1a', w: 9,  l: 9,  pf: 1440, pa: 1448, last5: [1,0,1,0,0] },
+  { id: 5, name: 'Loups du Nord',    emoji: '🐺', color: '#b9b9c4', w: 6,  l: 12, pf: 1377, pa: 1503, last5: [0,0,1,0,1] },
+  { id: 6, name: 'Royaux Verdun',    emoji: '🏰', color: '#c084fc', w: 3,  l: 15, pf: 1298, pa: 1576, last5: [0,0,0,1,0] },
 ];
 
 const DEMO_PLAYERS = [
@@ -666,19 +668,20 @@ function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
   const games = (rawGames || []).map(g => {
     const hs = (g.homeScore !== undefined && g.homeScore !== null && g.homeScore !== '') ? +g.homeScore : null;
     const as = (g.awayScore !== undefined && g.awayScore !== null && g.awayScore !== '') ? +g.awayScore : null;
-    return { id: g.id, date: g.date || '', time: g.time || '', home: g.home || '', away: g.away || '', venue: g.venue || '', hs, as, playerStats: g.playerStats || {} };
+    return { id: g.id, date: g.date || '', time: g.time || '', home: g.home || '', away: g.away || '', venue: g.venue || '', categoryId: g.categoryId != null ? String(g.categoryId) : '', hs, as, playerStats: g.playerStats || {} };
   });
 
-  // Teams → computed W-L + last 5 from completed games
+  // Teams → computed W-L + last 5 + points for/against from completed games
   const played = games.filter(g => g.hs !== null && g.as !== null).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const teams = (rawTeams || []).map((tm, i) => {
     const results = [];
+    let pf = 0, pa = 0;
     played.forEach(g => {
-      if (g.home === tm.name) results.push(g.hs > g.as ? 1 : 0);
-      else if (g.away === tm.name) results.push(g.as > g.hs ? 1 : 0);
+      if (g.home === tm.name) { results.push(g.hs > g.as ? 1 : 0); pf += g.hs; pa += g.as; }
+      else if (g.away === tm.name) { results.push(g.as > g.hs ? 1 : 0); pf += g.as; pa += g.hs; }
     });
     const w = results.filter(r => r).length;
-    return { id: tm.id || i, name: tm.name || '', emoji: tm.emoji || '🏀', logoUrl: tm.logoUrl || '', color: tm.color || '#ff6b1a', w, l: results.length - w, last5: results.slice(-5) };
+    return { id: tm.id || i, name: tm.name || '', emoji: tm.emoji || '🏀', logoUrl: tm.logoUrl || '', color: tm.color || '#ff6b1a', categoryId: tm.categoryId != null ? String(tm.categoryId) : '', w, l: results.length - w, pf, pa, last5: results.slice(-5) };
   });
 
   // Players → stats averages + tier + archetype + bio fields
@@ -697,13 +700,15 @@ function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
     return {
       id: pid, name: p.name || '', team: p.team || '', pos: p.position || '',
       number: p.number || '', photoUrl: p.photoUrl || '',
-      height: p.height, weight: p.weight,
+      height: p.height, weight: p.weight, categoryId: p.categoryId != null ? String(p.categoryId) : '',
       tier: tierNls, arch: deriveArchetype(tierNls, ppg, rpg, apg),
       ppg, rpg, apg, spg, bpg, gp, rp,
     };
   });
 
-  return { teams, players, games, units, ps: (meta && meta.publicSettings) || {}, meta };
+  const categories = ((meta && meta.categories) || []).map(c => ({ id: String(c.id), name: c.displayName || c.name || 'Catégorie' }));
+
+  return { teams, players, games, units, categories, ps: (meta && meta.publicSettings) || {}, meta };
 }
 
 // Real-time Firestore listeners — same 4-listener pattern as public.html
@@ -831,7 +836,7 @@ function App() {
   const live = data.live;
   const view = useMemo(() => live
     ? buildLiveViewData(data.meta, data.teams, data.players, data.games)
-    : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', ps: {}, meta: null },
+    : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
     [live, data.meta, data.teams, data.players, data.games]);
   const TEAMS = view.teams, PLAYERS = view.players, GAMES = view.games;
   const ps = {
@@ -870,11 +875,13 @@ function App() {
   const [sortKey, setSortKey] = useState('rank');
   const [openTeam, setOpenTeam] = useState(null);
   const standings = useMemo(() => {
-    const rows = TEAMS.map(tm => ({ ...tm, pct: tm.w / (tm.w + tm.l) }));
+    let src = TEAMS;
+    if (fCat !== 'all') src = src.filter(tm => tm.categoryId === fCat);
+    const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0 }));
     if (sortKey === 'wins') rows.sort((a, b) => b.w - a.w);
     else rows.sort((a, b) => b.pct - a.pct);
     return rows;
-  }, [sortKey, TEAMS]);
+  }, [sortKey, TEAMS, fCat]);
 
   // schedule
   const [schedFilter, setSchedFilter] = useState('all');
@@ -888,17 +895,34 @@ function App() {
     return g;
   }, [schedFilter, schedTeam, GAMES]);
 
+  // category (shared between standings + players)
+  const cats = view.categories || [];
+  const [fCat, setFCat] = useState('all');
+
   // players
   const [search, setSearch] = useState('');
   const [fTier, setFTier] = useState('all');
   const [fTeam, setFTeam] = useState('all');
+  const [fArch, setFArch] = useState('all');
+  const [showAllPlayers, setShowAllPlayers] = useState(false);
+  const archetypes = useMemo(() => {
+    const seen = new Map();
+    PLAYERS.forEach(p => { const a = p.arch && p.arch[lang]; if (a && !seen.has(a)) seen.set(a, a); });
+    return Array.from(seen.keys()).sort();
+  }, [PLAYERS, lang]);
   const players = useMemo(() => {
-    let ps = [...PLAYERS].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+    let ps = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
     if (search) ps = ps.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
     if (fTier !== 'all') ps = ps.filter(p => p.tier === fTier);
     if (fTeam !== 'all') ps = ps.filter(p => p.team === fTeam);
+    if (fArch !== 'all') ps = ps.filter(p => p.arch && p.arch[lang] === fArch);
+    if (fCat !== 'all') ps = ps.filter(p => p.categoryId === fCat);
     return ps;
-  }, [search, fTier, fTeam, PLAYERS]);
+  }, [search, fTier, fTeam, fArch, fCat, PLAYERS, lang]);
+  // Homepage shows top 5; "View All" reveals the full filterable gallery
+  const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all' || fCat !== 'all';
+  const galleryOpen = showAllPlayers || anyPlayerFilter;
+  const shownPlayers = galleryOpen ? players : players.slice(0, 5);
 
   // leaders
   const leaders = key => [...PLAYERS].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
@@ -973,6 +997,14 @@ function App() {
       <section className="section" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
         <h2 className="sec-title">{t.standingsTitle}</h2>
+        {cats.length > 1 && (
+          <div style={{ marginBottom: 18 }}>
+            <select className="filter-select" value={fCat} onChange={e => setFCat(e.target.value)}>
+              <option value="all">{t.allCats}</option>
+              {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="standings-card">
           <table className="standings-table">
             <thead>
@@ -981,6 +1013,8 @@ function App() {
                 <th>{t.thTeam}</th>
                 <th onClick={() => setSortKey('wins')}>{t.thRecord}</th>
                 <th className="hide-m" onClick={() => setSortKey('rank')}>{t.thPct}</th>
+                <th className="hide-m" title="Points For">{t.thPF}</th>
+                <th className="hide-m" title="Points Against">{t.thPA}</th>
                 <th className="hide-m">{t.thLast5}</th>
               </tr>
             </thead>
@@ -1001,13 +1035,15 @@ function App() {
                     </td>
                     <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)' }}>{(tm.pct * 100).toFixed(1)}%</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pf || 0}</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pa || 0}</td>
                     <td className="hide-m">
                       <div className="last5">{tm.last5.map((r, j) => <span key={j} className={`l5-dot ${r ? 'l5-w' : 'l5-l'}`}></span>)}</div>
                     </td>
                   </tr>
                   {openTeam === tm.id && (
                     <tr className="roster-row">
-                      <td colSpan="5">
+                      <td colSpan="7">
                         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 10 }}>{t.roster}</div>
                         <div className="roster-chips">
                           {PLAYERS.filter(p => p.team === tm.name).map(p => (
@@ -1073,21 +1109,43 @@ function App() {
       <section className="section" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
         <h2 className="sec-title">{t.playersTitle}</h2>
-        <div className="player-filters">
-          <input className="search-inp" placeholder={t.searchPh} value={search} onChange={e => setSearch(e.target.value)} />
-          <select className="filter-select" value={fTier} onChange={e => setFTier(e.target.value)}>
-            <option value="all">{t.allTiers}</option>
-            {TIER_ORDER.map(k => <option key={k} value={k}>{TIERS[k].label}</option>)}
-          </select>
-          <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
-            <option value="all">{t.allTeams}</option>
-            {TEAMS.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
-          </select>
-        </div>
+        {/* Full filter bar — only once the gallery is open (top-5 preview stays clean) */}
+        {galleryOpen && (
+          <div className="player-filters">
+            <input className="search-inp" placeholder={t.searchPh} value={search} onChange={e => setSearch(e.target.value)} />
+            <select className="filter-select" value={fTier} onChange={e => setFTier(e.target.value)}>
+              <option value="all">{t.allTiers}</option>
+              {TIER_ORDER.map(k => <option key={k} value={k}>{TIERS[k].label}</option>)}
+            </select>
+            <select className="filter-select" value={fArch} onChange={e => setFArch(e.target.value)}>
+              <option value="all">{t.allArch}</option>
+              {archetypes.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
+              <option value="all">{t.allTeams}</option>
+              {TEAMS.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+            </select>
+            {cats.length > 1 && (
+              <select className="filter-select" value={fCat} onChange={e => setFCat(e.target.value)}>
+                <option value="all">{t.allCats}</option>
+                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
+          </div>
+        )}
         <div className="cards-grid">
-          {players.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} teams={TEAMS} units={view.units} />)}
+          {shownPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} teams={TEAMS} units={view.units} />)}
         </div>
-        {!players.length && <div className="empty-note">{t.noPlayers}</div>}
+        {!shownPlayers.length && <div className="empty-note">{t.noPlayers}</div>}
+        {/* View All / Show top 5 toggle */}
+        {!anyPlayerFilter && players.length > 5 && (
+          <div style={{ textAlign: 'center', marginTop: 30 }}>
+            <button className="hero-cta" style={{ marginTop: 0, fontSize: 13, padding: '13px 34px' }}
+              onClick={() => setShowAllPlayers(v => !v)}>
+              {showAllPlayers ? t.showTop5 : `${t.viewAllPlayers} (${players.length})`}
+            </button>
+          </div>
+        )}
       </section>
       )}
 
