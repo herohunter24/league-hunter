@@ -837,8 +837,8 @@ const SPORT_STATS = {
     { key: "blocks",    label: "BLK", avg: "BPG",  full: "Blocks",      desc: "Track blocks and shot-blocking leaders",                           color: "#a78bfa", defaultOn: true  },
     { key: "turnovers", label: "TO",  avg: "TOPG", full: "Turnovers",   desc: "Track turnovers per game",                                         color: "#ef4444", defaultOn: false },
     { key: "threes",    label: "3PM", avg: "3PPG", full: "3-Pointers",  desc: "Track 3-pointers made per game",                                   color: "#f59e0b", defaultOn: false },
-    { key: "fgPct",     label: "FG%", avg: "FG%",  full: "FG%",         desc: "Field goal percentage — enter 0–100 per game",                     color: "#64748b", defaultOn: false, isPct: true },
-    { key: "ftPct",     label: "FT%", avg: "FT%",  full: "FT%",         desc: "Free throw percentage — enter 0–100 per game",                     color: "#94a3b8", defaultOn: false, isPct: true },
+    { key: "fgPct",     label: "FG%", avg: "FG%",  full: "FG%",         desc: "Field goal % — enter makes & attempts, % is auto-calculated",      color: "#64748b", defaultOn: false, isPct: true, madeKey: "fgm", attKey: "fga", madeLabel: "FGM", attLabel: "FGA" },
+    { key: "ftPct",     label: "FT%", avg: "FT%",  full: "FT%",         desc: "Free throw % — enter makes & attempts, % is auto-calculated",      color: "#94a3b8", defaultOn: false, isPct: true, madeKey: "ftm", attKey: "fta", madeLabel: "FTM", attLabel: "FTA" },
   ],
   Hockey: [
     { key: "goals",   label: "G", avg: "GPG", full: "Goals",   desc: "Track skater goals and goal leaders",         color: "#22c55e", defaultOn: true },
@@ -868,7 +868,15 @@ function getPlayerSeasonStats(player, schedule, sport) {
     isGamePast(g) && g.playerStats && g.playerStats[player.id] !== undefined
   );
   const totals = {}, averages = {};
-  statDef.forEach(({ key }) => {
+  statDef.forEach(({ key, madeKey, attKey }) => {
+    // Percentage stats: aggregate as total made ÷ total attempted (correct), not a mean of per-game %
+    if (madeKey && attKey) {
+      const totMade = playedGames.reduce((a, g) => a + (parseFloat(g.playerStats[player.id]?.[madeKey]) || 0), 0);
+      const totAtt  = playedGames.reduce((a, g) => a + (parseFloat(g.playerStats[player.id]?.[attKey])  || 0), 0);
+      totals[key] = totMade;
+      averages[key] = totAtt > 0 ? ((totMade / totAtt) * 100).toFixed(1) : null;
+      return;
+    }
     const vals = playedGames.map(g => parseFloat(g.playerStats[player.id]?.[key]) || 0);
     totals[key] = vals.reduce((a, b) => a + b, 0);
     averages[key] = vals.length > 0 ? (totals[key] / vals.length).toFixed(1) : null;
@@ -3715,7 +3723,7 @@ function App() {
                                                       const existing = (g.playerStats || {})[pl.id] || {};
                                                       const def = getSportStats(sport, pl);
                                                       const defaults = {};
-                                                      def.forEach(({ key }) => { defaults[key] = 0; });
+                                                      def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
                                                       stats[pl.id] = { ...defaults, ...existing };
                                                     });
                                                     setEditStats({ game: g, stats });
@@ -3913,7 +3921,7 @@ function App() {
                                         const existing = (g.playerStats || {})[p.id] || {};
                                         const def = getSportStats(sport, p);
                                         const defaults = {};
-                                        def.forEach(({ key }) => { defaults[key] = 0; });
+                                        def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
                                         stats[p.id] = { ...defaults, ...existing };
                                       });
                                       setEditStats({ game: g, stats });
@@ -5673,21 +5681,54 @@ service cloud.firestore {
                                 {p.name}
                                 {isGoalie(p) && sport === "Hockey" && <span style={{ fontSize: 11, color: T2 }}>🥅</span>}
                               </div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                                {activeStats.map(({ key, label, isPct }) => (
-                                  <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                                    <span style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>
-                                    <input
-                                      type="number" min="0" max={isPct ? 100 : undefined}
-                                      style={{ ...inp, width: 64, padding: "6px 6px", textAlign: "center", fontSize: 14, fontWeight: 600 }}
-                                      value={ps[key] === undefined ? 0 : ps[key]}
-                                      onChange={e => setEditStats(prev => ({
-                                        ...prev,
-                                        stats: { ...prev.stats, [p.id]: { ...prev.stats[p.id], [key]: e.target.value } }
-                                      }))}
-                                    />
-                                  </div>
-                                ))}
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+                                {activeStats.map(({ key, label, isPct, madeKey, attKey, madeLabel, attLabel }) => {
+                                  // Percentage stat → two inputs (made / attempted), % auto-calculated
+                                  if (madeKey && attKey) {
+                                    const made = ps[madeKey] === undefined ? 0 : ps[madeKey];
+                                    const att  = ps[attKey]  === undefined ? 0 : ps[attKey];
+                                    const m = parseFloat(made) || 0, a = parseFloat(att) || 0;
+                                    const pct = a > 0 ? Math.round((m / a) * 1000) / 10 : 0;
+                                    const setMA = (field, val) => setEditStats(prev => {
+                                      const cur = { ...(prev.stats[p.id] || {}), [field]: val };
+                                      const mm = parseFloat(cur[madeKey]) || 0, aa = parseFloat(cur[attKey]) || 0;
+                                      cur[key] = aa > 0 ? Math.round((mm / aa) * 1000) / 10 : 0;
+                                      return { ...prev, stats: { ...prev.stats, [p.id]: cur } };
+                                    });
+                                    return (
+                                      <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "4px 8px", borderRadius: 8, background: "#ffffff05", border: `1px solid ${BORDER}` }}>
+                                        <span style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.05em", textAlign: "center" }}>{label} <span style={{ color: a > 0 ? ACC : T2 }}>= {pct}%</span></span>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                            <span style={{ fontSize: 8.5, color: T2, fontWeight: 700 }}>{madeLabel}</span>
+                                            <input type="number" min="0" style={{ ...inp, width: 50, padding: "6px 4px", textAlign: "center", fontSize: 14, fontWeight: 600 }}
+                                              value={made} onChange={e => setMA(madeKey, e.target.value)} />
+                                          </div>
+                                          <span style={{ color: T2, fontSize: 13, marginTop: 12 }}>/</span>
+                                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                            <span style={{ fontSize: 8.5, color: T2, fontWeight: 700 }}>{attLabel}</span>
+                                            <input type="number" min="0" style={{ ...inp, width: 50, padding: "6px 4px", textAlign: "center", fontSize: 14, fontWeight: 600 }}
+                                              value={att} onChange={e => setMA(attKey, e.target.value)} />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                      <span style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.05em" }}>{label}</span>
+                                      <input
+                                        type="number" min="0" max={isPct ? 100 : undefined}
+                                        style={{ ...inp, width: 64, padding: "6px 6px", textAlign: "center", fontSize: 14, fontWeight: 600 }}
+                                        value={ps[key] === undefined ? 0 : ps[key]}
+                                        onChange={e => setEditStats(prev => ({
+                                          ...prev,
+                                          stats: { ...prev.stats, [p.id]: { ...prev.stats[p.id], [key]: e.target.value } }
+                                        }))}
+                                      />
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
