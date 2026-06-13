@@ -406,6 +406,34 @@
   .modal-close { float: right; background: none; border: none; color: var(--ink-soft); font-size: 20px; cursor: pointer; }
   .modal-close:hover { color: var(--ink); }
 
+  /* ── PLAYER PROFILE MODAL ── */
+  .pmodal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 860px; max-height: 90vh; overflow: hidden; animation: fadeUp 0.3s; display: flex; flex-direction: column; }
+  .pmodal-close { position: absolute; top: 16px; right: 18px; z-index: 5; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer; backdrop-filter: blur(6px); }
+  .pmodal-close:hover { background: var(--orange); color: #000; }
+  .pmodal-body { display: grid; grid-template-columns: 280px 1fr; gap: 28px; padding: 28px; overflow-y: auto; }
+  .pmodal-left { position: sticky; top: 0; }
+  .pm-name { font-family: var(--ff-display); font-size: 26px; line-height: 1; }
+  .pm-sub { font-size: 13px; color: var(--ink-mid); margin-top: 6px; }
+  .pm-section-t { font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--orange); margin: 22px 0 12px; }
+  .pm-stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
+  .pm-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 6px; text-align: center; }
+  .pm-stat-v { font-family: var(--ff-display); font-size: 19px; color: var(--ink); }
+  .pm-stat-k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.12em; color: var(--ink-soft); margin-top: 4px; }
+  .pm-prog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .pm-prog-tier { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 14px; }
+  .pm-prog-bar { height: 12px; border-radius: 100px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--border); }
+  .pm-prog-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--orange), var(--orange-soft)); transition: width 0.5s; }
+  .pm-prog-need { text-align: center; font-size: 13px; color: var(--ink-mid); margin-top: 10px; font-weight: 600; }
+  .pm-log { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pm-log th { text-align: left; font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  .pm-log td { padding: 9px 8px; border-bottom: 1px solid #1d1d24; }
+  .pm-actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  .pm-btn { flex: 1; min-width: 130px; border: none; border-radius: 100px; padding: 12px; font-family: var(--ff-body); font-weight: 800; font-size: 13px; letter-spacing: 0.04em; cursor: pointer; }
+  @media (max-width: 680px) {
+    .pmodal-body { grid-template-columns: 1fr; gap: 20px; padding: 20px; }
+    .pmodal-left { position: static; max-width: 240px; margin: 0 auto; }
+  }
+
   .empty-note { color: var(--ink-soft); text-align: center; padding: 50px 20px; font-size: 14px; }
 
   @media (max-width: 640px) {
@@ -455,6 +483,9 @@ const STR = {
     standingsKicker: "Saison 2026", standingsTitle: "Classement",
     thRank: "Rang", thTeam: "Équipe", thRecord: "V-D", thPct: "% Vict.", thPF: "PF", thPA: "PC", thLast5: "5 Derniers",
     allCats: "Toutes les catégories", viewAllPlayers: "Voir tous les joueurs", showTop5: "← Afficher le top 5",
+    seasonStats: "Statistiques de la saison", tierProgress: "Progression de niveau", gameLog: "Historique des matchs",
+    rpToReach: (n, tier) => `${n} RP pour atteindre ${tier}`, maxTier: "Niveau maximum atteint 👑",
+    opponent: "Adversaire", noGamesYet: "Aucun match joué.", gp: "MJ",
     schedKicker: "Tous les matchs", schedTitle: "Calendrier",
     fUpcoming: "À venir", fPast: "Résultats", fAll: "Tous", allTeams: "Toutes les équipes",
     final: "Final", upcoming: "À venir",
@@ -478,6 +509,9 @@ const STR = {
     standingsKicker: "2026 Season", standingsTitle: "Standings",
     thRank: "Rank", thTeam: "Team", thRecord: "W-L", thPct: "Win %", thPF: "PF", thPA: "PA", thLast5: "Last 5",
     allCats: "All categories", viewAllPlayers: "View all players", showTop5: "← Show top 5",
+    seasonStats: "Season Stats", tierProgress: "Tier Progression", gameLog: "Game Log",
+    rpToReach: (n, tier) => `${n} RP needed to reach ${tier}`, maxTier: "Max tier reached 👑",
+    opponent: "Opponent", noGamesYet: "No games played yet.", gp: "GP",
     schedKicker: "All games", schedTitle: "Schedule",
     fUpcoming: "Upcoming", fPast: "Results", fAll: "All", allTeams: "All teams",
     final: "Final", upcoming: "Upcoming",
@@ -517,20 +551,20 @@ const DEMO_TEAMS = [
 ];
 
 const DEMO_PLAYERS = [
-  { id: 1,  name: 'Marcus Bélanger',   team: 'Dynastie MTL',     pos: 'Meneur',  tier: 'legend',   arch: { fr: 'ICÔNE',      en: 'ICON' },      ppg: 28.4, rpg: 5.2,  apg: 9.1 },
-  { id: 2,  name: 'David Tremblay',    team: 'Vipères Laval',    pos: 'Ailier',  tier: 'champion', arch: { fr: 'FINISSEUR',  en: 'CLOSER' },    ppg: 24.7, rpg: 7.8,  apg: 4.3 },
-  { id: 3,  name: 'Kevin Nzeza',       team: 'Dynastie MTL',     pos: 'Centre',  tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 22.1, rpg: 11.4, apg: 2.2 },
-  { id: 4,  name: 'Jean-Phil Roy',     team: 'Tonnerre Québec',  pos: 'Arrière', tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 21.8, rpg: 3.6,  apg: 5.5 },
-  { id: 5,  name: 'Samuel Okafor',     team: 'Vipères Laval',    pos: 'Centre',  tier: 'platinum', arch: { fr: 'PILIER',     en: 'ANCHOR' },    ppg: 16.2, rpg: 12.7, apg: 1.8 },
-  { id: 6,  name: 'Alex Gagné',        team: 'Phénix Longueuil', pos: 'Meneur',  tier: 'platinum', arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 15.9, rpg: 4.1,  apg: 8.4 },
-  { id: 7,  name: 'Thierry Lavoie',    team: 'Dynastie MTL',     pos: 'Ailier',  tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 14.6, rpg: 6.3,  apg: 3.1 },
-  { id: 8,  name: 'Mathieu Côté',      team: 'Tonnerre Québec',  pos: 'Ailier',  tier: 'gold',     arch: { fr: 'REBONDEUR',  en: 'REBOUNDER' }, ppg: 12.8, rpg: 9.6,  apg: 2.4 },
-  { id: 9,  name: 'Ibrahim Diallo',    team: 'Loups du Nord',    pos: 'Arrière', tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 13.5, rpg: 3.2,  apg: 4.7 },
-  { id: 10, name: 'Olivier Fortin',    team: 'Phénix Longueuil', pos: 'Centre',  tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 9.4,  rpg: 8.1,  apg: 1.2 },
-  { id: 11, name: 'William Lessard',   team: 'Royaux Verdun',    pos: 'Meneur',  tier: 'silver',   arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 10.2, rpg: 2.8,  apg: 6.3 },
-  { id: 12, name: 'Nathan Bouchard',   team: 'Loups du Nord',    pos: 'Ailier',  tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 6.7,  rpg: 4.5,  apg: 1.9 },
-  { id: 13, name: 'Émile Sanon',       team: 'Royaux Verdun',    pos: 'Arrière', tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 5.9,  rpg: 2.1,  apg: 2.6 },
-  { id: 14, name: 'Lucas Pelletier',   team: 'Vipères Laval',    pos: 'Arrière', tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 8.8,  rpg: 3.4,  apg: 3.8 },
+  { id: 1,  name: 'Marcus Bélanger',   team: 'Dynastie MTL',     pos: 'Meneur',  tier: 'legend',   arch: { fr: 'ICÔNE',      en: 'ICON' },      ppg: 28.4, rpg: 5.2,  apg: 9.1, spg: 2.1, bpg: 0.4, rp: 9650, gp: 18 },
+  { id: 2,  name: 'David Tremblay',    team: 'Vipères Laval',    pos: 'Ailier',  tier: 'champion', arch: { fr: 'FINISSEUR',  en: 'CLOSER' },    ppg: 24.7, rpg: 7.8,  apg: 4.3, spg: 1.4, bpg: 1.1, rp: 6200, gp: 18 },
+  { id: 3,  name: 'Kevin Nzeza',       team: 'Dynastie MTL',     pos: 'Centre',  tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 22.1, rpg: 11.4, apg: 2.2, spg: 0.8, bpg: 2.3, rp: 3150, gp: 17 },
+  { id: 4,  name: 'Jean-Phil Roy',     team: 'Tonnerre Québec',  pos: 'Arrière', tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 21.8, rpg: 3.6,  apg: 5.5, spg: 1.7, bpg: 0.3, rp: 2580, gp: 16 },
+  { id: 5,  name: 'Samuel Okafor',     team: 'Vipères Laval',    pos: 'Centre',  tier: 'platinum', arch: { fr: 'PILIER',     en: 'ANCHOR' },    ppg: 16.2, rpg: 12.7, apg: 1.8, spg: 0.6, bpg: 2.8, rp: 1480, gp: 18 },
+  { id: 6,  name: 'Alex Gagné',        team: 'Phénix Longueuil', pos: 'Meneur',  tier: 'platinum', arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 15.9, rpg: 4.1,  apg: 8.4, spg: 1.9, bpg: 0.2, rp: 1180, gp: 17 },
+  { id: 7,  name: 'Thierry Lavoie',    team: 'Dynastie MTL',     pos: 'Ailier',  tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 14.6, rpg: 6.3,  apg: 3.1, spg: 1.1, bpg: 0.7, rp: 760,  gp: 16 },
+  { id: 8,  name: 'Mathieu Côté',      team: 'Tonnerre Québec',  pos: 'Ailier',  tier: 'gold',     arch: { fr: 'REBONDEUR',  en: 'REBOUNDER' }, ppg: 12.8, rpg: 9.6,  apg: 2.4, spg: 0.9, bpg: 1.2, rp: 620,  gp: 18 },
+  { id: 9,  name: 'Ibrahim Diallo',    team: 'Loups du Nord',    pos: 'Arrière', tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 13.5, rpg: 3.2,  apg: 4.7, spg: 1.5, bpg: 0.3, rp: 510,  gp: 15 },
+  { id: 10, name: 'Olivier Fortin',    team: 'Phénix Longueuil', pos: 'Centre',  tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 9.4,  rpg: 8.1,  apg: 1.2, spg: 0.7, bpg: 1.6, rp: 320,  gp: 17 },
+  { id: 11, name: 'William Lessard',   team: 'Royaux Verdun',    pos: 'Meneur',  tier: 'silver',   arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 10.2, rpg: 2.8,  apg: 6.3, spg: 1.3, bpg: 0.1, rp: 250,  gp: 16 },
+  { id: 12, name: 'Nathan Bouchard',   team: 'Loups du Nord',    pos: 'Ailier',  tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 6.7,  rpg: 4.5,  apg: 1.9, spg: 0.8, bpg: 0.5, rp: 95,   gp: 14 },
+  { id: 13, name: 'Émile Sanon',       team: 'Royaux Verdun',    pos: 'Arrière', tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 5.9,  rpg: 2.1,  apg: 2.6, spg: 0.6, bpg: 0.2, rp: 60,   gp: 13 },
+  { id: 14, name: 'Lucas Pelletier',   team: 'Vipères Laval',    pos: 'Arrière', tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 8.8,  rpg: 3.4,  apg: 3.8, spg: 1.0, bpg: 0.4, rp: 210,  gp: 16 },
 ];
 
 const DEMO_GAMES = [
@@ -575,6 +609,29 @@ function getTierId(rp) {
   let tier = RANK_TIERS[0];
   for (const t of RANK_TIERS) { if (rp >= t.minRP) tier = t; }
   return tier.id;
+}
+
+// NLS-frame tier icons (platform tier ids → emoji), used in the progression bar
+const NLS_TIER_ICON = { bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '🏅', diamond: '💎', champion: '🏆', legend: '👑' };
+
+// How close a player is to the next tier (RP-based). Returns NLS-frame labels/icons.
+function getPlayerProgression(rp) {
+  rp = rp || 0;
+  let idx = 0;
+  for (let i = 0; i < RANK_TIERS.length; i++) { if (rp >= RANK_TIERS[i].minRP) idx = i; }
+  const cur = RANK_TIERS[idx];
+  const next = RANK_TIERS[idx + 1] || null;
+  const curNls = TIER_TO_NLS[cur.id] || 'bronze';
+  if (!next) return { rp, curNls, curLabel: TIERS[curNls].label, curIcon: NLS_TIER_ICON[curNls], nextNls: null, rpNeeded: 0, pct: 100, isMax: true };
+  const nextNls = TIER_TO_NLS[next.id] || 'legend';
+  const span = next.minRP - cur.minRP;
+  const into = rp - cur.minRP;
+  const pct = span > 0 ? Math.max(0, Math.min(100, Math.round((into / span) * 100))) : 0;
+  return {
+    rp, curNls, curLabel: TIERS[curNls].label, curIcon: NLS_TIER_ICON[curNls],
+    nextNls, nextLabel: TIERS[nextNls].label, nextIcon: NLS_TIER_ICON[nextNls],
+    rpNeeded: Math.max(0, next.minRP - rp), pct, isMax: false,
+  };
 }
 
 function calcPlayerRP(player, allGames, league) {
@@ -789,14 +846,14 @@ function useLeagueData() {
 }
 
 /* ═══════════ PLAYER CARD ═══════════ */
-function PlayerCard({ p, lang, t, onShare, teams, units }) {
+function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const initials = p.name.split(' ').map(w => w[0]).join('');
   const fh = formatHeight(p.height, units);
   const fw = formatWeight(p.weight, units);
   return (
-    <div className={`pcard ${tier.cls}`} id={`pcard-${p.id}`}>
+    <div className={`pcard ${tier.cls}`} id={`pcard-${p.id}`} onClick={onOpen ? () => onOpen(p) : undefined}>
       <div className="pcard-inner">
         <div className="pc-top">
           <span className="pc-league">NLS</span>
@@ -822,6 +879,99 @@ function PlayerCard({ p, lang, t, onShare, teams, units }) {
         </div>
       </div>
       <button className="pc-share" title={t.download} onClick={e => { e.stopPropagation(); onShare(p); }}>⤓</button>
+    </div>
+  );
+}
+
+/* ═══════════ PLAYER PROFILE MODAL ═══════════ */
+function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const team = (teams || []).find(tm => tm.name === p.team);
+  const pid = p.id;
+  const pGames = (games || [])
+    .filter(g => g.hs !== null && g.playerStats && g.playerStats[pid] !== undefined)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const sumK = k => pGames.reduce((s, g) => s + (+((g.playerStats[pid] || {})[k] || 0)), 0);
+  const fgPct = sumK('fga') > 0 ? (sumK('fgm') / sumK('fga') * 100).toFixed(1) : null;
+  const ftPct = sumK('fta') > 0 ? (sumK('ftm') / sumK('fta') * 100).toFixed(1) : null;
+  const prog = getPlayerProgression(p.rp);
+  const statCells = [
+    ['PTS/G', p.ppg.toFixed(1)], ['REB/G', p.rpg.toFixed(1)], ['AST/G', p.apg.toFixed(1)],
+    ['STL/G', (p.spg || 0).toFixed(1)], ['BLK/G', (p.bpg || 0).toFixed(1)],
+    ...(fgPct !== null ? [['FG%', fgPct + '%']] : []),
+    ...(ftPct !== null ? [['FT%', ftPct + '%']] : []),
+    [t.gp, String(p.gp || 0)],
+  ];
+
+  return (
+    <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) onClose(); }}>
+      <div className="pmodal" style={{ position: 'relative' }}>
+        <button className="pmodal-close" onClick={onClose} aria-label="Close">✕</button>
+        <div className="pmodal-body">
+          <div className="pmodal-left">
+            <PlayerCard p={p} lang={lang} t={t} teams={teams} units={units} onShare={onShare} />
+          </div>
+          <div className="pmodal-right">
+            <div className="pm-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>
+            <div className="pm-sub">{team ? team.emoji + ' ' : ''}{p.team}{p.pos ? ' · ' + p.pos : ''} · {p.arch[lang]}</div>
+
+            <div className="pm-section-t">{t.seasonStats}</div>
+            <div className="pm-stats-grid">
+              {statCells.map(([k, v]) => (
+                <div key={k} className="pm-stat"><div className="pm-stat-v">{v}</div><div className="pm-stat-k">{k}</div></div>
+              ))}
+            </div>
+
+            <div className="pm-section-t">{t.tierProgress}</div>
+            <div className="pm-prog-head">
+              <span className="pm-prog-tier">{prog.curIcon} {prog.curLabel}</span>
+              {!prog.isMax && <span className="pm-prog-tier" style={{ color: 'var(--ink-soft)' }}>{prog.nextIcon} {prog.nextLabel}</span>}
+            </div>
+            <div className="pm-prog-bar"><div className="pm-prog-fill" style={{ width: prog.pct + '%' }}></div></div>
+            <div className="pm-prog-need">{prog.isMax ? t.maxTier : t.rpToReach(prog.rpNeeded, prog.nextLabel)}</div>
+
+            <div className="pm-section-t">{t.gameLog}</div>
+            {pGames.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="pm-log">
+                  <thead><tr><th>Date</th><th>{t.opponent}</th><th style={{ textAlign: 'center' }}>{t.ppg}</th><th style={{ textAlign: 'center' }}>{t.rpg}</th><th style={{ textAlign: 'center' }}>{t.apg}</th></tr></thead>
+                  <tbody>
+                    {pGames.map(g => {
+                      const opp = g.home === p.team ? g.away : g.home;
+                      const st = g.playerStats[pid] || {};
+                      return (
+                        <tr key={g.id}>
+                          <td style={{ color: 'var(--ink-soft)', whiteSpace: 'nowrap' }}>{fmtDate(g.date, lang)}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{opp}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 700 }}>{+(st.points || 0)}</td>
+                          <td style={{ textAlign: 'center' }}>{+(st.rebounds || 0)}</td>
+                          <td style={{ textAlign: 'center' }}>{+(st.assists || 0)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="pm-prog-need" style={{ textAlign: 'left' }}>{t.noGamesYet}</div>
+            )}
+
+            <div className="pm-actions">
+              <button className="pm-btn" style={{ background: 'var(--orange)', color: '#000' }} onClick={() => onShare(p)}>⤓ {t.download}</button>
+              <button className="pm-btn" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }} onClick={() => {
+                const url = `${location.origin}${location.pathname}?league=${LIVE_LEAGUE_ID || ''}&player=${p.id}`;
+                if (navigator.share) navigator.share({ title: p.name, url }).catch(() => {});
+                else navigator.clipboard.writeText(url).then(() => {}).catch(() => {});
+              }}>🔗 {t.share}</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -905,6 +1055,7 @@ function App() {
   const [fTeam, setFTeam] = useState('all');
   const [fArch, setFArch] = useState('all');
   const [showAllPlayers, setShowAllPlayers] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null); // player profile modal
   const archetypes = useMemo(() => {
     const seen = new Map();
     PLAYERS.forEach(p => { const a = p.arch && p.arch[lang]; if (a && !seen.has(a)) seen.set(a, a); });
@@ -1134,7 +1285,7 @@ function App() {
           </div>
         )}
         <div className="cards-grid">
-          {shownPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} teams={TEAMS} units={view.units} />)}
+          {shownPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
         </div>
         {!shownPlayers.length && <div className="empty-note">{t.noPlayers}</div>}
         {/* View All / Show top 5 toggle */}
@@ -1209,6 +1360,11 @@ function App() {
           <span>{t.footerPowered} <strong style={{ color: 'var(--ink-mid)' }}>League Hunter</strong></span>
         </div>
       </footer>
+
+      {/* ── PLAYER PROFILE MODAL ── */}
+      {selectedPlayer && (
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={() => setSelectedPlayer(null)} />
+      )}
 
       {/* ── GAME MODAL ── */}
       {openGame && (() => {
