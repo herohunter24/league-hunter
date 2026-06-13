@@ -406,6 +406,20 @@
   .modal-close { float: right; background: none; border: none; color: var(--ink-soft); font-size: 20px; cursor: pointer; }
   .modal-close:hover { color: var(--ink); }
 
+  /* ── CATEGORY-FIRST NAVIGATION ── */
+  .cat-selector { max-width: 720px; margin: 0 auto; padding: clamp(60px, 10vw, 110px) clamp(18px, 4vw, 40px); text-align: center; }
+  .cat-selector h2 { font-family: var(--ff-display); font-size: clamp(28px, 5vw, 46px); text-transform: uppercase; margin-bottom: 10px; }
+  .cat-selector .cs-sub { color: var(--ink-mid); font-size: 15px; margin-bottom: 36px; }
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 26px; }
+  .cat-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; color: var(--ink); font-family: var(--ff-body); font-weight: 700; font-size: 16px; letter-spacing: 0.02em; padding: 26px 18px; cursor: pointer; transition: transform 0.2s, border-color 0.2s, background 0.2s; }
+  .cat-btn:hover { transform: translateY(-4px); border-color: var(--orange); background: linear-gradient(180deg, var(--surface), rgba(255,107,26,0.08)); }
+  .cat-btn-icon { font-size: 26px; margin-bottom: 8px; }
+  .cat-header { border-bottom: 1px solid var(--border); }
+  .cat-header-inner { max-width: 1180px; margin: 0 auto; padding: 26px clamp(18px,4vw,40px); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cat-header-title { font-family: var(--ff-display); font-size: clamp(22px, 4vw, 34px); text-transform: uppercase; }
+  .cat-change { background: none; border: 1px solid var(--border); color: var(--ink-mid); font-family: var(--ff-body); font-weight: 600; font-size: 13px; padding: 9px 18px; border-radius: 100px; cursor: pointer; transition: all 0.2s; }
+  .cat-change:hover { border-color: var(--orange); color: var(--ink); }
+
   /* ── PLAYER PROFILE MODAL ── */
   .pmodal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 860px; max-height: 90vh; overflow: hidden; animation: fadeUp 0.3s; display: flex; flex-direction: column; }
   .pmodal-close { position: absolute; top: 16px; right: 18px; z-index: 5; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer; backdrop-filter: blur(6px); }
@@ -486,6 +500,8 @@ const STR = {
     seasonStats: "Statistiques de la saison", tierProgress: "Progression de niveau", gameLog: "Historique des matchs",
     rpToReach: (n, tier) => `${n} RP pour atteindre ${tier}`, maxTier: "Niveau maximum atteint 👑",
     opponent: "Adversaire", noGamesYet: "Aucun match joué.", gp: "MJ",
+    selectCat: "Sélectionnez une catégorie", selectCatSub: "Choisissez une catégorie pour explorer la ligue",
+    changeCat: "← Changer de catégorie", searchCat: "Rechercher une catégorie…", noCatMatch: "Aucune catégorie trouvée.",
     schedKicker: "Tous les matchs", schedTitle: "Calendrier",
     fUpcoming: "À venir", fPast: "Résultats", fAll: "Tous", allTeams: "Toutes les équipes",
     final: "Final", upcoming: "À venir",
@@ -512,6 +528,8 @@ const STR = {
     seasonStats: "Season Stats", tierProgress: "Tier Progression", gameLog: "Game Log",
     rpToReach: (n, tier) => `${n} RP needed to reach ${tier}`, maxTier: "Max tier reached 👑",
     opponent: "Opponent", noGamesYet: "No games played yet.", gp: "GP",
+    selectCat: "Select a category", selectCatSub: "Choose a category to explore the league",
+    changeCat: "← Change category", searchCat: "Search category…", noCatMatch: "No category found.",
     schedKicker: "All games", schedTitle: "Schedule",
     fUpcoming: "Upcoming", fPast: "Results", fAll: "All", allTeams: "All teams",
     final: "Final", upcoming: "Upcoming",
@@ -1021,33 +1039,44 @@ function App() {
     return () => window.removeEventListener('hashchange', track);
   }, []);
 
-  // category (shared between standings + players) — declared before standings useMemo that reads it
+  // ── CATEGORY-FIRST NAVIGATION ──
+  // Flow: hero → "Explore" → category selector → tabbed, category-filtered sections.
   const cats = view.categories || [];
-  const [fCat, setFCat] = useState('all');
+  // Leagues with no categories get one synthetic "whole league" option so the flow still completes
+  const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
+  const [showExplorer, setShowExplorer] = useState(false);
+  const [selectedCat, setSelectedCat] = useState(null);   // chosen category id (null until picked)
+  const [activeTab, setActiveTab] = useState('standings'); // standings | schedule | players | stats
+  const [catSearch, setCatSearch] = useState('');
+  // True when the entity's categoryId belongs to the selected category (or "whole league")
+  const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
 
   // standings
   const [sortKey, setSortKey] = useState('rank');
   const [openTeam, setOpenTeam] = useState(null);
   const standings = useMemo(() => {
-    let src = TEAMS;
-    if (fCat !== 'all') src = src.filter(tm => tm.categoryId === fCat);
+    let src = TEAMS.filter(tm => catMatch(tm.categoryId));
     const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0 }));
     if (sortKey === 'wins') rows.sort((a, b) => b.w - a.w);
     else rows.sort((a, b) => b.pct - a.pct);
     return rows;
-  }, [sortKey, TEAMS, fCat]);
+  }, [sortKey, TEAMS, selectedCat]);
 
   // schedule
   const [schedFilter, setSchedFilter] = useState('all');
   const [schedTeam, setSchedTeam] = useState('all');
   const [openGame, setOpenGame] = useState(null);
+  // Team names belonging to the selected category (drives schedule/player team dropdowns + game filtering)
+  const catTeamNames = useMemo(() => new Set(TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => tm.name)), [TEAMS, selectedCat]);
   const games = useMemo(() => {
-    let g = [...GAMES].sort((a, b) => a.date.localeCompare(b.date));
+    let g = [...GAMES]
+      .filter(x => catMatch(x.categoryId) || catTeamNames.has(x.home) || catTeamNames.has(x.away))
+      .sort((a, b) => a.date.localeCompare(b.date));
     if (schedFilter === 'upcoming') g = g.filter(x => x.hs === null);
     if (schedFilter === 'past') g = g.filter(x => x.hs !== null).reverse();
     if (schedTeam !== 'all') g = g.filter(x => x.home === schedTeam || x.away === schedTeam);
     return g;
-  }, [schedFilter, schedTeam, GAMES]);
+  }, [schedFilter, schedTeam, GAMES, selectedCat, catTeamNames]);
 
   // players
   const [search, setSearch] = useState('');
@@ -1062,21 +1091,24 @@ function App() {
     return Array.from(seen.keys()).sort();
   }, [PLAYERS, lang]);
   const players = useMemo(() => {
-    let ps = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+    let ps = [...PLAYERS]
+      .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
+      .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
     if (search) ps = ps.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
     if (fTier !== 'all') ps = ps.filter(p => p.tier === fTier);
     if (fTeam !== 'all') ps = ps.filter(p => p.team === fTeam);
     if (fArch !== 'all') ps = ps.filter(p => p.arch && p.arch[lang] === fArch);
-    if (fCat !== 'all') ps = ps.filter(p => p.categoryId === fCat);
     return ps;
-  }, [search, fTier, fTeam, fArch, fCat, PLAYERS, lang]);
-  // Homepage shows top 5; "View All" reveals the full filterable gallery
-  const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all' || fCat !== 'all';
+  }, [search, fTier, fTeam, fArch, PLAYERS, lang, selectedCat, catTeamNames]);
+  // Default view shows top 5; "View All" or any active filter reveals the full filterable gallery
+  const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all';
   const galleryOpen = showAllPlayers || anyPlayerFilter;
   const shownPlayers = galleryOpen ? players : players.slice(0, 5);
 
-  // leaders
-  const leaders = key => [...PLAYERS].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
+  // category-scoped stat leaders
+  const leaders = key => [...PLAYERS]
+    .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
+    .sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
 
   // PNG export
   function shareCard(p) {
@@ -1114,7 +1146,10 @@ function App() {
           <div className="hero-kicker">{live && view.meta && view.meta.name ? view.meta.name.toUpperCase() : t.kicker}</div>
           <h1 className="hero-title">{ps.customHeader || t.heroTitle}</h1>
           <p className="hero-sub">{ps.customDescription || t.heroSub}</p>
-          <a className="hero-cta" href="#classement">{t.cta}</a>
+          <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }}
+            onClick={() => { setShowExplorer(true); setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); }}>
+            {t.cta} →
+          </button>
         </div>
       </header>
 
@@ -1135,27 +1170,58 @@ function App() {
         </div>
       )}
 
-      {/* ── NAV ── */}
-      <nav className="nav">
-        {ps.showStandings !== false && <a href="#classement">{t.navStandings}</a>}
-        {ps.showSchedule !== false && <a href="#calendrier">{t.navSchedule}</a>}
-        {(ps.showPlayers !== false && ps.showPlayerCards !== false) && <a href="#joueurs">{t.navPlayers}</a>}
-        {ps.showStats !== false && <a href="#statistiques">{t.navStats}</a>}
-      </nav>
+      {/* ── CATEGORY SELECTOR (shown after Explore, before a category is chosen) ── */}
+      {showExplorer && !selectedCat && (
+        <section className="cat-selector" id="explorer">
+          <h2>{t.selectCat}</h2>
+          <div className="cs-sub">{t.selectCatSub}</div>
+          <div className="cat-grid">
+            {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
+              <button key={c.id} className="cat-btn" onClick={() => { setSelectedCat(c.id); setActiveTab('standings'); setShowAllPlayers(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <div className="cat-btn-icon">🏀</div>{c.name}
+              </button>
+            ))}
+          </div>
+          {effectiveCats.length > 4 && (
+            <input className="search-inp" placeholder={t.searchCat} value={catSearch} onChange={e => setCatSearch(e.target.value)} />
+          )}
+          {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
+            <div className="empty-note">{t.noCatMatch}</div>
+          )}
+        </section>
+      )}
+
+      {/* ── CATEGORY HEADER + TAB NAV (shown once a category is chosen) ── */}
+      {selectedCat && (() => {
+        const catName = (effectiveCats.find(c => c.id === selectedCat) || {}).name || '';
+        const tabs = [
+          ps.showStandings !== false && ['standings', t.navStandings],
+          ps.showSchedule !== false && ['schedule', t.navSchedule],
+          (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
+          ps.showStats !== false && ['stats', t.navStats],
+        ].filter(Boolean);
+        return (
+          <>
+            <div className="cat-header">
+              <div className="cat-header-inner">
+                <div className="cat-header-title">{catName}</div>
+                <button className="cat-change" onClick={() => { setSelectedCat(null); setCatSearch(''); setSchedTeam('all'); setFTeam('all'); setSearch(''); setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); }}>{t.changeCat}</button>
+              </div>
+            </div>
+            <nav className="nav">
+              {tabs.map(([k, label]) => (
+                <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => setActiveTab(k)}>{label}</a>
+              ))}
+            </nav>
+          </>
+        );
+      })()}
 
       {/* ── STANDINGS ── */}
-      {ps.showStandings !== false && (
+      {selectedCat && activeTab === 'standings' && ps.showStandings !== false && (
       <section className="section" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
         <h2 className="sec-title">{t.standingsTitle}</h2>
-        {cats.length > 1 && (
-          <div style={{ marginBottom: 18 }}>
-            <select className="filter-select" value={fCat} onChange={e => setFCat(e.target.value)}>
-              <option value="all">{t.allCats}</option>
-              {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-        )}
         <div className="standings-card">
           <table className="standings-table">
             <thead>
@@ -1213,7 +1279,7 @@ function App() {
       )}
 
       {/* ── SCHEDULE ── */}
-      {ps.showSchedule !== false && (
+      {selectedCat && activeTab === 'schedule' && ps.showSchedule !== false && (
       <section className="section" id="calendrier">
         <div className="sec-kicker">{t.schedKicker}</div>
         <h2 className="sec-title">{t.schedTitle}</h2>
@@ -1223,7 +1289,7 @@ function App() {
           ))}
           <select className="filter-select" value={schedTeam} onChange={e => setSchedTeam(e.target.value)}>
             <option value="all">{t.allTeams}</option>
-            {TEAMS.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+            {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
           </select>
         </div>
         <div className="games-grid">
@@ -1256,7 +1322,7 @@ function App() {
       )}
 
       {/* ── PLAYERS ── */}
-      {(ps.showPlayers !== false && ps.showPlayerCards !== false) && (
+      {selectedCat && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
       <section className="section" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
         <h2 className="sec-title">{t.playersTitle}</h2>
@@ -1274,14 +1340,8 @@ function App() {
             </select>
             <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
               <option value="all">{t.allTeams}</option>
-              {TEAMS.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+              {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
             </select>
-            {cats.length > 1 && (
-              <select className="filter-select" value={fCat} onChange={e => setFCat(e.target.value)}>
-                <option value="all">{t.allCats}</option>
-                {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            )}
           </div>
         )}
         <div className="cards-grid">
@@ -1301,7 +1361,7 @@ function App() {
       )}
 
       {/* ── STATS ── */}
-      {ps.showStats !== false && (
+      {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
       <section className="section" id="statistiques">
         <div className="sec-kicker">{t.statsKicker}</div>
         <h2 className="sec-title">{t.statsTitle}</h2>
