@@ -871,6 +871,10 @@ function App() {
     return () => window.removeEventListener('hashchange', track);
   }, []);
 
+  // category (shared between standings + players) — declared before standings useMemo that reads it
+  const cats = view.categories || [];
+  const [fCat, setFCat] = useState('all');
+
   // standings
   const [sortKey, setSortKey] = useState('rank');
   const [openTeam, setOpenTeam] = useState(null);
@@ -894,10 +898,6 @@ function App() {
     if (schedTeam !== 'all') g = g.filter(x => x.home === schedTeam || x.away === schedTeam);
     return g;
   }, [schedFilter, schedTeam, GAMES]);
-
-  // category (shared between standings + players)
-  const cats = view.categories || [];
-  const [fCat, setFCat] = useState('all');
 
   // players
   const [search, setSearch] = useState('');
