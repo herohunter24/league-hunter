@@ -410,7 +410,21 @@
   .landing-sec { max-width: 1180px; margin: 0 auto; padding: clamp(50px, 8vw, 90px) clamp(18px, 4vw, 40px); text-align: center; }
   .landing-sec .lsec-title { font-family: var(--ff-display); font-size: clamp(28px, 5vw, 48px); text-transform: uppercase; margin-bottom: 10px; }
   .landing-sec .lsec-sub { color: var(--ink-mid); font-size: 15px; max-width: 560px; margin: 0 auto 36px; line-height: 1.6; }
-  .showcase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 22px; max-width: 920px; margin: 0 auto 34px; }
+  /* Arc/carousel showcase — 4 cards fanned into a curve, lift on hover */
+  .arc-row { display: flex; justify-content: center; align-items: flex-end; gap: clamp(6px, 1.4vw, 18px); margin: 0 auto 40px; padding: 36px 0 12px; max-width: 960px; }
+  .arc-card { width: 220px; max-width: 42vw; flex-shrink: 0; cursor: pointer; transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2); transform-origin: bottom center; }
+  .arc-card:nth-child(1) { transform: translateY(34px) rotate(-8deg); }
+  .arc-card:nth-child(2) { transform: translateY(4px) rotate(-3deg); z-index: 2; }
+  .arc-card:nth-child(3) { transform: translateY(4px) rotate(3deg); z-index: 2; }
+  .arc-card:nth-child(4) { transform: translateY(34px) rotate(8deg); }
+  .arc-card:hover { transform: translateY(-14px) rotate(0deg) scale(1.06); z-index: 6; }
+  .arc-card .pcard { transition: box-shadow 0.3s; }
+  .arc-card:hover .pcard { transform: none; box-shadow: 0 26px 60px rgba(0,0,0,0.6); }
+  @media (max-width: 720px) {
+    .arc-row { overflow-x: auto; justify-content: flex-start; padding: 16px 4px; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; }
+    .arc-card { width: 180px; max-width: 62vw; transform: none !important; scroll-snap-align: center; }
+    .arc-card:hover { transform: translateY(-6px) scale(1.03) !important; }
+  }
   .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
   .mission-pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 880px; margin: 0 auto 36px; text-align: left; }
   .pillar { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
@@ -1038,6 +1052,8 @@ function App() {
     showPlayerCards: true, showStats: true, showLeagueInfo: true,
     ...(view.ps || {}),
   };
+  // Owner-editable league message (Website X → Settings → League Message); blank fields fall back to defaults
+  const lm = (view.meta && view.meta.leagueMessage) || {};
 
   // Owner-set accent color (publicSettings.accentColor) — falls back to NLS orange
   useEffect(() => {
@@ -1212,23 +1228,31 @@ function App() {
       {/* ── LANDING SECTIONS (shown before the visitor enters the explorer) ── */}
       {!showExplorer && (
         <>
-          {/* Section 1 — Player Cards Showcase */}
+          {/* Section 1 — Player Cards Showcase (arc/carousel) */}
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
             <section className="landing-sec">
               <div className="lsec-title">{t.showcaseTitle}</div>
               <div className="lsec-sub">{t.showcaseSub}</div>
-              <div className="showcase-grid">
-                {showcasePlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+              <div className="arc-row">
+                {showcasePlayers.map(p => (
+                  <div key={p.id} className="arc-card">
+                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+                  </div>
+                ))}
               </div>
               <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
             </section>
           )}
 
-          {/* Section 2 — League Message / Mission */}
+          {/* Section 2 — League Message / Mission (editable via Website X) */}
           <section className="landing-sec">
-            <div className="sec-kicker">{t.missionSub}</div>
-            <div className="lsec-title">{t.missionTitle}</div>
-            <div className="mission-body">{t.missionP1}<br /><br />{t.missionP2}</div>
+            <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
+            <div className="lsec-title">{lm.title || t.missionTitle}</div>
+            <div className="mission-body">
+              {lm.body
+                ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
+                : <>{t.missionP1}<br /><br />{t.missionP2}</>}
+            </div>
             <div className="mission-pillars">
               {[
                 ['🏆', t.pillarExcellence, t.pillarExcellenceD],
@@ -1242,7 +1266,7 @@ function App() {
                 </div>
               ))}
             </div>
-            <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
+            <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{lm.cta || `${t.cta} →`}</button>
           </section>
         </>
       )}

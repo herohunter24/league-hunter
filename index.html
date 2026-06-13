@@ -1379,6 +1379,7 @@ function App() {
   const [expandedPlayerId, setExpandedPlayerId] = useState(null);
   const [psDraft, setPsDraft] = useState(null); // draft for publicSettings custom header/description
   const [urlDraft, setUrlDraft] = useState(null); // draft for customPublicSiteUrl input
+  const [lmDraft, setLmDraft] = useState(null); // draft for editable league message
   const [testingConn, setTestingConn] = useState(false); // public site connection test in progress
   // ── Analytics ──
   const [anVisitors, setAnVisitors] = useState(0);     // unique sessions in last 5 min
@@ -1835,6 +1836,24 @@ function App() {
     }
   }
 
+  // ── LEAGUE MESSAGE — editable mission block shown on the public site ──
+  async function saveLeagueMessage(lg, msg) {
+    if (!lg) return;
+    setLeagues(prev => prev.map(l => l.id === lg.id ? { ...l, leagueMessage: msg } : l));
+    if (__fbReady && _db) {
+      try {
+        const { updateDoc, doc } = _FS;
+        await updateDoc(doc(_db, 'leagues', String(lg.id)), { leagueMessage: msg, _updatedAt: Date.now() });
+        showToast('League message updated');
+      } catch (e) {
+        console.error('[League Hunter] leagueMessage write failed:', e);
+        showToast('Failed to update message — check connection', 'error');
+      }
+    } else {
+      showToast('Message saved locally (offline)', 'warning');
+    }
+  }
+
   // ── CUSTOM PUBLIC SITE URL — immediate write, no dirty flag ──
   async function saveCustomPublicUrl(lg, url) {
     if (!lg) return;
@@ -1990,6 +2009,7 @@ function App() {
         publicSettings:   updated.publicSettings   || DEFAULT_PUBLIC_SETTINGS,
         customPublicSiteUrl:        updated.customPublicSiteUrl        || "",
         publicSiteConnectionStatus: updated.publicSiteConnectionStatus || { connected: false, lastTestedAt: 0 },
+        leagueMessage:              updated.leagueMessage              || {},
         _format:     "v2",
         _updatedAt:  ts,  // ← always bumped so public onSnapshot always detects this write
       }});
@@ -4702,6 +4722,48 @@ function App() {
                         style={{ ...btn("#252540"), fontSize: 12, padding: "8px 16px", whiteSpace: "nowrap" }}
                         onClick={() => { navigator.clipboard.writeText(effectiveUrl).then(() => showToast('Copied to clipboard')).catch(() => showToast('Copy failed', 'error')); }}
                       >📋 Copy to Clipboard</button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── LEAGUE MESSAGE (editable mission block on public site) ── */}
+              {(() => {
+                const lm = league.leagueMessage || {};
+                const d = lmDraft || {};
+                const val = (k) => d[k] !== undefined ? d[k] : (lm[k] || '');
+                const setD = (k, v) => setLmDraft({ ...(lmDraft || {}), [k]: v });
+                const dirty = ['title', 'subtitle', 'body', 'cta'].some(k => (d[k] !== undefined) && d[k] !== (lm[k] || ''));
+                return (
+                  <div style={{ ...card, marginBottom: 20 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📢 League Message</div>
+                    <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
+                      The mission block shown on your public site's landing page. Leave blank to use the site's default copy.
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div>
+                        <label style={lbl}>Title</label>
+                        <input style={inp} value={val('title')} onChange={e => setD('title', e.target.value)} placeholder="e.g. La Ligue de Basketball d'Excellence" />
+                      </div>
+                      <div>
+                        <label style={lbl}>Subtitle</label>
+                        <input style={inp} value={val('subtitle')} onChange={e => setD('subtitle', e.target.value)} placeholder="e.g. Plus qu'un sport, un mouvement" />
+                      </div>
+                      <div>
+                        <label style={lbl}>Message Body</label>
+                        <textarea style={{ ...inp, minHeight: 110, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }} value={val('body')} onChange={e => setD('body', e.target.value)} placeholder="Notre mission est de développer…" />
+                      </div>
+                      <div>
+                        <label style={lbl}>CTA Button Text</label>
+                        <input style={inp} value={val('cta')} onChange={e => setD('cta', e.target.value)} placeholder="e.g. Découvrez nos joueurs" />
+                      </div>
+                      <div>
+                        <button
+                          style={{ ...btn(), opacity: dirty ? 1 : 0.5, cursor: dirty ? "pointer" : "default" }}
+                          disabled={!dirty}
+                          onClick={() => { saveLeagueMessage(league, { title: val('title').trim(), subtitle: val('subtitle').trim(), body: val('body').trim(), cta: val('cta').trim() }); setLmDraft(null); }}
+                        >Save League Message</button>
+                      </div>
                     </div>
                   </div>
                 );
