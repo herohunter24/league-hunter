@@ -821,7 +821,12 @@ function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
     };
   });
 
-  const categories = ((meta && meta.categories) || []).map(c => ({ id: String(c.id), name: c.displayName || c.name || 'Catégorie' }));
+  // Categories, sorted by the owner's saved categoryOrder when present (else array/insertion order)
+  const rawCats = ((meta && meta.categories) || []).map(c => ({ id: String(c.id), name: c.displayName || c.name || 'Catégorie' }));
+  const catOrder = ((meta && meta.categoryOrder) || []).map(String);
+  const categories = catOrder.length
+    ? [...rawCats].sort((a, b) => { const ia = catOrder.indexOf(a.id), ib = catOrder.indexOf(b.id); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib); })
+    : rawCats;
 
   return { teams, players, games, units, categories, ps: (meta && meta.publicSettings) || {}, meta };
 }

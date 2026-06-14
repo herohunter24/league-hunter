@@ -1362,6 +1362,9 @@ function App() {
   const [showCatModal, setShowCatModal] = useState(false);
   const [nCat, setNCat] = useState({ ageGroup: "U15", gender: "Masculine", customAge: "" });
   const [deleteCatId, setDeleteCatId] = useState(null);
+  const [showReorderModal, setShowReorderModal] = useState(false); // category reorder modal
+  const [reorderCats, setReorderCats] = useState([]);              // working order in the modal
+  const dragIdxRef = useRef(null);
   const [statsValidationError, setStatsValidationError] = useState(null); // array of mismatch objects
   const [uploadingId, setUploadingId] = useState(null); // "team_<id>" or "player_<id>" while uploading
   const [emojiErr, setEmojiErr] = useState(""); // inline error for team emoji field
@@ -1999,6 +2002,7 @@ function App() {
         color:            updated.color            || "#6366f1",
         domain:           updated.domain           || "",
         categories:       updated.categories       || [],
+        categoryOrder:    updated.categoryOrder    || [],
         statToggles:      updated.statToggles      || {},
         honours:          updated.honours          || {},
         awards:           updated.awards           || {},
@@ -2806,6 +2810,16 @@ function App() {
     showToast(`Category "${displayName}" added!`);
   }
 
+  // Persist a custom category order — reorders the categories array and stores categoryOrder (ids)
+  async function saveCategoryOrder(ordered) {
+    if (!league || !ordered.length) return;
+    const updated = { ...league, categories: ordered, categoryOrder: ordered.map(c => c.id) };
+    await writeLeagueNow(updated);
+    setDirty(false);
+    setShowReorderModal(false);
+    showToast("Category order saved");
+  }
+
   async function deleteCategory(catId) {
     if (!league) return;
     if ((league.categories || []).length <= 1) { showToast("You must have at least one category."); return; }
@@ -3444,6 +3458,12 @@ function App() {
                   style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
                   + Add Category
                 </button>
+                {cats.length > 1 && (
+                  <button onClick={() => { setReorderCats(cats.slice()); setShowReorderModal(true); }}
+                    style={{ background: "none", border: "none", padding: "11px 14px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
+                    ↕️ Reorder
+                  </button>
+                )}
                 <div style={{ flex: 1 }} />
                 {activeCatId && cats.length > 1 && (
                   <button onClick={() => setDeleteCatId(activeCatId)}
@@ -5828,6 +5848,48 @@ service cloud.firestore {
               <div style={{ display: "flex", gap: 12 }}>
                 <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={confirmSave}>Confirm Save</button>
                 <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingSave(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── REORDER CATEGORIES MODAL (drag-and-drop) ── */}
+        {showReorderModal && (
+          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: 20 }}
+            onClick={e => { if (e.target === e.currentTarget) setShowReorderModal(false); }}>
+            <div style={{ width: 600, maxWidth: "100%", ...card, padding: 32, maxHeight: "88vh", overflowY: "auto" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>↕️ Reorder Categories</div>
+              <div style={{ fontSize: 12.5, color: T2, marginBottom: 20, lineHeight: 1.6 }}>
+                Drag the categories into the order fans should see them on your public site, then save.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+                {reorderCats.map((c, idx) => (
+                  <div key={c.id}
+                    draggable
+                    onDragStart={() => { dragIdxRef.current = idx; }}
+                    onDragOver={e => {
+                      e.preventDefault();
+                      const from = dragIdxRef.current;
+                      if (from === null || from === idx) return;
+                      setReorderCats(prev => {
+                        const next = prev.slice();
+                        const [moved] = next.splice(from, 1);
+                        next.splice(idx, 0, moved);
+                        dragIdxRef.current = idx;
+                        return next;
+                      });
+                    }}
+                    onDragEnd={() => { dragIdxRef.current = null; }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, cursor: "grab", userSelect: "none" }}>
+                    <span style={{ fontSize: 18, color: T2, cursor: "grab" }}>☰</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: ACC, width: 22 }}>{idx + 1}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T1 }}>{c.displayName || c.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => saveCategoryOrder(reorderCats)}>Save Order</button>
+                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setShowReorderModal(false)}>Cancel</button>
               </div>
             </div>
           </div>
