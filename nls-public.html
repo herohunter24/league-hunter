@@ -1200,8 +1200,8 @@ function App() {
         </div>
         <div className="hero-inner">
           <div className="hero-kicker">{live && view.meta && view.meta.name ? view.meta.name.toUpperCase() : t.kicker}</div>
-          <h1 className="hero-title">{ps.customHeader || t.heroTitle}</h1>
-          <p className="hero-sub">{ps.customDescription || t.heroSub}</p>
+          <h1 className="hero-title">{t.heroTitle}</h1>
+          <p className="hero-sub">{t.heroSub}</p>
           <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
             {t.cta} →
           </button>

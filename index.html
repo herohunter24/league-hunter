@@ -1379,7 +1379,6 @@ function App() {
   const [expandedPlayerId, setExpandedPlayerId] = useState(null);
   const [psDraft, setPsDraft] = useState(null); // draft for publicSettings custom header/description
   const [urlDraft, setUrlDraft] = useState(null); // draft for customPublicSiteUrl input
-  const [lmDraft, setLmDraft] = useState(null); // draft for editable league message
   const [testingConn, setTestingConn] = useState(false); // public site connection test in progress
   // ── Analytics ──
   const [anVisitors, setAnVisitors] = useState(0);     // unique sessions in last 5 min
@@ -4478,10 +4477,11 @@ function App() {
               ['showStats',       '🏆 Show Stats',                'League leaders — top scorers, rebounders, etc.'],
               ['showLeagueInfo',  'ℹ️ Show League Info',          'Hero banner with league name and description'],
             ];
-            const draftHeader = psDraft && psDraft.customHeader      !== undefined ? psDraft.customHeader      : (ps.customHeader || '');
-            const draftDesc   = psDraft && psDraft.customDescription !== undefined ? psDraft.customDescription : (ps.customDescription || '');
-            const draftAccent = psDraft && psDraft.accentColor       !== undefined ? psDraft.accentColor       : (ps.accentColor || '');
-            const textDirty = draftHeader !== (ps.customHeader || '') || draftDesc !== (ps.customDescription || '') || draftAccent !== (ps.accentColor || '');
+            const lmsg = league.leagueMessage || {};
+            const draftTitle  = psDraft && psDraft._lmTitle    !== undefined ? psDraft._lmTitle    : (lmsg.title || '');
+            const draftBody   = psDraft && psDraft._lmBody      !== undefined ? psDraft._lmBody     : (lmsg.body  || '');
+            const draftAccent = psDraft && psDraft.accentColor  !== undefined ? psDraft.accentColor : (ps.accentColor || '');
+            const textDirty = draftTitle !== (lmsg.title || '') || draftBody !== (lmsg.body || '') || draftAccent !== (ps.accentColor || '');
             return (
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Public Page Settings</div>
@@ -4519,35 +4519,39 @@ function App() {
                   </div>
                 </div>
 
-                {/* Custom header / description */}
+                {/* League Message customization — drives the public site's League Message section (not the hero) */}
                 <div style={{ ...card, marginBottom: 20 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>✏️ Custom Text <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optional)</span></div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📢 League Message Customization <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optional)</span></div>
                   <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
-                    Override the default headline and description on your public page. Leave blank to use the defaults.
+                    Controls the <strong style={{ color: T1 }}>League Message</strong> section on your public landing page. The hero headline stays as-is. Leave blank to use the default copy.
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div>
-                      <label style={lbl}>League Header</label>
-                      <input style={inp} value={draftHeader} onChange={e => setPsDraft({ ...(psDraft || {}), customHeader: e.target.value, customDescription: draftDesc })} placeholder="e.g. Portez la Victoire" />
+                      <label style={lbl}>League Message Title</label>
+                      <input style={inp} value={draftTitle} onChange={e => setPsDraft({ ...(psDraft || {}), _lmTitle: e.target.value, _lmBody: draftBody, accentColor: draftAccent })} placeholder="e.g. La Ligue de Basketball d'Excellence" />
                     </div>
                     <div>
-                      <label style={lbl}>League Description</label>
-                      <input style={inp} value={draftDesc} onChange={e => setPsDraft({ ...(psDraft || {}), customDescription: e.target.value, customHeader: draftHeader, accentColor: draftAccent })} placeholder="e.g. La ligue de basketball d'excellence" />
+                      <label style={lbl}>League Message Body</label>
+                      <textarea style={{ ...inp, minHeight: 110, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }} value={draftBody} onChange={e => setPsDraft({ ...(psDraft || {}), _lmBody: e.target.value, _lmTitle: draftTitle, accentColor: draftAccent })} placeholder="Notre mission est de développer…" />
                     </div>
                     <div>
                       <label style={lbl}>Accent Color</label>
                       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <input type="color" value={draftAccent || '#ff6b1a'} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, customHeader: draftHeader, customDescription: draftDesc })} style={{ height: 40, width: 64, borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 3 }} />
-                        <input style={{ ...inp, maxWidth: 130 }} value={draftAccent} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, customHeader: draftHeader, customDescription: draftDesc })} placeholder="#ff6b1a" />
-                        {draftAccent && <button style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 12px", fontSize: 12, cursor: "pointer" }} onClick={() => setPsDraft({ ...(psDraft || {}), accentColor: '', customHeader: draftHeader, customDescription: draftDesc })}>Reset to default</button>}
+                        <input type="color" value={draftAccent || '#ff6b1a'} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, _lmTitle: draftTitle, _lmBody: draftBody })} style={{ height: 40, width: 64, borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 3 }} />
+                        <input style={{ ...inp, maxWidth: 130 }} value={draftAccent} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, _lmTitle: draftTitle, _lmBody: draftBody })} placeholder="#ff6b1a" />
+                        {draftAccent && <button style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 12px", fontSize: 12, cursor: "pointer" }} onClick={() => setPsDraft({ ...(psDraft || {}), accentColor: '', _lmTitle: draftTitle, _lmBody: draftBody })}>Reset to default</button>}
                       </div>
-                      <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Overrides the public site's accent color. Leave blank to use the site's default.</div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Used for buttons and accents across the public site. Leave blank to use the default.</div>
                     </div>
                     <div>
                       <button
                         style={{ ...btn(), opacity: textDirty ? 1 : 0.5, cursor: textDirty ? "pointer" : "default" }}
                         disabled={!textDirty}
-                        onClick={() => { savePublicSettings(league, { ...ps, customHeader: draftHeader.trim(), customDescription: draftDesc.trim(), accentColor: draftAccent.trim() }); setPsDraft(null); }}
+                        onClick={() => {
+                          saveLeagueMessage(league, { ...lmsg, title: draftTitle.trim(), body: draftBody.trim() });
+                          if (draftAccent.trim() !== (ps.accentColor || '')) savePublicSettings(league, { ...ps, accentColor: draftAccent.trim() });
+                          setPsDraft(null);
+                        }}
                       >Save Customization</button>
                     </div>
                   </div>
@@ -4722,48 +4726,6 @@ function App() {
                         style={{ ...btn("#252540"), fontSize: 12, padding: "8px 16px", whiteSpace: "nowrap" }}
                         onClick={() => { navigator.clipboard.writeText(effectiveUrl).then(() => showToast('Copied to clipboard')).catch(() => showToast('Copy failed', 'error')); }}
                       >📋 Copy to Clipboard</button>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* ── LEAGUE MESSAGE (editable mission block on public site) ── */}
-              {(() => {
-                const lm = league.leagueMessage || {};
-                const d = lmDraft || {};
-                const val = (k) => d[k] !== undefined ? d[k] : (lm[k] || '');
-                const setD = (k, v) => setLmDraft({ ...(lmDraft || {}), [k]: v });
-                const dirty = ['title', 'subtitle', 'body', 'cta'].some(k => (d[k] !== undefined) && d[k] !== (lm[k] || ''));
-                return (
-                  <div style={{ ...card, marginBottom: 20 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📢 League Message</div>
-                    <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
-                      The mission block shown on your public site's landing page. Leave blank to use the site's default copy.
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                      <div>
-                        <label style={lbl}>Title</label>
-                        <input style={inp} value={val('title')} onChange={e => setD('title', e.target.value)} placeholder="e.g. La Ligue de Basketball d'Excellence" />
-                      </div>
-                      <div>
-                        <label style={lbl}>Subtitle</label>
-                        <input style={inp} value={val('subtitle')} onChange={e => setD('subtitle', e.target.value)} placeholder="e.g. Plus qu'un sport, un mouvement" />
-                      </div>
-                      <div>
-                        <label style={lbl}>Message Body</label>
-                        <textarea style={{ ...inp, minHeight: 110, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }} value={val('body')} onChange={e => setD('body', e.target.value)} placeholder="Notre mission est de développer…" />
-                      </div>
-                      <div>
-                        <label style={lbl}>CTA Button Text</label>
-                        <input style={inp} value={val('cta')} onChange={e => setD('cta', e.target.value)} placeholder="e.g. Découvrez nos joueurs" />
-                      </div>
-                      <div>
-                        <button
-                          style={{ ...btn(), opacity: dirty ? 1 : 0.5, cursor: dirty ? "pointer" : "default" }}
-                          disabled={!dirty}
-                          onClick={() => { saveLeagueMessage(league, { title: val('title').trim(), subtitle: val('subtitle').trim(), body: val('body').trim(), cta: val('cta').trim() }); setLmDraft(null); }}
-                        >Save League Message</button>
-                      </div>
                     </div>
                   </div>
                 );
