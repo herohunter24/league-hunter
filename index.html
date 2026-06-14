@@ -310,7 +310,13 @@ async function uploadImageToStorage(file, path, maxPx = 300) {
   if (!_storage || !_ST.storageRef) throw new Error("Firebase Storage not available");
   const blob = await compressImage(file, maxPx);
   const ref = _ST.storageRef(_storage, path);
-  await _ST.uploadBytes(ref, blob, { contentType: "image/jpeg" });
+  // Guard against uploadBytes hanging on an unreachable bucket / network issue
+  await Promise.race([
+    _ST.uploadBytes(ref, blob, { contentType: "image/jpeg" }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Storage upload timed out after 15s")), 15000)
+    )
+  ]);
   return await _ST.getDownloadURL(ref);
 }
 
