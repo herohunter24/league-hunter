@@ -288,7 +288,6 @@ async function compressImage(file, maxPx = 300, quality = 0.85) {
     }, 10000);
 
     img.onload = () => {
-      clearTimeout(timeout);
       URL.revokeObjectURL(url);
       const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));   // guard against 0×0 canvas
@@ -296,7 +295,9 @@ async function compressImage(file, maxPx = 300, quality = 0.85) {
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      // Keep the timeout armed across the async toBlob() — clear it only once the callback fires
       canvas.toBlob(blob => {
+        clearTimeout(timeout);
         if (blob) resolve(blob);
         else reject(new Error("Compression failed"));
       }, "image/jpeg", quality);
