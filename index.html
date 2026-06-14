@@ -1364,6 +1364,8 @@ function App() {
   const [deleteCatId, setDeleteCatId] = useState(null);
   const [showReorderModal, setShowReorderModal] = useState(false); // category reorder modal
   const [reorderCats, setReorderCats] = useState([]);              // working order in the modal
+  const [editCatId, setEditCatId] = useState(null);               // category id being renamed inline
+  const [editCatVal, setEditCatVal] = useState('');               // draft rename value
   const dragIdxRef = useRef(null);
   const [statsValidationError, setStatsValidationError] = useState(null); // array of mismatch objects
   const [uploadingId, setUploadingId] = useState(null); // "team_<id>" or "player_<id>" while uploading
@@ -3459,9 +3461,9 @@ function App() {
                   + Add Category
                 </button>
                 {cats.length > 1 && (
-                  <button onClick={() => { setReorderCats(cats.slice()); setShowReorderModal(true); }}
+                  <button onClick={() => { setReorderCats(cats.slice()); setEditCatId(null); setShowReorderModal(true); }}
                     style={{ background: "none", border: "none", padding: "11px 14px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
-                    ↕️ Reorder
+                    ↕️ Reorder &amp; Rename
                   </button>
                 )}
                 <div style={{ flex: 1 }} />
@@ -5858,14 +5860,21 @@ service cloud.firestore {
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: 20 }}
             onClick={e => { if (e.target === e.currentTarget) setShowReorderModal(false); }}>
             <div style={{ width: 600, maxWidth: "100%", ...card, padding: 32, maxHeight: "88vh", overflowY: "auto" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>↕️ Reorder Categories</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>↕️ Reorder &amp; Rename Categories</div>
               <div style={{ fontSize: 12.5, color: T2, marginBottom: 20, lineHeight: 1.6 }}>
-                Drag the categories into the order fans should see them on your public site, then save.
+                Drag to set the order fans see on your public site, and click ✏️ to rename a category. Click Save Order when done.
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-                {reorderCats.map((c, idx) => (
+                {reorderCats.map((c, idx) => {
+                  const editing = editCatId === c.id;
+                  const commitRename = () => {
+                    const v = editCatVal.trim();
+                    if (v) setReorderCats(prev => prev.map(x => x.id === c.id ? { ...x, displayName: v } : x));
+                    setEditCatId(null);
+                  };
+                  return (
                   <div key={c.id}
-                    draggable
+                    draggable={!editing}
                     onDragStart={() => { dragIdxRef.current = idx; }}
                     onDragOver={e => {
                       e.preventDefault();
@@ -5880,16 +5889,30 @@ service cloud.firestore {
                       });
                     }}
                     onDragEnd={() => { dragIdxRef.current = null; }}
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, cursor: "grab", userSelect: "none" }}>
-                    <span style={{ fontSize: 18, color: T2, cursor: "grab" }}>☰</span>
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, cursor: editing ? "default" : "grab", userSelect: "none" }}>
+                    <span style={{ fontSize: 18, color: T2, cursor: editing ? "default" : "grab", opacity: editing ? 0.4 : 1 }}>☰</span>
                     <span style={{ fontSize: 12, fontWeight: 800, color: ACC, width: 22 }}>{idx + 1}</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: T1 }}>{c.displayName || c.name}</span>
+                    {editing ? (
+                      <>
+                        <input autoFocus style={{ ...inp, flex: 1, padding: "7px 10px", fontSize: 14 }} value={editCatVal}
+                          onChange={e => setEditCatVal(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditCatId(null); }} />
+                        <button onClick={commitRename} title="Save name" style={{ background: "none", border: `1px solid #22c55e55`, borderRadius: 6, color: "#22c55e", padding: "6px 10px", fontSize: 13, cursor: "pointer" }}>✓</button>
+                        <button onClick={() => setEditCatId(null)} title="Cancel" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 10px", fontSize: 13, cursor: "pointer" }}>✗</button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: T1, flex: 1 }}>{c.displayName || c.name}</span>
+                        <button onClick={() => { setEditCatId(c.id); setEditCatVal(c.displayName || c.name); }} title="Rename" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>✏️ Edit</button>
+                      </>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <div style={{ display: "flex", gap: 12 }}>
-                <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => saveCategoryOrder(reorderCats)}>Save Order</button>
-                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setShowReorderModal(false)}>Cancel</button>
+                <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => { setEditCatId(null); saveCategoryOrder(reorderCats); }}>Save Order</button>
+                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => { setEditCatId(null); setShowReorderModal(false); }}>Cancel</button>
               </div>
             </div>
           </div>
