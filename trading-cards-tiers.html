@@ -55,7 +55,8 @@
   .c-archetype { font-size: 6pt; font-weight: 700; letter-spacing: 0.28em; margin-top: 2.5px; opacity: 0.85; }
 
   .c-photo {
-    position: absolute; inset: 0; margin: 0; border: none; z-index: 0;
+    position: absolute; inset: 0; margin: 0; border: none; z-index: 1;
+    background: linear-gradient(160deg, #2c2c34, #15151b);   /* neutral fallback — real photo (background-image) covers it */
     background-size: cover; background-position: center; background-repeat: no-repeat;
     display: flex; align-items: center; justify-content: center; overflow: hidden;
   }
@@ -113,7 +114,7 @@
   .bronze .card-inner { background: linear-gradient(168deg, #3a2812 0%, #2a1c0c 55%, #201507 100%); border: 1px solid #8a6437; color: #e8d4b8; }
   .bronze .c-tier-name { color: #cd9858; text-shadow: 0 1px 1px #000; }
   .bronze .c-archetype { color: #a87f4d; }
-  .bronze .c-photo { background: linear-gradient(180deg, #4a3418, #33230e); border: 1px solid #6e4f28; }
+  /* bronze photo area stays neutral (real photo shows) */
   .bronze .c-player-name { color: #f0ddc0; }
   .bronze .c-watermark { color: #b08a55; }
 
@@ -129,7 +130,7 @@
   .silver .card-inner { background: linear-gradient(170deg, #2c3138 0%, #1d2127 60%, #15181d 100%); border: 1px solid #aeb4bc; color: #e6e9ed; }
   .silver .c-tier-name { color: #d7dce2; }
   .silver .c-archetype { color: #8e99a6; }
-  .silver .c-photo { background: linear-gradient(180deg, #353b44, #23282f); border: 1px solid #555d68; }
+  /* silver photo area stays neutral */
   .silver .c-player-name { color: #fff; }
   .silver .c-watermark { color: #9aa3ad; }
 
@@ -160,7 +161,7 @@
   }
   .gold .c-tier-name { color: #ffd75e; text-shadow: 0 0 4px rgba(255,200,60,0.55); }
   .gold .c-archetype { color: #c9a440; }
-  .gold .c-photo { background: linear-gradient(180deg, #3c2e0e, #281e08); border: 1px solid #8c7126; }
+  /* gold photo area stays neutral */
   .gold .c-player-name { color: #ffe9a8; }
   .gold .c-watermark { color: #c9a440; }
 
@@ -182,7 +183,7 @@
   }
   .platinum .c-tier-name { color: #e6ebf1; letter-spacing: 0.2em; }
   .platinum .c-archetype { color: #7e8995; }
-  .platinum .c-photo { background: linear-gradient(135deg, #2b3038 0%, #1c2026 100%); border: 1px solid #4a525c; clip-path: polygon(0.09in 0, 100% 0, 100% calc(100% - 0.09in), calc(100% - 0.09in) 100%, 0 100%, 0 0.09in); }
+  .platinum .c-photo { clip-path: polygon(0.09in 0, 100% 0, 100% calc(100% - 0.09in), calc(100% - 0.09in) 100%, 0 100%, 0 0.09in); }
   .platinum .c-player-name { color: #f4f7fa; }
   .platinum .c-watermark { color: #8b95a1; }
 
@@ -210,7 +211,7 @@
   }
   .diamond .c-tier-name { color: #8ee6ff; text-shadow: 0 0 6px rgba(120,225,255,0.8); }
   .diamond .c-archetype { color: #5ab8d6; }
-  .diamond .c-photo { background: linear-gradient(180deg, #0a2e3d, #051d28); border: 1px solid #1f6680; }
+  /* diamond photo area stays neutral */
   .diamond .c-player-name { color: #eafaff; }
   .diamond .c-watermark { color: #5ab8d6; }
 
@@ -233,9 +234,7 @@
   }
   .champion .c-tier-name { color: #ffd24a; text-shadow: 0 0 5px rgba(255,200,60,0.6); }
   .champion .c-archetype { color: #c39ae0; }
-  .champion .c-photo {
-    background: linear-gradient(180deg, #3a1656, #250d38); border: 1px solid #7a4aa8;
-  }
+  /* champion photo area stays neutral (laurels overlay kept below) */
   .champion .c-photo::before, .champion .c-photo::after { /* laurel branches */
     content: '🌿'; position: absolute; bottom: 4px; font-size: 11pt; opacity: 0.8;
   }
@@ -274,11 +273,7 @@
     text-shadow: none; filter: drop-shadow(0 0 4px rgba(190,140,255,0.8));
   }
   .legend .c-archetype { color: #9d8ac9; }
-  .legend .c-photo {
-    background: radial-gradient(ellipse at 50% 30%, #241344 0%, #110826 70%);
-    border: 1px solid #5a3f96;
-    box-shadow: inset 0 0 12px rgba(140,100,255,0.45);
-  }
+  /* legend photo area stays neutral */
   .legend .c-player-name { color: #fff; text-shadow: 0 0 6px rgba(180,130,255,0.9); }
   .legend .c-watermark { color: #8a76b8; }
 
