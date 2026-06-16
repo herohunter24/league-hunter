@@ -244,22 +244,33 @@
   .pcard-inner {
     position: absolute; inset: 9px; border-radius: 11px; display: flex; flex-direction: column; overflow: hidden;
   }
-  .pc-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 13px 6px; }
+  /* Full-bleed photo: top + bottom scrims keep overlaid text readable over any image */
+  .pcard-inner::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 30%; z-index: 2; pointer-events: none;
+    background: linear-gradient(180deg, rgba(0,0,0,0.72), transparent);
+  }
+  .pcard-inner::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 50%; z-index: 2; pointer-events: none;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.88) 55%);
+  }
+  .pc-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 13px 6px; position: relative; z-index: 3; margin-bottom: auto; }
   .pc-league { font-size: 9px; font-weight: 800; letter-spacing: 0.22em; opacity: 0.65; }
   .pc-tier-block { text-align: right; }
   .pc-tier { font-family: var(--ff-display); font-size: 15px; letter-spacing: 0.08em; line-height: 1; }
   .pc-arch { font-size: 8.5px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 4px; opacity: 0.8; }
   .pc-photo {
-    flex: 1; margin: 4px 13px; border-radius: 9px; position: relative; overflow: hidden;
+    position: absolute; inset: 0; margin: 0; z-index: 1; overflow: hidden;
+    background: linear-gradient(160deg, #2c2c34, #15151b);   /* neutral fallback when no photo */
+    background-size: cover; background-position: center top;
     display: flex; align-items: center; justify-content: center;
   }
   .pc-photo-init {
     font-family: var(--ff-display); font-size: 64px; opacity: 0.35;
   }
-  .pc-bottom { padding: 8px 13px 4px; }
+  .pc-bottom { padding: 8px 13px 4px; position: relative; z-index: 3; }
   .pc-name { font-family: var(--ff-display); font-size: 16.5px; letter-spacing: 0.01em; line-height: 1.05; }
   .pc-meta { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin-top: 4px; }
-  .pc-stats { display: flex; gap: 0; margin: 9px 13px 12px; border-radius: 8px; overflow: hidden; }
+  .pc-stats { display: flex; gap: 0; margin: 9px 13px 12px; border-radius: 8px; overflow: hidden; position: relative; z-index: 3; }
   .pc-stat { flex: 1; text-align: center; padding: 7px 2px; }
   .pc-stat-v { font-family: var(--ff-display); font-size: 15px; line-height: 1; }
   .pc-stat-k { font-size: 7.5px; font-weight: 800; letter-spacing: 0.18em; margin-top: 3px; opacity: 0.65; }
