@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Player Trading Card Design System — 7 Tiers</title>
+<style>
+  /* ── PAGE SETUP — letter, print-friendly ── */
+  @page { size: letter; margin: 0.4in; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; }
+
+  .page { width: 7.7in; margin: 0 auto; page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+
+  .page-title { text-align: center; padding: 0.18in 0 0.05in; }
+  .page-title h1 { font-size: 17pt; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; }
+  .page-title p  { font-size: 8.5pt; color: #666; letter-spacing: 0.1em; margin-top: 3px; }
+
+  .card-row { display: flex; justify-content: center; gap: 0.3in; margin-top: 0.22in; }
+
+  .card-slot { text-align: center; }
+  .slot-label { font-size: 8pt; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #888; margin-top: 7px; }
+
+  /* ── CARD BASE — exact 2.5 x 3.5 in ── */
+  .card {
+    width: 2.5in; height: 3.5in;
+    border-radius: 0.11in;
+    position: relative;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .card-inner {
+    position: absolute; inset: 0.085in;
+    border-radius: 0.06in;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* shared interior layout — photo is a full-bleed background, text overlaid on dark strips */
+  .c-top {
+    display: flex; justify-content: space-between; align-items: flex-start; padding: 0.07in 0.08in 0.05in;
+    position: relative; z-index: 10; margin-bottom: auto;     /* push bottom content to the card's base */
+    background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.3));
+  }
+  .c-league-logo {
+    width: 0.34in; height: 0.34in; border-radius: 50%;
+    border: 1.5px dashed rgba(255,255,255,0.55);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 5pt; letter-spacing: 0.05em; color: rgba(255,255,255,0.75);
+    text-align: center; line-height: 1.15; flex-shrink: 0;
+  }
+  .c-tier-block { text-align: right; }
+  .c-tier-name { font-size: 10.5pt; font-weight: 900; letter-spacing: 0.14em; line-height: 1; }
+  .c-archetype { font-size: 6pt; font-weight: 700; letter-spacing: 0.28em; margin-top: 2.5px; opacity: 0.85; }
+
+  .c-photo {
+    position: absolute; inset: 0; margin: 0; border: none; z-index: 0;
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .c-photo-ph {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    color: rgba(255,255,255,0.55); font-size: 6.5pt; letter-spacing: 0.18em; font-weight: 600;
+  }
+  .c-photo-ph .silhouette {
+    width: 0.62in; height: 0.62in; border-radius: 50%;
+    border: 2px dashed rgba(255,255,255,0.4);
+    display: flex; align-items: center; justify-content: center; font-size: 22pt;
+  }
+
+  .c-bottom {
+    display: flex; justify-content: space-between; align-items: flex-end; padding: 0.06in 0.08in 0.04in;
+    position: relative; z-index: 10;
+    background: linear-gradient(0deg, rgba(0,0,0,0.7), rgba(0,0,0,0.4));
+  }
+  .c-team { display: flex; align-items: center; gap: 4.5px; min-width: 0; }
+  .c-team-logo {
+    width: 0.24in; height: 0.24in; border-radius: 4px;
+    border: 1.5px dashed rgba(255,255,255,0.5); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 4.5pt; color: rgba(255,255,255,0.7);
+  }
+  .c-names { line-height: 1.12; }
+  .c-team-name { font-size: 5.5pt; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+  .c-player-name { font-size: 8.5pt; font-weight: 900; letter-spacing: 0.02em; white-space: nowrap; }
+  .c-hw { text-align: right; font-size: 6pt; font-weight: 700; line-height: 1.5; opacity: 0.9; white-space: nowrap; }
+
+  .c-watermark {
+    text-align: center; font-size: 4.6pt; letter-spacing: 0.32em; text-transform: uppercase;
+    padding: 0.02in 0 0.04in; opacity: 0.65; font-weight: 600;
+    position: relative; z-index: 10; background: rgba(0,0,0,0.7);
+  }
+
+  /* ════════ 1. BRONZE — rustic stone, distressed ════════ */
+  .bronze {
+    background:
+      radial-gradient(ellipse at 18% 12%, rgba(0,0,0,0.38) 0%, transparent 32%),
+      radial-gradient(ellipse at 84% 30%, rgba(0,0,0,0.3) 0%, transparent 26%),
+      radial-gradient(ellipse at 60% 85%, rgba(0,0,0,0.34) 0%, transparent 30%),
+      radial-gradient(ellipse at 35% 55%, rgba(255,225,190,0.14) 0%, transparent 24%),
+      repeating-linear-gradient(37deg, #6e4a26 0px, #7d5630 5px, #5c3c1d 9px, #75502b 14px),
+      #6b4823;
+  }
+  .bronze::before { /* chipped edge effect */
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 0% 22%, rgba(0,0,0,0.5) 0%, transparent 5%),
+      radial-gradient(circle at 100% 64%, rgba(0,0,0,0.5) 0%, transparent 5%),
+      radial-gradient(circle at 42% 100%, rgba(0,0,0,0.45) 0%, transparent 4%),
+      radial-gradient(circle at 78% 0%, rgba(0,0,0,0.45) 0%, transparent 4%);
+  }
+  .bronze .card-inner { background: linear-gradient(168deg, #3a2812 0%, #2a1c0c 55%, #201507 100%); border: 1px solid #8a6437; color: #e8d4b8; }
+  .bronze .c-tier-name { color: #cd9858; text-shadow: 0 1px 1px #000; }
+  .bronze .c-archetype { color: #a87f4d; }
+  .bronze .c-photo { background: linear-gradient(180deg, #4a3418, #33230e); border: 1px solid #6e4f28; }
+  .bronze .c-player-name { color: #f0ddc0; }
+  .bronze .c-watermark { color: #b08a55; }
+
+  /* ════════ 2. SILVER — clean metallic, sharp pro ════════ */
+  .silver {
+    background: linear-gradient(155deg, #f4f5f7 0%, #c8ccd2 18%, #eef0f3 36%, #9aa0a8 52%, #dfe2e6 68%, #b4b9c0 86%, #e8eaee 100%);
+  }
+  .silver::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 47%; height: 1.5px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.95), transparent);
+    transform: rotate(-24deg) scaleX(1.5);
+  }
+  .silver .card-inner { background: linear-gradient(170deg, #2c3138 0%, #1d2127 60%, #15181d 100%); border: 1px solid #aeb4bc; color: #e6e9ed; }
+  .silver .c-tier-name { color: #d7dce2; }
+  .silver .c-archetype { color: #8e99a6; }
+  .silver .c-photo { background: linear-gradient(180deg, #353b44, #23282f); border: 1px solid #555d68; }
+  .silver .c-player-name { color: #fff; }
+  .silver .c-watermark { color: #9aa3ad; }
+
+  /* ════════ 3. GOLD — ornate filigree luxury ════════ */
+  .gold {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255,248,210,0.7) 0%, transparent 28%),
+      radial-gradient(circle at 50% 100%, rgba(255,248,210,0.5) 0%, transparent 28%),
+      linear-gradient(150deg, #f5d878 0%, #c89a2e 22%, #f0d070 40%, #a87d1c 58%, #e8c660 76%, #c09430 100%);
+  }
+  .gold::before { /* filigree corner flourishes */
+    content: '❦                 ❦'; white-space: pre;
+    position: absolute; top: 0.015in; left: 0; right: 0;
+    text-align: center; font-size: 8pt; color: rgba(110,80,10,0.85);
+    display: flex; justify-content: space-between; padding: 0 0.1in;
+  }
+  .gold::after {
+    content: '❦                 ❦'; white-space: pre;
+    position: absolute; bottom: 0.015in; left: 0; right: 0;
+    font-size: 8pt; color: rgba(110,80,10,0.85);
+    display: flex; justify-content: space-between; padding: 0 0.1in;
+  }
+  .gold .card-inner {
+    background: linear-gradient(170deg, #2e2208 0%, #211806 60%, #181104 100%);
+    border: 1.5px solid #f3da8a;
+    box-shadow: inset 0 0 0 2.5px #1a1304, inset 0 0 0 3.5px #c9a440;
+    color: #f3e3b3;
+  }
+  .gold .c-tier-name { color: #ffd75e; text-shadow: 0 0 4px rgba(255,200,60,0.55); }
+  .gold .c-archetype { color: #c9a440; }
+  .gold .c-photo { background: linear-gradient(180deg, #3c2e0e, #281e08); border: 1px solid #8c7126; }
+  .gold .c-player-name { color: #ffe9a8; }
+  .gold .c-watermark { color: #c9a440; }
+
+  /* ════════ 4. PLATINUM — geometric modern ════════ */
+  .platinum {
+    background:
+      linear-gradient(63deg, transparent 46%, rgba(255,255,255,0.5) 50%, transparent 54%),
+      conic-gradient(from 200deg at 80% 15%, #e8ebef 0deg, #aab2bc 70deg, #d4d9df 140deg, #8f98a4 210deg, #dde1e6 290deg, #e8ebef 360deg);
+  }
+  .platinum::before, .platinum::after { /* angular corner cuts */
+    content: ''; position: absolute; width: 0.55in; height: 0.55in; background: #6b7480;
+  }
+  .platinum::before { top: -0.30in; left: -0.30in; transform: rotate(45deg); }
+  .platinum::after  { bottom: -0.30in; right: -0.30in; transform: rotate(45deg); }
+  .platinum .card-inner {
+    background: linear-gradient(170deg, #23272e 0%, #181b20 55%, #101216 100%);
+    border: 1px solid #c4cad2; color: #dde2e8;
+    clip-path: polygon(0.13in 0, 100% 0, 100% calc(100% - 0.13in), calc(100% - 0.13in) 100%, 0 100%, 0 0.13in);
+  }
+  .platinum .c-tier-name { color: #e6ebf1; letter-spacing: 0.2em; }
+  .platinum .c-archetype { color: #7e8995; }
+  .platinum .c-photo { background: linear-gradient(135deg, #2b3038 0%, #1c2026 100%); border: 1px solid #4a525c; clip-path: polygon(0.09in 0, 100% 0, 100% calc(100% - 0.09in), calc(100% - 0.09in) 100%, 0 100%, 0 0.09in); }
+  .platinum .c-player-name { color: #f4f7fa; }
+  .platinum .c-watermark { color: #8b95a1; }
+
+  /* ════════ 5. DIAMOND — crystal facets, cyan sparkle ════════ */
+  .diamond {
+    background:
+      conic-gradient(from 0deg at 50% 50%,
+        #e9fbff 0deg, #8fdcf2 28deg, #ffffff 56deg, #5cc4e8 90deg,
+        #d4f4fd 124deg, #9fe2f5 152deg, #ffffff 180deg, #6fcdec 215deg,
+        #e2f8fe 245deg, #8fdcf2 278deg, #ffffff 310deg, #b7eaf8 340deg, #e9fbff 360deg);
+  }
+  .diamond::before { /* sparkles */
+    content: '✦'; position: absolute; top: 0.07in; right: 0.45in;
+    font-size: 9pt; color: #fff; text-shadow: 0 0 5px #7fdcff, 0.95in 2.95in 0 #fff, -0.2in 3.1in 4px #aef;
+  }
+  .diamond::after {
+    content: '✧'; position: absolute; bottom: 0.55in; left: 0.06in;
+    font-size: 7pt; color: #fff; text-shadow: 0 0 5px #7fdcff;
+  }
+  .diamond .card-inner {
+    background: linear-gradient(170deg, #07222e 0%, #04161f 55%, #020e14 100%);
+    border: 1.5px solid #aeeaff;
+    box-shadow: inset 0 0 14px rgba(95,205,245,0.3);
+    color: #d8f4fd;
+  }
+  .diamond .c-tier-name { color: #8ee6ff; text-shadow: 0 0 6px rgba(120,225,255,0.8); }
+  .diamond .c-archetype { color: #5ab8d6; }
+  .diamond .c-photo { background: linear-gradient(180deg, #0a2e3d, #051d28); border: 1px solid #1f6680; }
+  .diamond .c-player-name { color: #eafaff; }
+  .diamond .c-watermark { color: #5ab8d6; }
+
+  /* ════════ 6. CHAMPION — laurels, gold + purple victory ════════ */
+  .champion {
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255,215,90,0.5) 0%, transparent 36%),
+      linear-gradient(160deg, #4a1d6e 0%, #38134f 38%, #5b2585 62%, #2c0e40 100%);
+    border: 3px solid #f0c640;
+  }
+  .champion::before { /* laurel wreaths flanking tier area */
+    content: '🏆'; position: absolute; top: 0.42in; left: 50%; transform: translateX(-50%);
+    font-size: 8pt; opacity: 0.9; z-index: 2;
+  }
+  .champion .card-inner {
+    background: linear-gradient(170deg, #2a0f3d 0%, #1d0a2c 55%, #140620 100%);
+    border: 1.5px solid #f0c640;
+    box-shadow: inset 0 0 0 3px #2a0f3d, inset 0 0 0 4px #9a7818;
+    color: #f2e2c4;
+  }
+  .champion .c-tier-name { color: #ffd24a; text-shadow: 0 0 5px rgba(255,200,60,0.6); }
+  .champion .c-archetype { color: #c39ae0; }
+  .champion .c-photo {
+    background: linear-gradient(180deg, #3a1656, #250d38); border: 1px solid #7a4aa8;
+  }
+  .champion .c-photo::before, .champion .c-photo::after { /* laurel branches */
+    content: '🌿'; position: absolute; bottom: 4px; font-size: 11pt; opacity: 0.8;
+  }
+  .champion .c-photo::before { left: 5px; transform: scaleX(-1) rotate(-18deg); }
+  .champion .c-photo::after  { right: 5px; transform: rotate(-18deg); }
+  .champion .c-player-name { color: #ffe9a8; }
+  .champion .c-watermark { color: #b08fd0; }
+
+  /* ════════ 7. LEGEND — cosmic iridescent, otherworldly ════════ */
+  .legend {
+    background:
+      radial-gradient(circle at 22% 18%, rgba(140,90,255,0.55) 0%, transparent 34%),
+      radial-gradient(circle at 80% 38%, rgba(0,220,255,0.4) 0%, transparent 30%),
+      radial-gradient(circle at 55% 85%, rgba(255,60,200,0.45) 0%, transparent 34%),
+      radial-gradient(circle at 8% 70%, rgba(255,190,40,0.35) 0%, transparent 26%),
+      #0a0518;
+  }
+  .legend::before { /* starfield */
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle, #fff 0.6px, transparent 1.1px),
+      radial-gradient(circle, rgba(255,255,255,0.7) 0.5px, transparent 1px);
+    background-size: 0.42in 0.38in, 0.27in 0.31in;
+    background-position: 0.04in 0.08in, 0.15in 0.2in;
+  }
+  .legend .card-inner {
+    background: radial-gradient(ellipse at 50% 0%, #1d1038 0%, #0d0620 55%, #060312 100%);
+    border: 1.5px solid transparent;
+    border-image: linear-gradient(140deg, #ff5ce8, #7fdcff, #ffd75e, #b07fff) 1;
+    box-shadow: inset 0 0 18px rgba(160,110,255,0.35);
+    color: #ece4ff;
+  }
+  .legend .c-tier-name {
+    background: linear-gradient(90deg, #ff8ae8, #8ee6ff, #ffe27a);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: none; filter: drop-shadow(0 0 4px rgba(190,140,255,0.8));
+  }
+  .legend .c-archetype { color: #9d8ac9; }
+  .legend .c-photo {
+    background: radial-gradient(ellipse at 50% 30%, #241344 0%, #110826 70%);
+    border: 1px solid #5a3f96;
+    box-shadow: inset 0 0 12px rgba(140,100,255,0.45);
+  }
+  .legend .c-player-name { color: #fff; text-shadow: 0 0 6px rgba(180,130,255,0.9); }
+  .legend .c-watermark { color: #8a76b8; }
+
+  /* spec footer */
+  .specs { text-align: center; font-size: 7.5pt; color: #777; margin-top: 0.25in; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<!-- ════ PAGE 1: Bronze · Silver · Gold ════ -->
+<div class="page">
+  <div class="page-title">
+    <h1>Player Trading Card System</h1>
+    <p>7-TIER COLLECTIBLE DESIGN &nbsp;·&nbsp; 2.5" × 3.5" STANDARD &nbsp;·&nbsp; 300 DPI PRINT-READY</p>
+  </div>
+
+  <div class="card-row">
+    <!-- BRONZE -->
+    <div class="card-slot">
+      <div class="card bronze">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">BRONZE</div><div class="c-archetype">GRINDER</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 1 — Bronze</div>
+    </div>
+
+    <!-- SILVER -->
+    <div class="card-slot">
+      <div class="card silver">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">SILVER</div><div class="c-archetype">DEFENDER</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 2 — Silver</div>
+    </div>
+
+    <!-- GOLD -->
+    <div class="card-slot">
+      <div class="card gold">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">GOLD</div><div class="c-archetype">PLAYMAKER</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 3 — Gold</div>
+    </div>
+  </div>
+
+  <div class="card-row">
+    <!-- PLATINUM -->
+    <div class="card-slot">
+      <div class="card platinum">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">PLATINUM</div><div class="c-archetype">ANCHOR</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 4 — Platinum</div>
+    </div>
+
+    <!-- DIAMOND -->
+    <div class="card-slot">
+      <div class="card diamond">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">DIAMOND</div><div class="c-archetype">SNIPER</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 5 — Diamond</div>
+    </div>
+
+    <!-- CHAMPION -->
+    <div class="card-slot">
+      <div class="card champion">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">CHAMPION</div><div class="c-archetype">CLOSER</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 6 — Champion</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PAGE 2: Legend (hero) + spec sheet ════ -->
+<div class="page">
+  <div class="page-title">
+    <h1>Apex Tier</h1>
+    <p>THE RAREST CARD IN THE SYSTEM</p>
+  </div>
+
+  <div class="card-row">
+    <!-- LEGEND -->
+    <div class="card-slot">
+      <div class="card legend">
+        <div class="card-inner">
+          <div class="c-top">
+            <div class="c-league-logo">LEAGUE<br>LOGO</div>
+            <div class="c-tier-block"><div class="c-tier-name">LEGEND</div><div class="c-archetype">ICON</div></div>
+          </div>
+          <div class="c-photo"><div class="c-photo-ph"><div class="silhouette">👤</div>PLAYER PHOTO</div></div>
+          <div class="c-bottom">
+            <div class="c-team">
+              <div class="c-team-logo">TEAM</div>
+              <div class="c-names"><div class="c-team-name">Team Name</div><div class="c-player-name">PLAYER NAME</div></div>
+            </div>
+            <div class="c-hw">HT 6'2"<br>WT 185 LBS</div>
+          </div>
+          <div class="c-watermark">· LEAGUE BRANDING ·</div>
+        </div>
+      </div>
+      <div class="slot-label">Tier 7 — Legend</div>
+    </div>
+  </div>
+
+  <div class="specs">
+    <strong>DESIGN SPECIFICATIONS</strong><br>
+    Card size: 2.5" × 3.5" (63.5 × 88.9 mm) — standard trading card · Print: 300 DPI, full bleed compatible<br>
+    Customizable placeholders: League logo · Team logo · Player photo · Player name · Team name · Height/Weight · Archetype · Branding watermark<br>
+    Tier progression: Bronze → Silver → Gold → Platinum → Diamond → Champion → Legend
+  </div>
+</div>
+
+</body>
+</html>
