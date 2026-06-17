@@ -1878,6 +1878,22 @@ function App() {
     }
   }
 
+  // ── SPOTLIGHT (Play of the Month / Player of the Week) override — immediate write ──
+  async function saveSpotlight(lg, field, data) {
+    if (!lg) return;
+    setLeagues(prev => prev.map(l => l.id === lg.id ? { ...l, [field]: data } : l));
+    if (__fbReady && _db) {
+      try {
+        const { updateDoc, doc } = _FS;
+        await updateDoc(doc(_db, 'leagues', String(lg.id)), { [field]: data, _updatedAt: Date.now() });
+        showToast('Spotlight updated');
+      } catch (e) {
+        console.error('[League Hunter] spotlight write failed:', e);
+        showToast('Failed to save — check connection', 'error');
+      }
+    }
+  }
+
   // ── CUSTOM PUBLIC SITE URL — immediate write, no dirty flag ──
   async function saveCustomPublicUrl(lg, url) {
     if (!lg) return;
@@ -2035,6 +2051,8 @@ function App() {
         customPublicSiteUrl:        updated.customPublicSiteUrl        || "",
         publicSiteConnectionStatus: updated.publicSiteConnectionStatus || { connected: false, lastTestedAt: 0 },
         leagueMessage:              updated.leagueMessage              || {},
+        playOfTheMonth:             updated.playOfTheMonth             || {},
+        playerOfTheWeek:            updated.playerOfTheWeek            || {},
         _format:     "v2",
         _updatedAt:  ts,  // ← always bumped so public onSnapshot always detects this write
       }});
@@ -4810,6 +4828,59 @@ function App() {
                   </div>
                 );
               })()}
+
+              {/* ── SPOTLIGHT (Play of the Month / Player of the Week) ── */}
+              <div style={{ ...card, marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>🏅 Spotlight</div>
+                <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
+                  Play of the Month and Player of the Week, per category. Leave on <strong style={{ color: T1 }}>Auto</strong> and the public site picks the top player automatically — or override below.
+                </div>
+                {(league.categories || []).length === 0 ? (
+                  <div style={{ fontSize: 13, color: T2 }}>Add a category first to manage the spotlight.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {(league.categories || []).map(cat => {
+                      const catPlayers = (league.players || []).filter(p => String(p.categoryId) === String(cat.id));
+                      const potm = (((league.playOfTheMonth || {}).categories) || {})[cat.id] || {};
+                      const potw = (((league.playerOfTheWeek || {}).categories) || {})[cat.id] || {};
+                      const setOverride = (field, value) => {
+                        const cur = league[field] || {};
+                        const cats = { ...(cur.categories || {}) };
+                        if (value) { const pl = catPlayers.find(p => String(p.id) === value); cats[cat.id] = { playerId: value, name: (pl && pl.name) || '', category: cat.id, manualOverride: true }; }
+                        else delete cats[cat.id];
+                        saveSpotlight(league, field, { ...cur, categories: cats });
+                      };
+                      return (
+                        <div key={cat.id} style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{cat.displayName || cat.name}</div>
+                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <div style={{ flex: 1, minWidth: 150 }}>
+                              <label style={lbl}>🏆 Play of the Month</label>
+                              <select style={inp} value={potm.playerId || ''} onChange={e => setOverride('playOfTheMonth', e.target.value)}>
+                                <option value="">Auto (top player)</option>
+                                {catPlayers.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 150 }}>
+                              <label style={lbl}>⭐ Player of the Week</label>
+                              <select style={inp} value={potw.playerId || ''} onChange={e => setOverride('playerOfTheWeek', e.target.value)}>
+                                <option value="">Auto (best this week)</option>
+                                {catPlayers.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div>
+                      <button style={{ ...btn("#252540"), fontSize: 12.5, padding: "8px 16px" }}
+                        onClick={() => { saveSpotlight(league, 'playOfTheMonth', {}); saveSpotlight(league, 'playerOfTheWeek', {}); }}>
+                        ↻ Reset all to Auto-calculate
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* ── ANALYTICS DASHBOARD ── */}
               {(() => {

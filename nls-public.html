@@ -559,6 +559,7 @@ const STR = {
     final: "Final", upcoming: "À venir",
     playersKicker: "Cartes à collectionner", playersTitle: "Joueurs",
     bestPlayers: "Trouve ta carte de joueur !", findByTeam: "Chercher par équipe", selectTeamPh: "Sélectionner une équipe", noTeamPlayers: "Aucun joueur dans cette équipe.",
+    potmTitle: "Joueur du Mois", potmSub: "Le meilleur de chaque catégorie ce mois-ci", potwTitle: "Joueur de la Semaine", potwSub: "La meilleure performance de la semaine",
     searchPh: "Rechercher un joueur…", allTiers: "Tous les niveaux", allArch: "Tous les archétypes",
     statsKicker: "Meneurs de la ligue", statsTitle: "Statistiques",
     topScorers: "Meilleurs pointeurs", topRebounders: "Meilleurs rebondeurs", topPlaymakers: "Meilleurs passeurs",
@@ -595,6 +596,7 @@ const STR = {
     final: "Final", upcoming: "Upcoming",
     playersKicker: "Collectible cards", playersTitle: "Players",
     bestPlayers: "Find your player card!", findByTeam: "Find by team", selectTeamPh: "Select a team", noTeamPlayers: "No players in this team.",
+    potmTitle: "Play of the Month", potmSub: "The best of each category this month", potwTitle: "Player of the Week", potwSub: "The week's top performance",
     searchPh: "Search player…", allTiers: "All tiers", allArch: "All archetypes",
     statsKicker: "League leaders", statsTitle: "Statistics",
     topScorers: "Top Scorers", topRebounders: "Top Rebounders", topPlaymakers: "Top Playmakers",
@@ -1193,6 +1195,46 @@ function App() {
   }, [TEAMS, catPlayersSorted]);
   const teamPlayers = fTeam !== 'all' ? catPlayersSorted.filter(p => p.team === fTeam) : [];
 
+  // ── PLAY OF THE MONTH / PLAYER OF THE WEEK ──
+  // Admin override (stored in Firestore) wins; otherwise auto-computed live.
+  const inCat = (p, catId) => catId === '__all__' || p.categoryId === catId;
+  const topByRp = (catId) => [...PLAYERS].filter(p => inCat(p, catId))
+    .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier))[0] || null;
+  const weekScore = (p) => {
+    const cutoff = Date.now() - 7 * 86400000;
+    return GAMES.reduce((s, g) => {
+      if (!g.playerStats || g.playerStats[p.id] === undefined) return s;
+      if (new Date((g.date || '1970') + 'T00:00').getTime() < cutoff) return s;
+      const st = g.playerStats[p.id] || {};
+      return s + (+st.points || 0) + (+st.rebounds || 0) * 0.7 + (+st.assists || 0) * 1.2 + (+st.steals || 0) * 1.5 + (+st.blocks || 0) * 1.5;
+    }, 0);
+  };
+  const topOfWeek = (catId) => {
+    const scored = PLAYERS.filter(p => inCat(p, catId)).map(p => ({ p, s: weekScore(p) }));
+    if (scored.some(x => x.s > 0)) return scored.sort((a, b) => b.s - a.s)[0].p;
+    return topByRp(catId); // no games this week → fall back to season leader
+  };
+  const resolveSpotlight = (data, catId, computeFn) => {
+    const ov = ((data && data.categories) || {})[catId];
+    if (ov && ov.playerId) { const p = PLAYERS.find(x => String(x.id) === String(ov.playerId)); if (p) return p; }
+    return computeFn(catId);
+  };
+  const potmData = (view.meta && view.meta.playOfTheMonth) || {};
+  const potwData = (view.meta && view.meta.playerOfTheWeek) || {};
+  // One Play-of-the-Month card per category (for the auto-scroll carousel)
+  const potmCards = useMemo(() => effectiveCats
+    .map(c => ({ cat: c, player: resolveSpotlight(potmData, c.id, topByRp) }))
+    .filter(x => x.player), [effectiveCats, PLAYERS, potmData]);
+  const [potmIdx, setPotmIdx] = useState(0);
+  useEffect(() => {
+    if (showExplorer || potmCards.length <= 1) return;
+    const iv = setInterval(() => setPotmIdx(i => (i + 1) % potmCards.length), 6000);
+    return () => clearInterval(iv);
+  }, [showExplorer, potmCards.length]);
+  useEffect(() => { if (potmIdx >= potmCards.length) setPotmIdx(0); }, [potmCards.length]);
+  // Player of the Week for the currently selected category
+  const potwPlayer = selectedCat ? resolveSpotlight(potwData, selectedCat, topOfWeek) : null;
+
   // category-scoped stat leaders
   const leaders = key => [...PLAYERS]
     .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
@@ -1289,6 +1331,32 @@ function App() {
               <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
             </section>
           )}
+
+          {/* Play of the Month — auto-scrolling carousel, one card per category */}
+          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && potmCards.length > 0 && (() => {
+            const cur = potmCards[Math.min(potmIdx, potmCards.length - 1)];
+            return (
+              <section className="landing-sec">
+                <div className="sec-kicker">{cur.cat.name}</div>
+                <div className="lsec-title">🏆 {t.potmTitle}</div>
+                <div className="lsec-sub">{t.potmSub}</div>
+                <div style={{ display: 'flex', justifyContent: 'center', margin: '0 auto 22px', maxWidth: 270 }}>
+                  <div style={{ width: '100%' }} key={cur.player.id}>
+                    <PlayerCard p={cur.player} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+                  </div>
+                </div>
+                {potmCards.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+                    {potmCards.map((_, i) => (
+                      <button key={i} onClick={() => setPotmIdx(i)} aria-label={`Slide ${i + 1}`}
+                        style={{ width: i === potmIdx ? 22 : 8, height: 8, borderRadius: 100, border: 'none', cursor: 'pointer', padding: 0,
+                          background: i === potmIdx ? 'var(--orange)' : 'var(--border)', transition: 'all 0.3s' }} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })()}
 
           {/* Section 2 — League Message / Mission (editable via Website X) */}
           <section className="landing-sec">
@@ -1473,6 +1541,17 @@ function App() {
       <section className="section" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
         <h2 className="sec-title">{t.playersTitle}</h2>
+
+        {/* PLAYER OF THE WEEK — best in this category, updates with the selected category */}
+        {potwPlayer && (
+          <div style={{ marginBottom: 40 }}>
+            <div className="sec-kicker">⭐ {t.potwTitle}</div>
+            <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potwSub}</div>
+            <div style={{ maxWidth: 250 }}>
+              <PlayerCard p={potwPlayer} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+            </div>
+          </div>
+        )}
 
         {/* TOP 5 — best players in this category */}
         <div className="sec-kicker" style={{ marginTop: 6 }}>{t.bestPlayers}</div>
