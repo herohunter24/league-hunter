@@ -66,7 +66,7 @@
   ::selection { background: var(--orange); color: #000; }
 
   /* ── PLAY-OF-THE-MONTH BANNER (top, auto-scroll marquee) ── */
-  .potm-banner { width: 100%; background: linear-gradient(180deg, #131320, #0a0a0c); border-bottom: 2px solid var(--orange); padding: 9px 0 11px; overflow: hidden; }
+  .potm-banner { width: 100%; background: linear-gradient(180deg, #131320, #0a0a0c); border-bottom: 2px solid var(--orange); padding: 9px 0 11px; overflow: hidden; position: sticky; top: 0; z-index: 200; }
   .potm-label { text-align: center; font-size: 9.5px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-mid); margin-bottom: 9px; }
   .potm-label b { color: #f3da8a; font-weight: 800; }
   .potm-viewport { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
@@ -160,7 +160,7 @@
 
   /* ── NAV ── */
   .nav {
-    position: sticky; top: 0; z-index: 100; display: flex; justify-content: center; gap: 4px;
+    position: sticky; top: var(--potm-h, 0px); z-index: 100; display: flex; justify-content: center; gap: 4px;
     background: rgba(10,10,12,0.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--border); padding: 0 16px;
   }
@@ -640,6 +640,9 @@ const TIERS = {
   legend:   { label: 'LEGEND',   cls: 't-legend' },
 };
 const TIER_ORDER = ['legend','champion','diamond','platinum','gold','silver','bronze'];
+// Accent color per tier (for badges, banner chip borders/glow)
+const TIER_COLOR = { bronze: '#cd9858', silver: '#d7dce2', gold: '#ffd75e', platinum: '#e6ebf1', diamond: '#8ee6ff', champion: '#ffd24a', legend: '#ffcc66' };
+const TIER_GLOW = { diamond: 1, champion: 1, legend: 1 }; // high tiers get a glow halo
 
 /* ═══════════ DEMO DATA — fallback when no ?league= param (showcase mode) ═══════════ */
 const DEMO_TEAMS = [
@@ -1248,6 +1251,17 @@ function App() {
   // Player of the Week for the currently selected category
   const potwPlayer = selectedCat ? resolveSpotlight(potwData, selectedCat, topOfWeek) : null;
 
+  // Keep the sticky nav offset below the sticky POTM banner (measure its height into a CSS var)
+  useEffect(() => {
+    function setH() {
+      const el = document.querySelector('.potm-banner');
+      document.documentElement.style.setProperty('--potm-h', (el ? el.offsetHeight : 0) + 'px');
+    }
+    setH();
+    window.addEventListener('resize', setH);
+    return () => window.removeEventListener('resize', setH);
+  }, [potmCards.length, selectedCat]);
+
   // category-scoped stat leaders
   const leaders = key => [...PLAYERS]
     .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
@@ -1290,22 +1304,25 @@ function App() {
           .toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { month: 'long', year: 'numeric' }).toUpperCase();
         // Triple the list so the marquee loops seamlessly (translateX -33.333%)
         const loop = [...potmCards, ...potmCards, ...potmCards];
+        // Adaptive speed: fast for a few players, slower for many
+        const duration = Math.max(10, potmCards.length * 7);
         return (
           <div className="potm-banner">
             <div className="potm-label">🏆 {t.potmTitle} · <b>{monthDate}</b></div>
             <div className="potm-viewport">
-              <div className="potm-track">
+              <div className="potm-track" style={{ animationDuration: `${duration}s` }}>
                 {loop.map((x, i) => {
                   const tier = TIERS[x.player.tier];
+                  const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
                   const initials = x.player.name.split(' ').map(w => w[0]).join('');
                   return (
                     <div key={i} className="potm-chip" onClick={() => setSelectedPlayer(x.player)}>
-                      <div className="potm-chip-photo" style={{ borderColor: tier ? undefined : 'var(--border)' }}>
-                        {x.player.photoUrl ? <img src={x.player.photoUrl} alt={x.player.name} loading="lazy" /> : <span style={{ color: 'var(--orange)' }}>{initials}</span>}
+                      <div className="potm-chip-photo" style={{ borderColor: tColor, boxShadow: TIER_GLOW[x.player.tier] ? `0 0 10px ${tColor}99` : 'none' }}>
+                        {x.player.photoUrl ? <img src={x.player.photoUrl} alt={x.player.name} loading="lazy" /> : <span style={{ color: tColor }}>{initials}</span>}
                       </div>
                       <div className="potm-chip-txt">
                         <div className="potm-chip-name">{x.player.name}</div>
-                        <div className="potm-chip-cat">{tier ? tier.label : ''} · {x.cat.name}</div>
+                        <div className="potm-chip-cat" style={{ color: tColor }}>{tier ? tier.label : ''} · <span style={{ color: 'var(--ink-soft)' }}>{x.cat.name}</span></div>
                       </div>
                     </div>
                   );

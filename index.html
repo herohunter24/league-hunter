@@ -4839,6 +4839,14 @@ function App() {
                   <div style={{ fontSize: 13, color: T2 }}>Add a category first to manage the spotlight.</div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Play-of-the-Month month — shown as "JUIN 2026" on the public banner */}
+                    <div>
+                      <label style={lbl}>🏆 Play of the Month — Month</label>
+                      <input type="month" style={{ ...inp, maxWidth: 200 }}
+                        value={(league.playOfTheMonth || {}).month || ''}
+                        onChange={e => saveSpotlight(league, 'playOfTheMonth', { ...(league.playOfTheMonth || {}), month: e.target.value })} />
+                      <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Leave blank to show the current month automatically.</div>
+                    </div>
                     {(league.categories || []).map(cat => {
                       const catPlayers = (league.players || []).filter(p => String(p.categoryId) === String(cat.id));
                       const potm = (((league.playOfTheMonth || {}).categories) || {})[cat.id] || {};
