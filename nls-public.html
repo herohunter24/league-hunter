@@ -558,6 +558,7 @@ const STR = {
     fUpcoming: "À venir", fPast: "Résultats", fAll: "Tous", allTeams: "Toutes les équipes",
     final: "Final", upcoming: "À venir",
     playersKicker: "Cartes à collectionner", playersTitle: "Joueurs",
+    bestPlayers: "Les meilleurs joueurs", findByTeam: "Chercher par équipe", selectTeamPh: "Sélectionner une équipe", noTeamPlayers: "Aucun joueur dans cette équipe.",
     searchPh: "Rechercher un joueur…", allTiers: "Tous les niveaux", allArch: "Tous les archétypes",
     statsKicker: "Meneurs de la ligue", statsTitle: "Statistiques",
     topScorers: "Meilleurs pointeurs", topRebounders: "Meilleurs rebondeurs", topPlaymakers: "Meilleurs passeurs",
@@ -593,6 +594,7 @@ const STR = {
     fUpcoming: "Upcoming", fPast: "Results", fAll: "All", allTeams: "All teams",
     final: "Final", upcoming: "Upcoming",
     playersKicker: "Collectible cards", playersTitle: "Players",
+    bestPlayers: "Top Players", findByTeam: "Find by team", selectTeamPh: "Select a team", noTeamPlayers: "No players in this team.",
     searchPh: "Search player…", allTiers: "All tiers", allArch: "All archetypes",
     statsKicker: "League leaders", statsTitle: "Statistics",
     topScorers: "Top Scorers", topRebounders: "Top Rebounders", topPlaymakers: "Top Playmakers",
@@ -1179,6 +1181,18 @@ function App() {
   const galleryOpen = showAllPlayers || anyPlayerFilter;
   const shownPlayers = galleryOpen ? players : players.slice(0, 5);
 
+  // Category players (no secondary filters) — drives Top 5 + the team selector
+  const catPlayersSorted = useMemo(() => [...PLAYERS]
+    .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
+    .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)),
+    [PLAYERS, selectedCat, catTeamNames]);
+  const top5Players = catPlayersSorted.slice(0, 5);
+  const teamsInCat = useMemo(() => {
+    const names = new Set(catPlayersSorted.map(p => p.team));
+    return TEAMS.filter(tm => names.has(tm.name));
+  }, [TEAMS, catPlayersSorted]);
+  const teamPlayers = fTeam !== 'all' ? catPlayersSorted.filter(p => p.team === fTeam) : [];
+
   // category-scoped stat leaders
   const leaders = key => [...PLAYERS]
     .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
@@ -1459,35 +1473,33 @@ function App() {
       <section className="section" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
         <h2 className="sec-title">{t.playersTitle}</h2>
-        {/* Full filter bar — only once the gallery is open (top-5 preview stays clean) */}
-        {galleryOpen && (
-          <div className="player-filters">
-            <input className="search-inp" placeholder={t.searchPh} value={search} onChange={e => setSearch(e.target.value)} />
-            <select className="filter-select" value={fTier} onChange={e => setFTier(e.target.value)}>
-              <option value="all">{t.allTiers}</option>
-              {TIER_ORDER.map(k => <option key={k} value={k}>{TIERS[k].label}</option>)}
-            </select>
-            <select className="filter-select" value={fArch} onChange={e => setFArch(e.target.value)}>
-              <option value="all">{t.allArch}</option>
-              {archetypes.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-            <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
-              <option value="all">{t.allTeams}</option>
-              {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
-            </select>
-          </div>
-        )}
-        <div className="cards-grid">
-          {shownPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+
+        {/* TOP 5 — best players in this category */}
+        <div className="sec-kicker" style={{ marginTop: 6 }}>{t.bestPlayers}</div>
+        <div className="cards-grid" style={{ marginBottom: 12 }}>
+          {top5Players.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
         </div>
-        {!shownPlayers.length && <div className="empty-note">{t.noPlayers}</div>}
-        {/* View All / Show top 5 toggle */}
-        {!anyPlayerFilter && players.length > 5 && (
-          <div style={{ textAlign: 'center', marginTop: 30 }}>
-            <button className="hero-cta" style={{ marginTop: 0, fontSize: 13, padding: '13px 34px' }}
-              onClick={() => setShowAllPlayers(v => !v)}>
-              {showAllPlayers ? t.showTop5 : `${t.viewAllPlayers} (${players.length})`}
-            </button>
+        {!top5Players.length && <div className="empty-note">{t.noPlayers}</div>}
+
+        {/* FIND BY TEAM — show all of a team's players in this category */}
+        {teamsInCat.length > 0 && (
+          <div style={{ marginTop: 44 }}>
+            <div className="sec-kicker">{t.findByTeam}</div>
+            <div className="player-filters" style={{ marginBottom: 24 }}>
+              <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
+                <option value="all">{t.selectTeamPh}</option>
+                {teamsInCat.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+              </select>
+            </div>
+            {fTeam !== 'all' && (
+              teamPlayers.length > 0 ? (
+                <div className="cards-grid">
+                  {teamPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+                </div>
+              ) : (
+                <div className="empty-note">{t.noTeamPlayers}</div>
+              )
+            )}
           </div>
         )}
       </section>
