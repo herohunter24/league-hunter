@@ -1335,10 +1335,14 @@ function App() {
           {/* Play of the Month — auto-scrolling carousel, one card per category */}
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && potmCards.length > 0 && (() => {
             const cur = potmCards[Math.min(potmIdx, potmCards.length - 1)];
+            const ym = potmData && potmData.month;
+            const monthDate = (/^\d{4}-\d{2}$/.test(ym || '') ? new Date(ym + '-01T12:00') : new Date())
+              .toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { month: 'long', year: 'numeric' }).toUpperCase();
             return (
               <section className="landing-sec">
                 <div className="sec-kicker">{cur.cat.name}</div>
                 <div className="lsec-title">🏆 {t.potmTitle}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#f3da8a', letterSpacing: '0.1em', margin: '6px 0 12px' }}>{monthDate}</div>
                 <div className="lsec-sub">{t.potmSub}</div>
                 <div style={{ display: 'flex', justifyContent: 'center', margin: '0 auto 22px', maxWidth: 270 }}>
                   <div style={{ width: '100%' }} key={cur.player.id}>
