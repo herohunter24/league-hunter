@@ -1305,7 +1305,7 @@ function App() {
         // Triple the list so the marquee loops seamlessly (translateX -33.333%)
         const loop = [...potmCards, ...potmCards, ...potmCards];
         // Adaptive speed: fast for a few players, slower for many
-        const duration = Math.max(10, potmCards.length * 7);
+        const duration = Math.max(6, potmCards.length * 3);
         return (
           <div className="potm-banner">
             <div className="potm-label">🏆 {t.potmTitle} · <b>{monthDate}</b></div>
