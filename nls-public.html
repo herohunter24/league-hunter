@@ -72,7 +72,8 @@
   .potm-viewport { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
   .potm-track { display: flex; gap: 12px; width: max-content; animation: potmScroll 26s linear infinite; }
   .potm-banner:hover .potm-track { animation-play-state: paused; }
-  @keyframes potmScroll { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }
+  /* Scrolls by exactly one copy's width (set via --scroll-percent) so the loop is seamless */
+  @keyframes potmScroll { from { transform: translateX(0); } to { transform: translateX(var(--scroll-percent, -33.333%)); } }
   .potm-chip { display: flex; align-items: center; gap: 9px; flex-shrink: 0; cursor: pointer; padding: 5px 16px 5px 5px; border: 1px solid var(--border); border-radius: 100px; background: var(--surface); transition: border-color 0.2s, transform 0.2s; }
   .potm-chip:hover { border-color: var(--orange); transform: translateY(-2px); }
   .potm-chip-photo { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ff-display); font-size: 15px; background: #23233a; border: 2px solid var(--border); }
@@ -1302,15 +1303,17 @@ function App() {
         const ym = potmData && potmData.month;
         const monthDate = (/^\d{4}-\d{2}$/.test(ym || '') ? new Date(ym + '-01T12:00') : new Date())
           .toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { month: 'long', year: 'numeric' }).toUpperCase();
-        // Triple the list so the marquee loops seamlessly (translateX -33.333%)
-        const loop = [...potmCards, ...potmCards, ...potmCards];
+        // Enough copies to fill the viewport (few players → many copies) so repetition reads as a seamless loop
+        const copies = Math.max(2, Math.ceil(10 / potmCards.length));
+        const loop = Array.from({ length: copies }, () => potmCards).flat();
+        const scrollPercent = 100 / copies; // translate by exactly one set's width
         // Adaptive speed: fast for a few players, slower for many
-        const duration = Math.max(6, potmCards.length * 3);
+        const duration = Math.max(3, potmCards.length * 1.5);
         return (
           <div className="potm-banner">
             <div className="potm-label">🏆 {t.potmTitle} · <b>{monthDate}</b></div>
             <div className="potm-viewport">
-              <div className="potm-track" style={{ animationDuration: `${duration}s` }}>
+              <div className="potm-track" style={{ animationDuration: `${duration}s`, '--scroll-percent': `-${scrollPercent}%` }}>
                 {loop.map((x, i) => {
                   const tier = TIERS[x.player.tier];
                   const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
