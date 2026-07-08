@@ -494,6 +494,11 @@
   .pmodal-left { position: sticky; top: 0; }
   .pm-name { font-family: var(--ff-display); font-size: 26px; line-height: 1; }
   .pm-sub { font-size: 13px; color: var(--ink-mid); margin-top: 6px; }
+  .pm-scout-btn { margin-top: 14px; background: none; border: 1px solid var(--orange); color: var(--orange); font-family: var(--ff-body); font-weight: 700; font-size: 12.5px; letter-spacing: 0.03em; padding: 9px 16px; border-radius: 100px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+  .pm-scout-btn:hover { background: var(--orange); color: #000; }
+  .pm-report { margin-top: 14px; padding: 16px 18px; border-left: 3px solid var(--orange); background: var(--surface-2); border-radius: 0 10px 10px 0; font-size: 14px; line-height: 1.7; color: var(--ink); font-style: italic; animation: bsIn 0.25s ease; }
+  .pm-report-h { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--orange); margin-bottom: 8px; }
+  @keyframes bsIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   .pm-section-t { font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--orange); margin: 22px 0 12px; }
   .pm-stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
   .pm-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 6px; text-align: center; }
@@ -581,6 +586,7 @@ const STR = {
     playersKicker: "Cartes à collectionner", playersTitle: "Joueurs",
     bestPlayers: "Trouve ta carte de joueur !", findByTeam: "Chercher par équipe", selectTeamPh: "Sélectionner une équipe", noTeamPlayers: "Aucun joueur dans cette équipe.",
     potmTitle: "Joueur du Mois", potmSub: "Le meilleur de chaque catégorie ce mois-ci", potwTitle: "Joueur de la Semaine", potwSub: "La meilleure performance de la semaine",
+    scoutBtn: "📋 Rapport de dépistage", scoutTitle: "Rapport de dépistage",
     searchPh: "Rechercher un joueur…", allTiers: "Tous les niveaux", allArch: "Tous les archétypes",
     statsKicker: "Meneurs de la ligue", statsTitle: "Statistiques",
     topScorers: "Meilleurs pointeurs", topRebounders: "Meilleurs rebondeurs", topPlaymakers: "Meilleurs passeurs",
@@ -618,6 +624,7 @@ const STR = {
     playersKicker: "Collectible cards", playersTitle: "Players",
     bestPlayers: "Find your player card!", findByTeam: "Find by team", selectTeamPh: "Select a team", noTeamPlayers: "No players in this team.",
     potmTitle: "Play of the Month", potmSub: "The best of each category this month", potwTitle: "Player of the Week", potwSub: "The week's top performance",
+    scoutBtn: "📋 Scouting Report", scoutTitle: "Scouting Report",
     searchPh: "Search player…", allTiers: "All tiers", allArch: "All archetypes",
     statsKicker: "League leaders", statsTitle: "Statistics",
     topScorers: "Top Scorers", topRebounders: "Top Rebounders", topPlaymakers: "Top Playmakers",
@@ -1001,8 +1008,57 @@ function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
   );
 }
 
+/* Coach-voice scouting report — generated client-side from the player's real stats (no API/key needed).
+   Pattern: statement → stat → observation → stat → positive growth area. */
+function scoutingReport(p, pGames, fgPct, lang) {
+  const pid = p.id;
+  const pts = pGames.map(g => +((g.playerStats[pid] || {}).points || 0)); // most-recent first
+  const last5 = pts.slice(0, 5);
+  const lo = last5.length ? Math.min(...last5) : 0;
+  const hi = last5.length ? Math.max(...last5) : 0;
+  const ppg = p.ppg || 0, rpg = p.rpg || 0, apg = p.apg || 0;
+  const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
+  const improving = last5.length >= 4 && avg(last5.slice(0, 3)) > avg(pts.slice(3, 8)) + 1;
+  const archEn = (p.arch && p.arch.en) || 'SCORER';
+  const f1 = ppg.toFixed(1), f2 = rpg.toFixed(1), f3 = apg.toFixed(1);
+
+  const DESC = {
+    fr: { ICON: "un joueur d'exception", CLOSER: "un finisseur né", SNIPER: "un vrai franc-tireur", ANCHOR: "un pilier dans la raquette", PLAYMAKER: "un vrai chef d'orchestre", SCORER: "un pur marqueur", REBOUNDER: "une force au rebond", DEFENDER: "un défenseur tenace", GRINDER: "un batailleur infatigable" },
+    en: { ICON: "a franchise-level talent", CLOSER: "a natural closer", SNIPER: "a real sharpshooter", ANCHOR: "an anchor in the paint", PLAYMAKER: "a true floor general", SCORER: "a pure scorer", REBOUNDER: "a force on the boards", DEFENDER: "a tenacious defender", GRINDER: "a relentless grinder" },
+  };
+
+  if (lang === 'fr') {
+    const desc = DESC.fr[archEn] || DESC.fr.SCORER;
+    const s1 = `${p.name}, c'est ${desc} — ${f1} points par match${fgPct ? ` à ${fgPct}% au tir` : ''}, c'est du solide à ce niveau.`;
+    const s2 = last5.length >= 3
+      ? (improving
+          ? `Et surtout il monte en puissance : sur ses ${last5.length} derniers matchs, il tourne entre ${lo} et ${hi} points.`
+          : `Ce qui ressort, c'est sa régularité — entre ${lo} et ${hi} points sur chacun de ses ${last5.length} derniers matchs.`)
+      : `Encore peu de matchs à son actif, mais les bases sont là.`;
+    const s3 = `Et il ne fait pas que scorer : ${f2} rebonds et ${f3} passes par match.`;
+    const growth = apg < 3 ? `S'il implique un peu plus ses coéquipiers (${f3} passes), il passe au niveau supérieur`
+                 : rpg < 4 ? `Un peu plus de présence au rebond (${f2}) et c'est un joueur complet`
+                 : `Il coche déjà à peu près toutes les cases`;
+    return `${s1} ${s2} ${s3} ${growth} — mais franchement, avec ce profil, qu'il continue comme ça.`;
+  }
+  const desc = DESC.en[archEn] || DESC.en.SCORER;
+  const s1 = `${p.name}'s ${desc} — ${f1} points a game${fgPct ? ` on ${fgPct}% shooting` : ''}, and that's real work at this level.`;
+  const s2 = last5.length >= 3
+    ? (improving
+        ? `Best part is he's trending up: over his last ${last5.length}, he's scoring between ${lo} and ${hi} every night.`
+        : `What stands out is the consistency — ${lo} to ${hi} points in each of his last ${last5.length} games.`)
+    : `Not many games in the book yet, but the tools are there.`;
+  const s3 = `And he's not just scoring: ${f2} boards and ${f3} assists a night.`;
+  const growth = apg < 3 ? `Get teammates a little more involved (${f3} APG) and he's a level up`
+               : rpg < 4 ? `A bit more on the glass (${f2} RPG) and he's the complete package`
+               : `He's already checking just about every box`;
+  return `${s1} ${s2} ${s3} ${growth} — but honestly, with this profile, keep doing what you're doing.`;
+}
+
 /* ═══════════ PLAYER PROFILE MODAL ═══════════ */
 function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare }) {
+  const [report, setReport] = useState(null);
+  useEffect(() => { setReport(null); }, [p.id, lang]); // fresh report per player / language
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -1037,6 +1093,14 @@ function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare }) {
           <div className="pmodal-right">
             <div className="pm-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>
             <div className="pm-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><TeamBadge team={team} size={18} /><span>{p.team}{p.pos ? ' · ' + p.pos : ''} · {p.arch[lang]}</span></div>
+
+            {!report && <button className="pm-scout-btn" onClick={() => setReport(scoutingReport(p, pGames, fgPct, lang))}>{t.scoutBtn}</button>}
+            {report && (
+              <div className="pm-report">
+                <div className="pm-report-h">📋 {t.scoutTitle}</div>
+                {report}
+              </div>
+            )}
 
             <div className="pm-section-t">{t.seasonStats}</div>
             <div className="pm-stats-grid">
