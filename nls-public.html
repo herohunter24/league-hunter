@@ -1009,50 +1009,77 @@ function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
 }
 
 /* Coach-voice scouting report — generated client-side from the player's real stats (no API/key needed).
-   Pattern: statement → stat → observation → stat → positive growth area. */
+   Classifies the player into a style (scorer, playmaker, rebounder, rising, clutch, specialist,
+   two-way, raw talent, grinder) so different profiles get different openers and emphasis. */
 function scoutingReport(p, pGames, fgPct, lang) {
   const pid = p.id;
-  const pts = pGames.map(g => +((g.playerStats[pid] || {}).points || 0)); // most-recent first
-  const last5 = pts.slice(0, 5);
-  const lo = last5.length ? Math.min(...last5) : 0;
-  const hi = last5.length ? Math.max(...last5) : 0;
-  const ppg = p.ppg || 0, rpg = p.rpg || 0, apg = p.apg || 0;
+  const get = k => pGames.map(g => +((g.playerStats[pid] || {})[k] || 0)); // most-recent first
+  const pts = get('points'), rebs = get('rebounds'), asts = get('assists');
   const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
-  const improving = last5.length >= 4 && avg(last5.slice(0, 3)) > avg(pts.slice(3, 8)) + 1;
+  const range = a => { const a5 = a.slice(0, 5); return a5.length ? { lo: Math.min(...a5), hi: Math.max(...a5) } : { lo: 0, hi: 0 }; };
+  const ptsR = range(pts), rebR = range(rebs);
+  const last5n = Math.min(5, pts.length);
+  const peak = pts.length ? Math.max(...pts) : 0;
+  const avgPts = avg(pts);
+  const gp = p.gp || pGames.length;
+  const ppg = p.ppg || 0, rpg = p.rpg || 0, apg = p.apg || 0;
+  const fg = fgPct != null ? parseFloat(fgPct) : null;
+  const improving = last5n >= 4 && avg(pts.slice(0, 3)) > avg(pts.slice(3, 8)) + 1.5;
   const archEn = (p.arch && p.arch.en) || 'SCORER';
-  const f1 = ppg.toFixed(1), f2 = rpg.toFixed(1), f3 = apg.toFixed(1);
+  const f = n => (n || 0).toFixed(1);
+  const fr = lang === 'fr';
 
-  const DESC = {
-    fr: { ICON: "un joueur d'exception", CLOSER: "un finisseur né", SNIPER: "un vrai franc-tireur", ANCHOR: "un pilier dans la raquette", PLAYMAKER: "un vrai chef d'orchestre", SCORER: "un pur marqueur", REBOUNDER: "une force au rebond", DEFENDER: "un défenseur tenace", GRINDER: "un batailleur infatigable" },
-    en: { ICON: "a franchise-level talent", CLOSER: "a natural closer", SNIPER: "a real sharpshooter", ANCHOR: "an anchor in the paint", PLAYMAKER: "a true floor general", SCORER: "a pure scorer", REBOUNDER: "a force on the boards", DEFENDER: "a tenacious defender", GRINDER: "a relentless grinder" },
+  // ── classify (first match wins) ──
+  let type;
+  if (improving && ppg >= 6) type = 'rising';
+  else if (pts.length >= 3 && peak >= 18 && peak >= avgPts * 1.5) type = 'clutch';
+  else if (archEn === 'PLAYMAKER' || (apg >= 4 && apg >= rpg)) type = 'playmaker';
+  else if (archEn === 'REBOUNDER' || archEn === 'ANCHOR' || rpg >= 7) type = 'rebounder';
+  else if (fg != null && fg >= 45 && ppg < 15) type = 'specialist';
+  else if (ppg >= 15) type = 'scorer';
+  else if (gp <= 3 || (ppg < 12 && fg != null && fg >= 38)) type = 'raw';
+  else if (ppg >= 8 && rpg >= 4 && apg >= 3) type = 'twoway';
+  else type = 'grinder';
+
+  const V = {
+    rising: {
+      fr: `${p.name} est clairement en pleine ascension. ${last5n >= 4 ? `Il monte à ${f(avg(pts.slice(0, 5)))} points sur ses ${last5n} derniers matchs` : `Sa progression saute aux yeux`} — exactement la trajectoire qu'on veut voir. Entre ${ptsR.lo} et ${ptsR.hi} points chaque soir en ce moment, il est en train de tout déverrouiller. Ce n'est que le début pour ce joueur.`,
+      en: `${p.name}'s on a real upswing right now. ${last5n >= 4 ? `He's up to ${f(avg(pts.slice(0, 5)))} a night over his last ${last5n}` : `The jump in his game is obvious`} — that's the trajectory you want to see. Between ${ptsR.lo} and ${ptsR.hi} points every night lately, he's clicking. This is just the beginning for this kid.`,
+    },
+    clutch: {
+      fr: `Quand ça compte, ${p.name} répond présent. Son meilleur match : ${peak} points, et il dépasse régulièrement la barre des ${Math.round(avgPts)} quand la pression monte. C'est la marque d'un joueur qui aime les grands moments. Canalise cette énergie.`,
+      en: `When it matters, ${p.name} shows up. His best game was ${peak} points, and you see him regularly clearing ${Math.round(avgPts)} when the pressure's on. That's the mark of a player who thrives in big moments. Channel that energy.`,
+    },
+    playmaker: {
+      fr: `${p.name} orchestre très bien le jeu — ${f(apg)} passes par match, il fait jouer tout le monde. Il ajoute ${f(ppg)} points, mais son vrai impact c'est la circulation de balle (c'est ça, un meneur). Qu'il continue à distribuer et le scoring viendra tout seul.`,
+      en: `${p.name}'s running the offense really well — ${f(apg)} assists a game, getting everyone involved. He's chipping in ${f(ppg)} points, but the real impact is ball movement (that's what a playmaker does). Keep facilitating and let the scoring come naturally.`,
+    },
+    rebounder: {
+      fr: `Ce joueur est un MONSTRE au rebond — ${f(rpg)} prises par match, c'est du vrai travail. ${last5n >= 3 ? `Chaque soir il se bat pour la position, ${rebR.lo} à ${rebR.hi} rebonds de manière constante` : `Il se bat pour chaque position`}. Il ajoute ${f(ppg)} points, donc il ne fait pas que rebondir, il se bat pour tout. C'est le genre d'énergie qui construit une culture gagnante.`,
+      en: `This kid is a MONSTER on the glass — ${f(rpg)} RPG is legit work. ${last5n >= 3 ? `Every night he's battling for position, ${rebR.lo} to ${rebR.hi} boards consistently` : `He's fighting for every position`}. He's adding ${f(ppg)} PPG too, so he's not just rebounding, he's fighting for everything. That's the kind of energy that builds a winning culture.`,
+    },
+    specialist: {
+      fr: `Ce qui rend ${p.name} dangereux, c'est son adresse — ${fg}% au tir, c'est du niveau élite. Il n'affiche pas de gros chiffres au scoring (${f(ppg)} points), mais quand il a ses positions, il est mortel. Sa précision est une vraie arme pour cette équipe.`,
+      en: `What makes ${p.name} dangerous is the shooting — ${fg}% from the field is elite. He's not putting up huge scoring numbers (${f(ppg)} PPG), but when he gets his looks, he's lethal. That accuracy is a real weapon for this team.`,
+    },
+    scorer: {
+      fr: `${p.name} fait son truc — ${f(ppg)} points par match, ça parle tout seul. ${last5n >= 3 ? `Il plante ${ptsR.lo}+ points de manière régulière` : `Il trouve toujours le chemin du panier`}, exactement ce qu'on attend de sa menace offensive. Un secteur qu'il développe, c'est le rebond (${f(rpg)}), mais franchement, laisse-le se concentrer sur ce qu'il fait de mieux.`,
+      en: `${p.name}'s doing his thing — ${f(ppg)} PPG speaks for itself. ${last5n >= 3 ? `He's been dropping ${ptsR.lo}+ points consistently` : `He always finds a way to the basket`}, exactly what you want from your scoring threat. One area he's developing is rebounding (${f(rpg)}), but honestly, let him focus on what he does best.`,
+    },
+    raw: {
+      fr: `On voit le potentiel ici. ${p.name} tourne à ${f(ppg)} points pour l'instant, mais regarde son geste de tir (${fg != null ? `${fg}% au tir` : 'sa mécanique'}) — c'est de la vraie technique, pas de la chance. Il est encore en train d'apprendre, mais les outils sont là. Laisse-lui du temps et il va exploser.`,
+      en: `You see the potential here. ${p.name}'s only averaging ${f(ppg)} PPG right now, but watch his shooting form (${fg != null ? `${fg}% FG` : 'his mechanics'}) — that's real technique, not luck. He's still figuring it out, but the tools are there. Give him time and he's going to break out.`,
+    },
+    twoway: {
+      fr: `${p.name} coche toutes les cases — ${f(ppg)} points, ${f(rpg)} rebonds, ${f(apg)} passes. Il ne domine aucune catégorie, mais il est solide partout. Ce genre de polyvalence est précieux : il peut s'adapter à différents adversaires.`,
+      en: `${p.name}'s doing the full package — ${f(ppg)} PPG, ${f(rpg)} RPG, ${f(apg)} APG. He's not leading in any category, but he's solid everywhere. That kind of versatility is valuable because he can match up against different players.`,
+    },
+    grinder: {
+      fr: `Ce que je respecte chez ${p.name}, c'est la régularité. Rien de spectaculaire, mais il est là à chaque match — ${f(ppg)} points, ${f(rpg)} rebonds, un joueur d'équipe complet. ${last5n >= 3 ? `Les 5 derniers matchs ? Même histoire, même intensité` : `Toujours la même intensité`}. Il a les bases pour devenir un vrai joueur de rotation solide.`,
+      en: `What I respect about ${p.name} is the consistency. Nothing flashy, but he shows up every single game — ${f(ppg)} PPG, ${f(rpg)} RPG, solid all-around. ${last5n >= 3 ? `Last 5 games? Same story, same effort` : `Same effort every time out`}. He's got the foundation to grow into a solid role player.`,
+    },
   };
-
-  if (lang === 'fr') {
-    const desc = DESC.fr[archEn] || DESC.fr.SCORER;
-    const s1 = `${p.name}, c'est ${desc} — ${f1} points par match${fgPct ? ` à ${fgPct}% au tir` : ''}, c'est du solide à ce niveau.`;
-    const s2 = last5.length >= 3
-      ? (improving
-          ? `Et surtout il monte en puissance : sur ses ${last5.length} derniers matchs, il tourne entre ${lo} et ${hi} points.`
-          : `Ce qui ressort, c'est sa régularité — entre ${lo} et ${hi} points sur chacun de ses ${last5.length} derniers matchs.`)
-      : `Encore peu de matchs à son actif, mais les bases sont là.`;
-    const s3 = `Et il ne fait pas que scorer : ${f2} rebonds et ${f3} passes par match.`;
-    const growth = apg < 3 ? `S'il implique un peu plus ses coéquipiers (${f3} passes), il passe au niveau supérieur`
-                 : rpg < 4 ? `Un peu plus de présence au rebond (${f2}) et c'est un joueur complet`
-                 : `Il coche déjà à peu près toutes les cases`;
-    return `${s1} ${s2} ${s3} ${growth} — mais franchement, avec ce profil, qu'il continue comme ça.`;
-  }
-  const desc = DESC.en[archEn] || DESC.en.SCORER;
-  const s1 = `${p.name}'s ${desc} — ${f1} points a game${fgPct ? ` on ${fgPct}% shooting` : ''}, and that's real work at this level.`;
-  const s2 = last5.length >= 3
-    ? (improving
-        ? `Best part is he's trending up: over his last ${last5.length}, he's scoring between ${lo} and ${hi} every night.`
-        : `What stands out is the consistency — ${lo} to ${hi} points in each of his last ${last5.length} games.`)
-    : `Not many games in the book yet, but the tools are there.`;
-  const s3 = `And he's not just scoring: ${f2} boards and ${f3} assists a night.`;
-  const growth = apg < 3 ? `Get teammates a little more involved (${f3} APG) and he's a level up`
-               : rpg < 4 ? `A bit more on the glass (${f2} RPG) and he's the complete package`
-               : `He's already checking just about every box`;
-  return `${s1} ${s2} ${s3} ${growth} — but honestly, with this profile, keep doing what you're doing.`;
+  return V[type][fr ? 'fr' : 'en'];
 }
 
 /* ═══════════ PLAYER PROFILE MODAL ═══════════ */
