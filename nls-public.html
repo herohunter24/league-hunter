@@ -1019,6 +1019,67 @@ function scoutingReport(p, pGames, fgPct, lang) {
   const ppg = p.ppg || 0, rpg = p.rpg || 0, apg = p.apg || 0, spg = p.spg || 0, bpg = p.bpg || 0;
   const fg = fgPct != null ? parseFloat(fgPct) : null;
   const gp = p.gp || pGames.length;
+
+  // ── FALLBACK: no usable data yet (never played, or played with nothing recorded) ──
+  // Rotate friendly / professional / casual tones (deterministic per player so it's stable).
+  if (gp === 0 || (ppg === 0 && rpg === 0 && apg === 0 && spg === 0 && bpg === 0)) {
+    const seedF = String(p.id).split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+    const FB = fr ? {
+      friendly: [
+        `Ce joueur est prêt à marquer les esprits ! Le rapport arrivera après ses premiers matchs.`,
+        `Hâte de voir ce qu'il va apporter — un peu de temps de jeu et le rapport complet sera prêt.`,
+        `Le potentiel est là, reste à le voir à l'œuvre. Rapport à venir après quelques matchs.`,
+        `Bientôt disponible ! Dès que ce joueur foulera le parquet, on aura une analyse complète.`,
+        `Nouveau visage dans l'effectif — le rapport se génère dès qu'il joue un peu.`,
+        `Vraiment hâte de le voir en action. Rapport de dépistage bientôt disponible.`,
+      ],
+      professional: [
+        `Données de match insuffisantes. Un rapport sera généré après 2 à 3 matchs.`,
+        `Aucune statistique enregistrée. Un rapport complet sera disponible après participation en match.`,
+        `Données du joueur en attente. L'analyse sera fournie dès que des statistiques seront enregistrées.`,
+        `Aucun historique de match disponible. Un rapport sera généré après ses débuts.`,
+        `Analyse en attente — des données de performance sont nécessaires pour générer un rapport.`,
+        `Collecte de données en cours. Le rapport sera disponible une fois des matchs joués.`,
+      ],
+      casual: [
+        `Pas encore d'images de match — impossible de dépister ce qu'on n'a pas vu. Monte sur le terrain et montre-nous ça !`,
+        `Zéro stat pour l'instant. Prends quelques minutes de jeu et on aura le topo complet.`,
+        `On attend qu'il entre sur le terrain. Dès qu'il joue, le rapport est prêt.`,
+        `Pas assez de données — mais on est prêts quand tu l'es. Joue quelques matchs et on aura l'analyse.`,
+        `Le tableau d'affichage est vide pour l'instant. Un peu de temps de jeu et on sort le rapport complet.`,
+        `Impossible d'écrire un rapport sans te voir jouer. On se donne quelques matchs et on en reparle.`,
+      ],
+    } : {
+      friendly: [
+        `This player is ready to make an impact! The scouting report will be ready after their first few games.`,
+        `We're excited to see what they bring — get some game time and we'll have a full report ready.`,
+        `The potential is there — let's see it in action. Report coming once they log a few games.`,
+        `Coming soon! Once this player takes the court, we'll have a complete breakdown ready.`,
+        `Fresh talent on the roster — the scouting report generates once they get some minutes.`,
+        `Can't wait to see this one in action. Scouting report coming soon.`,
+      ],
+      professional: [
+        `Insufficient game data available. A scouting report will be generated after 2–3 games.`,
+        `No statistical data recorded. A comprehensive report will be available following game participation.`,
+        `Player data pending. Scouting analysis will be provided once performance metrics are recorded.`,
+        `No game history available. A scouting report will be generated following their debut.`,
+        `Analysis pending — player performance data is required to generate a report.`,
+        `Data collection in progress. The scouting report will be available upon game completion.`,
+      ],
+      casual: [
+        `No game tape yet — can't scout what we haven't seen. Get on the court and show us what you've got!`,
+        `Zero stats so far. Get some minutes under your belt and we'll have the full breakdown ready.`,
+        `Waiting on this one to take the floor. Once they do, the report's ready.`,
+        `Not enough data yet — but we're ready when you are. Play a few and we'll have the intel.`,
+        `Scoreboard's blank right now. Get some playing time and we'll have the full report.`,
+        `Can't write a report without seeing you play. Let's get some game time and we'll talk.`,
+      ],
+    };
+    const tones = ['friendly', 'professional', 'casual'];
+    const pool = FB[tones[seedF % 3]];
+    return pool[Math.floor(seedF / 3) % pool.length];
+  }
+
   const small = gp > 0 && gp < 5;
   const pts = pGames.map(g => +((g.playerStats[p.id] || {}).points || 0));
   const last5 = pts.slice(0, 5), last5n = last5.length;
