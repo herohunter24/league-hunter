@@ -1008,80 +1008,148 @@ function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
   );
 }
 
-/* Coach-voice scouting report — generated client-side from the player's real stats (no API/key needed).
-   Ranks each stat by how exceptional it is (vs a benchmark) so the MOST exceptional stat headlines
-   the report — elite scoring is never buried. References the archetype, flags 0-value defensive
-   stats as development areas, and softens conclusions on small samples. */
+/* Coach-voice scouting report — generated client-side (no API/key needed).
+   Ranks stats by exceptionality (value / benchmark) so the standout headlines the report, then
+   assembles opener + credibility + development + closer from large seeded pools — deterministic
+   per player (stable) but varied across players. Flags 0-defense, softens small samples, FR/EN. */
 function scoutingReport(p, pGames, fgPct, lang) {
   const fr = lang === 'fr';
   const f = n => (n || 0).toFixed(1);
+  const name = p.name;
   const ppg = p.ppg || 0, rpg = p.rpg || 0, apg = p.apg || 0, spg = p.spg || 0, bpg = p.bpg || 0;
   const fg = fgPct != null ? parseFloat(fgPct) : null;
   const gp = p.gp || pGames.length;
-  const smallSample = gp > 0 && gp < 5;
+  const small = gp > 0 && gp < 5;
+  const pts = pGames.map(g => +((g.playerStats[p.id] || {}).points || 0));
+  const last5 = pts.slice(0, 5), last5n = last5.length;
+  const lo = last5n ? Math.min(...last5) : 0, hi = last5n ? Math.max(...last5) : 0;
+  const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
+  const improving = last5n >= 4 && avg(pts.slice(0, 3)) > avg(pts.slice(3, 8)) + 1.5;
   const archEn = (p.arch && p.arch.en) || 'SCORER';
-  const archWord = (p.arch && p.arch[lang]) ? p.arch[lang].toLowerCase() : (fr ? 'joueur' : 'player');
   const archSig = ['SNIPER', 'SCORER', 'CLOSER', 'ICON'].includes(archEn) ? 'pts'
-                : archEn === 'PLAYMAKER' ? 'ast'
-                : ['REBOUNDER', 'ANCHOR'].includes(archEn) ? 'reb' : 'pts';
-
-  // Exceptionality = value / benchmark (rec-league "strong" line). Archetype signature gets a light nudge.
-  const meta = {
-    pts: { val: ppg, bench: 15, fr: { unit: 'points', area: 'au scoring' }, en: { unit: 'PPG', area: 'scoring' } },
-    reb: { val: rpg, bench: 7,  fr: { unit: 'rebonds', area: 'au rebond' }, en: { unit: 'RPG', area: 'rebounding' } },
-    ast: { val: apg, bench: 5,  fr: { unit: 'passes', area: 'à la passe' }, en: { unit: 'APG', area: 'playmaking' } },
-  };
-  const ranked = Object.keys(meta)
-    .map(k => ({ k, ...meta[k], ratio: (meta[k].val / meta[k].bench) * (k === archSig ? 1.25 : 1) }))
-    .sort((a, b) => b.ratio - a.ratio);
+                : archEn === 'PLAYMAKER' ? 'ast' : ['REBOUNDER', 'ANCHOR'].includes(archEn) ? 'reb' : 'pts';
+  const bench = { pts: 15, reb: 7, ast: 5 };
+  const ranked = [['pts', ppg], ['reb', rpg], ['ast', apg]]
+    .map(([k, v]) => ({ k, v, r: (v / bench[k]) * (k === archSig ? 1.25 : 1) }))
+    .sort((a, b) => b.r - a.r);
   const lead = ranked[0], second = ranked[1], low = ranked[2];
-  const elite = s => s.ratio >= 1.6;
-  const L = o => fr ? o.fr : o.en;
+  const category = improving ? 'rising' : (lead.r - low.r < 0.5) ? 'balanced'
+                 : lead.k === 'pts' ? 'scorer' : lead.k === 'reb' ? 'rebounder' : 'playmaker';
+  const seed = String(p.id).split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+  const pick = (arr, salt) => arr[(seed + salt) % arr.length];
+  const U = fr ? { pts: 'points', reb: 'rebonds', ast: 'passes' } : { pts: 'PPG', reb: 'RPG', ast: 'APG' };
+  const AR = fr ? { pts: 'au scoring', reb: 'au rebond', ast: 'à la passe' } : { pts: 'scoring', reb: 'rebounding', ast: 'playmaking' };
 
-  // ── Sentence 1: headline the most exceptional stat, tie it to the archetype ──
-  let s1;
-  const aligned = lead.k === archSig; // does the top stat match the player's archetype?
-  if (lead.k === 'pts') {
-    s1 = fr
-      ? `${p.name} est une machine à scorer — ${f(ppg)} points par match${fg != null ? ` à ${fg}% au tir` : ''}${elite(lead) ? ', du calibre arcade' : ''}. ${aligned ? `Exactement ce qu'on attend d'un ${archWord}.` : `Étiqueté ${archWord}, mais c'est d'abord un buteur.`}`
-      : `${p.name} is a scoring machine — ${f(ppg)} PPG${fg != null ? ` on ${fg}% shooting` : ''}${elite(lead) ? ', video-game level' : ''}. ${aligned ? `Exactly what you want from a ${archWord}.` : `Tagged a ${archWord}, but first and foremost he's a bucket-getter.`}`;
-  } else if (lead.k === 'reb') {
-    s1 = fr
-      ? `${p.name} règne au rebond — ${f(rpg)} prises par match${elite(lead) ? ', un vrai monstre du verre' : ''}, il se bat sur chaque possession.`
-      : `${p.name} owns the glass — ${f(rpg)} RPG${elite(lead) ? ', an absolute monster' : ''}, battling every possession.`;
-  } else {
-    s1 = fr
-      ? `${p.name} orchestre l'attaque — ${f(apg)} passes par match, il fait jouer tout le monde.`
-      : `${p.name} runs the offense — ${f(apg)} assists a game, getting everyone involved.`;
-  }
+  // ── OPENER POOLS (by profile; lead stat woven in) ──
+  const OPEN = fr ? {
+    scorer: [
+      `${name}, c'est un scoreur pur et dur — ${f(ppg)} points par match.`,
+      `Ce qui saute aux yeux tout de suite, c'est le volume : ${f(ppg)} points par soir.`,
+      `On parle d'un rendement offensif d'élite — ${f(ppg)} points par match.`,
+      `${name} porte l'attaque sur ses épaules, ${f(ppg)} points à lui seul.`,
+      `Le scoring parle de lui-même : ${f(ppg)} points par match.`,
+      `${name} ne se contente pas de marquer, il domine — ${f(ppg)} points par match.`,
+      `Des chiffres comme ${f(ppg)} points par match, ça ne ment pas.`,
+    ],
+    rebounder: [
+      `${name} est un monstre au rebond — ${f(rpg)} prises par match.`,
+      `Ce qui ressort, c'est sa mainmise sur le verre : ${f(rpg)} rebonds par match.`,
+      `Il se bat sur chaque possession, ${f(rpg)} rebonds de moyenne.`,
+      `Un effort au rebond comme ${f(rpg)} par match, c'est du sérieux.`,
+      `Il va chercher ${f(rpg)} ballons par soir — rien à voir avec la chance.`,
+      `Joueur physique qui comprend le placement, ${f(rpg)} rebonds par match.`,
+    ],
+    playmaker: [
+      `Ce qui ressort, c'est sa gestion du jeu — ${f(apg)} passes par match.`,
+      `Le ballon circule mieux quand il est là : ${f(apg)} passes par match.`,
+      `Un vrai distributeur, ${f(apg)} passes décisives par match.`,
+      `Il rend ses coéquipiers meilleurs, ${f(apg)} passes par soir.`,
+      `Sa vision du jeu est réelle — ${f(apg)} passes le prouvent.`,
+      `Mentalité passe-d'abord, ${f(apg)} caviars par match.`,
+    ],
+    balanced: [
+      `${name} apporte de l'équilibre — ${f(ppg)} pts, ${f(rpg)} rbds, ${f(apg)} passes.`,
+      `Ce que j'aime, c'est qu'il n'est pas unidimensionnel : solide partout.`,
+      `Fiable dans tous les secteurs — ${f(ppg)} pts, ${f(rpg)} rbds, ${f(apg)} passes.`,
+      `Tu obtiens scoring, passe et rebond dans le même joueur.`,
+      `Ce genre de polyvalence, ça a de la valeur.`,
+      `Joueur complet à son poste : ${f(ppg)}/${f(rpg)}/${f(apg)}.`,
+    ],
+    rising: [
+      `${name} est en pleine ascension.`,
+      `On voit la progression se faire, match après match.`,
+      `La trajectoire est claire — il monte en puissance.`,
+      `Discret en début de saison, il est en train de tout déverrouiller.`,
+      `Échantillon encore court, mais la courbe est nette.`,
+    ],
+  } : {
+    scorer: [
+      `${name}'s a flat-out scorer — ${f(ppg)} PPG.`,
+      `What jumps out immediately is the scoring volume: ${f(ppg)} a night.`,
+      `You're looking at elite-level output here — ${f(ppg)} PPG.`,
+      `${name}'s putting the team on his back with ${f(ppg)} PPG.`,
+      `The scoring speaks for itself — ${f(ppg)} points a night.`,
+      `${name} doesn't just score — he dominates, ${f(ppg)} PPG.`,
+      `Numbers like ${f(ppg)} PPG don't lie.`,
+    ],
+    rebounder: [
+      `${name}'s a monster on the glass — ${f(rpg)} RPG.`,
+      `What stands out is how he owns the boards: ${f(rpg)} a game.`,
+      `Every possession he's battling for position — ${f(rpg)} RPG.`,
+      `Rebounding effort like ${f(rpg)} a game is serious work.`,
+      `He's pulling ${f(rpg)} boards consistently — no luck there.`,
+      `Physical player who understands positioning, ${f(rpg)} RPG.`,
+    ],
+    playmaker: [
+      `What stands out is how he runs the offense — ${f(apg)} APG.`,
+      `Ball movement improves when he's on the court: ${f(apg)} a game.`,
+      `He's a true facilitator at ${f(apg)} assists per game.`,
+      `Getting teammates involved at ${f(apg)} APG shows real unselfishness.`,
+      `Court vision is legit — ${f(apg)} APG tells the story.`,
+      `Pass-first mentality at ${f(apg)} a night.`,
+    ],
+    balanced: [
+      `${name} brings balance — ${f(ppg)} PPG, ${f(rpg)} RPG, ${f(apg)} APG.`,
+      `What I like is he's not one-dimensional — reliable everywhere.`,
+      `Solid contributor across the board: ${f(ppg)}/${f(rpg)}/${f(apg)}.`,
+      `You get scoring AND playmaking AND rebounding in one player.`,
+      `That kind of versatility is valuable.`,
+      `Complete player for his position — ${f(ppg)}/${f(rpg)}/${f(apg)}.`,
+    ],
+    rising: [
+      `${name}'s on a real upswing.`,
+      `You can see the progression happening game to game.`,
+      `Trending in the right direction.`,
+      `Started the season quiet, now he's clicking.`,
+      `Early sample, but the trajectory is clear.`,
+    ],
+  };
 
-  // ── Sentence 2: the #2 stat as a complementary strength (never downplaying the lead) ──
-  const s2 = fr
-    ? `${elite(second) ? "Et il ne s'arrête pas là" : 'En complément'} : ${f(second.val)} ${second.fr.unit} par match, ${elite(second) ? 'lui aussi au-dessus du lot' : 'un vrai plus'} — une menace complète.`
-    : `${elite(second) ? "And he doesn't stop there" : 'On top of that'}: ${f(second.val)} ${second.en.unit} a game, ${elite(second) ? 'also well above the bar' : 'a real plus'} — a complete threat.`;
+  // ── ANGLES (credibility / secondary / development) ──
+  const angle = {
+    eff: fg != null ? (fr ? `Et ce n'est pas qu'une question de volume : ${fg}% au tir, de la vraie efficacité.` : `And it's not just volume — ${fg}% from the field is real efficiency.`) : null,
+    consist: last5n >= 3 ? (fr ? `Sur ses ${last5n} derniers matchs il tourne entre ${lo} et ${hi} points, le standard est posé.` : `Over his last ${last5n} he's between ${lo} and ${hi} points — that's the standard he's set.`) : null,
+    second: (fr ? `Il ajoute ${f(second.v)} ${U[second.k]} par match, une menace vraiment complète.` : `He's adding ${f(second.v)} ${U[second.k]} a game — a genuinely complete threat.`),
+    defenseGap: (spg === 0 && bpg === 0) ? (fr ? `Le vrai axe de progression, c'est la défense : 0 interception et 0 contre, du placement et de la lecture à travailler.` : `The real development area is defense: 0 steals, 0 blocks — positioning and reads to build on.`) : null,
+    growthLow: low.r < 0.7 ? (fr ? `Il peut encore hausser le ton ${AR[low.k]} (${f(low.v)}), mais la fondation est là.` : `He can raise his game ${AR[low.k]} (${f(low.v)}), but the foundation's there.`) : null,
+    defenseGood: (spg > 0 || bpg > 0) ? (fr ? `Il pèse aussi en défense (${f(spg)} int., ${f(bpg)} contres).` : `He shows up on defense too (${f(spg)} STL, ${f(bpg)} BLK).`) : null,
+  };
+  const used = new Set();
+  const take = prefs => { for (const a of prefs) if (!used.has(a) && angle[a]) { used.add(a); return angle[a]; } return null; };
+  const s2 = take(['eff', 'consist', 'second']) || angle.second;
+  const s3 = (spg === 0 && bpg === 0) ? angle.defenseGap : (take(['second', 'consist', 'growthLow', 'defenseGood']) || angle.growthLow || angle.defenseGood || '');
 
-  // ── Sentence 3: development area — flag zeroed-out defense first, else the weakest stat ──
-  let s3;
-  if (spg === 0 && bpg === 0) {
-    s3 = fr
-      ? `Le vrai chantier, c'est la défense : 0 interception et 0 contre, il y a du terrain à gagner sur le placement et la lecture du jeu.`
-      : `The real development area is defense: 0 steals and 0 blocks, so there's ground to gain on positioning and reading the play.`;
-  } else if (low.ratio < 0.7) {
-    s3 = fr
-      ? `Il peut encore hausser le niveau ${low.fr.area} (${f(low.val)}), mais les fondations sont là.`
-      : `He can still raise his game ${low.en.area} (${f(low.val)}), but the foundation is there.`;
-  } else {
-    s3 = fr ? `Défensivement il apporte aussi (${f(spg)} int., ${f(bpg)} contres), un profil vraiment complet.`
-            : `He shows up defensively too (${f(spg)} STL, ${f(bpg)} BLK) — a genuinely complete profile.`;
-  }
+  // ── CLOSER POOLS ──
+  const CLOSE = fr
+    ? [`Qu'il continue comme ça et on tient un vrai joueur.`, `C'est le standard qu'il doit maintenir.`, `Les outils sont là — reste à les développer.`, `Un vrai potentiel de joueur qui fait la différence.`, `Il file vers quelque chose de spécial.`, `C'est le genre de performance qui fait grimper les niveaux.`, `On peut bâtir une équipe autour de chiffres pareils.`, `La base est solide, continue de construire.`]
+    : [`Keep this up and you're looking at a legit player.`, `That's the standard he needs to maintain.`, `The tools are there — keep developing them.`, `Real potential to be a difference-maker.`, `Trending toward something special.`, `That's the kind of performance that moves you up tiers.`, `You can build a team around numbers like these.`, `The foundation is solid — keep building.`];
+  const CLOSE_SMALL = fr
+    ? [`Échantillon encore réduit (${gp} match${gp > 1 ? 's' : ''}), mais très prometteur.`, `Tôt dans la saison, mais ce qu'on voit donne envie.`, `À confirmer sur la durée, mais les signaux sont bons.`]
+    : [`Small sample so far (${gp} game${gp > 1 ? 's' : ''}), but very promising.`, `Early days, but what's on tape is exciting.`, `Needs a bigger sample, but the signs are good.`];
 
-  // ── Sentence 4: soften conclusions on a small sample, else encourage ──
-  const s4 = smallSample
-    ? (fr ? `Échantillon encore réduit (${gp} match${gp > 1 ? 's' : ''}) — à confirmer, mais très prometteur.`
-          : `Still a small sample (${gp} game${gp > 1 ? 's' : ''}) — early, but very promising.`)
-    : (fr ? `Qu'il continue exactement comme ça.` : `Keep doing exactly this.`);
-
-  return `${s1} ${s2} ${s3} ${s4}`;
+  const opener = pick(OPEN[category] || OPEN.balanced, 1);
+  const closer = pick(small ? CLOSE_SMALL : CLOSE, 3);
+  return [opener, s2, s3, closer].filter(Boolean).join(' ');
 }
 
 /* ═══════════ PLAYER PROFILE MODAL ═══════════ */
