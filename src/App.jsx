@@ -36,8 +36,13 @@ function buildPageUrl(cat, tab, playerId, gameId) {
   return window.location.pathname + '?' + sp.toString();
 }
 
+const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const displayCatName = (name, t) => (t.catNames && t.catNames[name]) || name;
+
 export default function App() {
-  const [lang, setLang] = useState(DEFAULT_LANG);
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem('nls_lang') || DEFAULT_LANG; } catch { return DEFAULT_LANG; }
+  });
   const t = STR[lang];
 
   const data = useLeagueData();
@@ -58,6 +63,12 @@ export default function App() {
     const c = (ps.accentColor || '').trim();
     document.documentElement.style.setProperty('--orange', /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ff6b1a');
   }, [ps.accentColor]);
+
+  useEffect(() => {
+    try { localStorage.setItem('nls_lang', lang); } catch {}
+    document.documentElement.lang = lang;
+    document.title = t.pageTitle || 'NLS';
+  }, [lang, t.pageTitle]);
 
   useEffect(() => {
     if (!LEAGUE_ID || !db) return;
@@ -315,7 +326,7 @@ export default function App() {
                 return (
                   <div key={i} className="potm-chip" onClick={() => openPlayerModal(x.player)}>
                     <div className="potm-chip-name" style={{ color: tColor }}>{x.player.name}</div>
-                    {effectiveCats.length > 1 && <div className="potm-chip-cat">· {x.cat.name}</div>}
+                    {effectiveCats.length > 1 && <div className="potm-chip-cat">· {displayCatName(x.cat.name, t)}</div>}
                   </div>
                 );
               })}
@@ -420,7 +431,7 @@ export default function App() {
           <div className="cat-grid">
             {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
               <button key={c.id} className="cat-btn" onClick={() => selectCat(c.id)}>
-                <div className="cat-btn-icon">🏀</div>{c.name}
+                <div className="cat-btn-icon">🏀</div>{displayCatName(c.name, t)}
               </button>
             ))}
           </div>
@@ -432,7 +443,7 @@ export default function App() {
 
       {/* ── CATEGORY HEADER + TAB NAV ── */}
       {selectedCat && (() => {
-        const catName = (effectiveCats.find(c => c.id === selectedCat) || {}).name || '';
+        const catName = displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
         const tabs = [
           ps.showStandings !== false && ['standings', t.navStandings],
           ps.showSchedule !== false && ['schedule', t.navSchedule],
@@ -495,7 +506,7 @@ export default function App() {
                       </div>
                     </td>
                     <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
-                    <td className="hide-m" style={{ color: 'var(--ink-mid)' }}>{(tm.pct * 100).toFixed(1)}%</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)' }}>{fmtN(tm.pct * 100, lang)}{lang === 'fr' ? ' %' : '%'}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pf || 0}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pa || 0}</td>
                     <td className="hide-m">
@@ -508,7 +519,7 @@ export default function App() {
                         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 10 }}>{t.roster}</div>
                         <div className="roster-chips">
                           {PLAYERS.filter(p => p.team === tm.name).map(p => (
-                            <span key={p.id} className="roster-chip"><b>{p.name}</b> · {p.pos} · {p.ppg.toFixed(1)} {t.ppg}</span>
+                            <span key={p.id} className="roster-chip"><b>{p.name}</b> · {p.pos} · {fmtN(p.ppg, lang)} {t.ppg}</span>
                           ))}
                         </div>
                       </td>
@@ -636,7 +647,7 @@ export default function App() {
                       <div className="leader-team">{p.team}</div>
                       <div className="leader-bar"><div className="leader-bar-fill" style={{ width: ((p[key] || 0) / max * 100) + '%' }}></div></div>
                     </div>
-                    <span className="leader-val">{(p[key] || 0).toFixed(1)}</span>
+                    <span className="leader-val">{fmtN(p[key] || 0, lang)}</span>
                   </div>
                 ))}
               </div>
@@ -669,7 +680,7 @@ export default function App() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>{COPYRIGHT}</span>
+          <span>{t.copyright || COPYRIGHT}</span>
           <span>{t.footerPowered} <strong style={{ color: 'var(--ink-mid)' }}>League Hunter</strong></span>
         </div>
       </footer>

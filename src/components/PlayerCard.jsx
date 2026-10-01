@@ -3,6 +3,8 @@ import { formatHeight, formatWeight } from '../lib/data.js';
 import { TeamBadge } from './TeamBadge.jsx';
 import { SafeImage, PlayerSilhouette } from './SafeImage.jsx';
 
+const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
@@ -16,7 +18,7 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
           <span className="pc-league">NLS</span>
           <div className="pc-tier-block">
             <div className="pc-tier">{tier.label}</div>
-            <div className="pc-arch">{p.arch[lang]}</div>
+            <div className="pc-arch">{(p.arch[lang] || '').charAt(0).toUpperCase() + (p.arch[lang] || '').slice(1).toLowerCase()}</div>
           </div>
         </div>
         <div className="pc-photo">
@@ -37,9 +39,9 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
           {(fh || fw) && <div className="pc-meta" style={{ marginTop: 2, opacity: 0.55 }}>{fh}{fh && fw ? ' • ' : ''}{fw}</div>}
         </div>
         <div className="pc-stats">
-          <div className="pc-stat"><div className="pc-stat-v">{p.ppg.toFixed(1)}</div><div className="pc-stat-k">{t.ppg}</div></div>
-          <div className="pc-stat"><div className="pc-stat-v">{p.rpg.toFixed(1)}</div><div className="pc-stat-k">{t.rpg}</div></div>
-          <div className="pc-stat"><div className="pc-stat-v">{p.apg.toFixed(1)}</div><div className="pc-stat-k">{t.apg}</div></div>
+          <div className="pc-stat"><div className="pc-stat-v">{fmtN(p.ppg, lang)}</div><div className="pc-stat-k">{t.ppg}</div></div>
+          <div className="pc-stat"><div className="pc-stat-v">{fmtN(p.rpg, lang)}</div><div className="pc-stat-k">{t.rpg}</div></div>
+          <div className="pc-stat"><div className="pc-stat-v">{fmtN(p.apg, lang)}</div><div className="pc-stat-k">{t.apg}</div></div>
         </div>
       </div>
       <button className="pc-share" title={t.download} onClick={e => { e.stopPropagation(); onShare(p); }}>⤓</button>

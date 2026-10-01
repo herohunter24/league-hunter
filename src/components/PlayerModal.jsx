@@ -20,14 +20,19 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
     .filter(g => g.hs !== null && g.playerStats && g.playerStats[pid] !== undefined)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const sumK = k => pGames.reduce((s, g) => s + (+((g.playerStats[pid] || {})[k] || 0)), 0);
-  const fgPct = sumK('fga') > 0 ? (sumK('fgm') / sumK('fga') * 100).toFixed(1) : null;
-  const ftPct = sumK('fta') > 0 ? (sumK('ftm') / sumK('fta') * 100).toFixed(1) : null;
+  const locale = lang === 'fr' ? 'fr-CA' : 'en-CA';
+  const pctSuffix = lang === 'fr' ? ' %' : '%';
+  const fmtN = n => (+(n || 0)).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const fgRaw = sumK('fga') > 0 ? (sumK('fgm') / sumK('fga') * 100) : null;
+  const ftRaw = sumK('fta') > 0 ? (sumK('ftm') / sumK('fta') * 100) : null;
+  const fgPct = fgRaw !== null ? fgRaw.toFixed(1) : null;
+  const ftPct = ftRaw !== null ? ftRaw.toFixed(1) : null;
   const prog = getPlayerProgression(p.rp);
   const statCells = [
-    ['PTS/G', p.ppg.toFixed(1)], ['REB/G', p.rpg.toFixed(1)], ['AST/G', p.apg.toFixed(1)],
-    ['STL/G', (p.spg || 0).toFixed(1)], ['BLK/G', (p.bpg || 0).toFixed(1)],
-    ...(fgPct !== null ? [['FG%', fgPct + '%']] : []),
-    ...(ftPct !== null ? [['FT%', ftPct + '%']] : []),
+    [t.ppg, fmtN(p.ppg)], [t.rpg, fmtN(p.rpg)], [t.apg, fmtN(p.apg)],
+    [t.spg, fmtN(p.spg || 0)], [t.bpg, fmtN(p.bpg || 0)],
+    ...(fgRaw !== null ? [[t.fgPct, fmtN(fgRaw) + pctSuffix]] : []),
+    ...(ftRaw !== null ? [[t.ftPct, fmtN(ftRaw) + pctSuffix]] : []),
     [t.gp, String(p.gp || 0)],
   ];
 
@@ -45,7 +50,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
             <div className="pm-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>
             <div className="pm-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <TeamBadge team={team} size={18} />
-              <span>{p.team}{p.pos ? ' · ' + p.pos : ''} · {p.arch[lang]}</span>
+              <span>{p.team}{p.pos ? ' · ' + p.pos : ''} · {(p.arch[lang] || '').charAt(0).toUpperCase() + (p.arch[lang] || '').slice(1).toLowerCase()}</span>
             </div>
 
             {!report && <button className="pm-scout-btn" onClick={() => setReport(scoutingReport(p, pGames, fgPct, lang))}>{t.scoutBtn}</button>}
