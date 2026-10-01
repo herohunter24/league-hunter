@@ -12,6 +12,7 @@ import { HeroVideo } from './components/HeroVideo.jsx';
 import { TeamBadge } from './components/TeamBadge.jsx';
 import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
+import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
 import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG } from './config/league.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -367,9 +368,13 @@ export default function App() {
                     <td>
                       <div className="team-cell">
                         <div className="team-logo-sq" style={{ background: (tm.color || '#ff6b1a') + '22', overflow: 'hidden' }}>
-                          {tm.logoUrl
-                            ? <img src={tm.logoUrl} alt={tm.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }} />
-                            : tm.emoji}
+                          <SafeImage
+                            src={tm.logoUrl}
+                            alt={tm.name}
+                            loading="lazy"
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }}
+                            fallback={<TeamInitials name={tm.name} color={tm.color} size={28} />}
+                          />
                         </div>
                         {tm.name}
                       </div>

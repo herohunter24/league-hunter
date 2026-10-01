@@ -1,6 +1,7 @@
 import { TIERS } from '../lib/tiers.js';
 import { formatHeight, formatWeight } from '../lib/data.js';
 import { TeamBadge } from './TeamBadge.jsx';
+import { SafeImage, PlayerSilhouette } from './SafeImage.jsx';
 
 export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
   const tier = TIERS[p.tier];
@@ -19,9 +20,13 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
           </div>
         </div>
         <div className="pc-photo">
-          {p.photoUrl
-            ? <img src={p.photoUrl} alt={p.name} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span className="pc-photo-init">{initials}</span>}
+          <SafeImage
+            src={p.photoUrl}
+            alt={p.name}
+            loading="lazy"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            fallback={<PlayerSilhouette />}
+          />
         </div>
         <div className="pc-bottom">
           <div className="pc-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>
