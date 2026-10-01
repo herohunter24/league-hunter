@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import React from 'react';
 import html2canvas from 'html2canvas';
 import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
@@ -16,6 +16,25 @@ import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
 import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG } from './config/league.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
+
+function readUrlState() {
+  const sp = new URLSearchParams(window.location.search);
+  return {
+    cat:      sp.get('cat') || null,
+    tab:      sp.get('tab') || 'standings',
+    playerId: sp.get('player') ? Number(sp.get('player')) : null,
+    gameId:   sp.get('game')   ? Number(sp.get('game'))   : null,
+  };
+}
+
+function buildPageUrl(cat, tab, playerId, gameId) {
+  const sp = new URLSearchParams(window.location.search);
+  if (cat)                      sp.set('cat', cat);      else sp.delete('cat');
+  if (tab && tab !== 'standings') sp.set('tab', tab);    else sp.delete('tab');
+  if (playerId)                 sp.set('player', String(playerId)); else sp.delete('player');
+  if (gameId)                   sp.set('game',   String(gameId));   else sp.delete('game');
+  return window.location.pathname + '?' + sp.toString();
+}
 
 export default function App() {
   const [lang, setLang] = useState(DEFAULT_LANG);
@@ -58,9 +77,10 @@ export default function App() {
 
   const cats = view.categories || [];
   const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
-  const [showExplorer, setShowExplorer] = useState(false);
-  const [selectedCat, setSelectedCat]   = useState(null);
-  const [activeTab, setActiveTab]       = useState('standings');
+  const initUrl = useMemo(readUrlState, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [showExplorer, setShowExplorer] = useState(!!initUrl.cat);
+  const [selectedCat, setSelectedCat]   = useState(initUrl.cat);
+  const [activeTab, setActiveTab]       = useState(initUrl.tab);
   const [catSearch, setCatSearch]       = useState('');
   const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
 
@@ -163,6 +183,100 @@ export default function App() {
     setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
   };
 
+  // ── URL / navigation helpers ──────────────────────────────
+  const didInitRef = useRef(false);
+
+  // Resolve player/game from URL once data loads (handles old ?player=ID links)
+  useEffect(() => {
+    if (!PLAYERS.length || didInitRef.current) return;
+    didInitRef.current = true;
+    const sp = new URLSearchParams(window.location.search);
+    const pid = sp.get('player') ? Number(sp.get('player')) : null;
+    const gid = sp.get('game')   ? Number(sp.get('game'))   : null;
+    if (pid) {
+      const p = PLAYERS.find(pl => pl.id === pid);
+      if (p) {
+        if (!selectedCat) setSelectedCat(p.categoryId || effectiveCats[0]?.id || null);
+        setSelectedPlayer(p);
+      }
+    }
+    if (gid) {
+      const g = GAMES.find(ga => ga.id === gid);
+      if (g) setOpenGame(g);
+    }
+  }, [PLAYERS, GAMES]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync state from URL on browser back/forward
+  useEffect(() => {
+    const onPop = () => {
+      const s = readUrlState();
+      setSelectedCat(s.cat);
+      setActiveTab(s.tab);
+      setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
+      setOpenGame(s.gameId ? (GAMES.find(ga => ga.id === s.gameId) || null) : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [PLAYERS, GAMES]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function selectCat(catId) {
+    setSelectedCat(catId);
+    setActiveTab('standings');
+    setShowAllPlayers(false);
+    history.pushState({}, '', buildPageUrl(catId, 'standings', null, null));
+    setTimeout(() => {
+      const nav = document.querySelector('.nav');
+      if (nav) nav.scrollIntoView({ behavior: 'smooth' });
+    }, 60);
+  }
+
+  function unselectCat() {
+    setSelectedCat(null);
+    setCatSearch('');
+    setSchedTeam('all');
+    setFTeam('all');
+    setSearch('');
+    history.pushState({}, '', buildPageUrl(null, 'standings', null, null));
+    setTimeout(() => {
+      const el = document.getElementById('explorer');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 60);
+  }
+
+  function switchTab(tab) {
+    setActiveTab(tab);
+    history.replaceState({}, '', buildPageUrl(selectedCat, tab, null, null));
+  }
+
+  function openPlayerModal(player) {
+    setSelectedPlayer(player);
+    history.pushState({}, '', buildPageUrl(selectedCat, activeTab, player.id, null));
+  }
+
+  function closePlayerModal() {
+    setSelectedPlayer(null);
+    history.replaceState({}, '', buildPageUrl(selectedCat, activeTab, null, null));
+  }
+
+  function openGameModal(game) {
+    setOpenGame(game);
+    history.pushState({}, '', buildPageUrl(selectedCat, activeTab, null, game.id));
+  }
+
+  function closeGameModal() {
+    setOpenGame(null);
+    history.replaceState({}, '', buildPageUrl(selectedCat, activeTab, null, null));
+  }
+
+  function footerNav(tab) {
+    if (selectedCat) {
+      switchTab(tab);
+      setTimeout(() => { const nav = document.querySelector('.nav'); if (nav) nav.scrollIntoView({ behavior: 'smooth' }); }, 30);
+    } else {
+      openExplorer();
+    }
+  }
+
   const showcasePlayers = useMemo(() => {
     const ranked = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0));
     const byCat = new Map();
@@ -199,7 +313,7 @@ export default function App() {
               {validCards.map((x, i) => {
                 const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
                 return (
-                  <div key={i} className="potm-chip" onClick={() => setSelectedPlayer(x.player)}>
+                  <div key={i} className="potm-chip" onClick={() => openPlayerModal(x.player)}>
                     <div className="potm-chip-name" style={{ color: tColor }}>{x.player.name}</div>
                     {effectiveCats.length > 1 && <div className="potm-chip-cat">· {x.cat.name}</div>}
                   </div>
@@ -263,7 +377,7 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
                   </div>
                 ))}
               </div>
@@ -302,7 +416,7 @@ export default function App() {
           <div className="cs-sub">{t.selectCatSub}</div>
           <div className="cat-grid">
             {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
-              <button key={c.id} className="cat-btn" onClick={() => { setSelectedCat(c.id); setActiveTab('standings'); setShowAllPlayers(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+              <button key={c.id} className="cat-btn" onClick={() => selectCat(c.id)}>
                 <div className="cat-btn-icon">🏀</div>{c.name}
               </button>
             ))}
@@ -330,12 +444,12 @@ export default function App() {
             <div className="cat-header">
               <div className="cat-header-inner">
                 <div className="cat-header-title">{catName}</div>
-                <button className="cat-change" onClick={() => { setSelectedCat(null); setCatSearch(''); setSchedTeam('all'); setFTeam('all'); setSearch(''); setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); }}>{t.changeCat}</button>
+                <button className="cat-change" onClick={unselectCat}>{t.changeCat}</button>
               </div>
             </div>
             <nav className="nav">
               {tabs.map(([k, label]) => (
-                <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => setActiveTab(k)}>{label}</a>
+                <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => switchTab(k)}>{label}</a>
               ))}
             </nav>
           </>
@@ -346,7 +460,6 @@ export default function App() {
       {selectedCat && activeTab === 'standings' && ps.showStandings !== false && (
       <section className="section" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
-        <h2 className="sec-title">{t.standingsTitle}</h2>
         <div className="standings-card">
           <table className="standings-table">
             <thead>
@@ -411,7 +524,6 @@ export default function App() {
       {selectedCat && activeTab === 'schedule' && ps.showSchedule !== false && (
       <section className="section" id="calendrier">
         <div className="sec-kicker">{t.schedKicker}</div>
-        <h2 className="sec-title">{t.schedTitle}</h2>
         <div className="sched-filters">
           {[['all', t.fAll], ['upcoming', t.fUpcoming], ['past', t.fPast]].map(([k, l]) => (
             <button key={k} className={`chip-btn ${schedFilter === k ? 'active' : ''}`} onClick={() => setSchedFilter(k)}>{l}</button>
@@ -426,7 +538,7 @@ export default function App() {
             const played = g.hs !== null;
             const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
             return (
-              <div key={g.id} className="game-card" onClick={() => setOpenGame(g)}>
+              <div key={g.id} className="game-card" onClick={() => openGameModal(g)}>
                 <div className="game-date">
                   <span>{fmtDate(g.date, lang)} · {g.time}</span>
                   <span className={played ? 'game-final' : 'game-status-live'}>{played ? t.final : t.upcoming}</span>
@@ -454,7 +566,6 @@ export default function App() {
       {selectedCat && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
       <section className="section" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
-        <h2 className="sec-title">{t.playersTitle}</h2>
 
         {(() => {
           const pmPlayer = resolveSpotlight(potmData, selectedCat, topByRp);
@@ -464,7 +575,7 @@ export default function App() {
               <div className="sec-kicker">🏆 {t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div style={{ maxWidth: 250 }}>
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
               </div>
             </div>
           );
@@ -472,7 +583,7 @@ export default function App() {
 
         <div className="sec-kicker" style={{ marginTop: 6 }}>{t.bestPlayers}</div>
         <div className="cards-grid" style={{ marginBottom: 12 }}>
-          {top5Players.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+          {top5Players.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
         </div>
         {!top5Players.length && <div className="empty-note">{t.noPlayers}</div>}
 
@@ -488,7 +599,7 @@ export default function App() {
             {fTeam !== 'all' && (
               teamPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {teamPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+                  {teamPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noTeamPlayers}</div>
@@ -503,7 +614,6 @@ export default function App() {
       {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
       <section className="section" id="statistiques">
         <div className="sec-kicker">{t.statsKicker}</div>
-        <h2 className="sec-title">{t.statsTitle}</h2>
         <div className="leaders-grid">
           {[
             ['ppg', t.topScorers], ['rpg', t.topRebounders], ['apg', t.topPlaymakers],
@@ -545,10 +655,10 @@ export default function App() {
           </div>
           <div>
             <h4>{t.footerLeague}</h4>
-            <a href="#classement">{t.navStandings}</a>
-            <a href="#calendrier">{t.navSchedule}</a>
-            <a href="#joueurs">{t.navPlayers}</a>
-            <a href="#statistiques">{t.navStats}</a>
+            <a href="#" onClick={e => { e.preventDefault(); footerNav('standings'); }}>{t.navStandings}</a>
+            <a href="#" onClick={e => { e.preventDefault(); footerNav('schedule'); }}>{t.navSchedule}</a>
+            <a href="#" onClick={e => { e.preventDefault(); footerNav('players'); }}>{t.navPlayers}</a>
+            <a href="#" onClick={e => { e.preventDefault(); footerNav('stats'); }}>{t.navStats}</a>
           </div>
           <div>
             <h4>{t.footerContact}</h4>
@@ -564,7 +674,7 @@ export default function App() {
 
       {/* ── PLAYER MODAL ── */}
       {selectedPlayer && (
-        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={() => setSelectedPlayer(null)} />
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} />
       )}
 
       {/* ── GAME MODAL ── */}
@@ -573,9 +683,9 @@ export default function App() {
         const played = g.hs !== null;
         const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
         return (
-          <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) setOpenGame(null); }}>
+          <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) closeGameModal(); }}>
             <div className="modal-bx">
-              <button className="modal-close" onClick={() => setOpenGame(null)}>✕</button>
+              <button className="modal-close" onClick={closeGameModal}>✕</button>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--orange)', marginBottom: 18 }}>
                 {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}
               </div>
