@@ -1,0 +1,620 @@
+import { useState, useMemo, useEffect } from 'react';
+import React from 'react';
+import html2canvas from 'html2canvas';
+import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
+import { STR } from './i18n/strings.js';
+import { TIERS, TIER_ORDER, TIER_COLOR, TIER_GLOW } from './lib/tiers.js';
+import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES } from './lib/demo.js';
+import { buildLiveViewData } from './lib/data.js';
+import { getAnalyticsSessionId } from './lib/analytics.js';
+import { useLeagueData } from './hooks/useLeagueData.js';
+import { HeroVideo } from './components/HeroVideo.jsx';
+import { TeamBadge } from './components/TeamBadge.jsx';
+import { PlayerCard } from './components/PlayerCard.jsx';
+import { PlayerModal } from './components/PlayerModal.jsx';
+import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG } from './config/league.js';
+
+const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
+
+export default function App() {
+  const [lang, setLang] = useState(DEFAULT_LANG);
+  const t = STR[lang];
+
+  const data = useLeagueData();
+  const live = data.live;
+  const view = useMemo(() => live
+    ? buildLiveViewData(data.meta, data.teams, data.players, data.games)
+    : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
+    [live, data.meta, data.teams, data.players, data.games]);
+  const TEAMS = view.teams, PLAYERS = view.players, GAMES = view.games;
+  const ps = {
+    showStandings: true, showSchedule: true, showPlayers: true,
+    showPlayerCards: true, showStats: true, showLeagueInfo: true,
+    ...(view.ps || {}),
+  };
+  const lm = (view.meta && view.meta.leagueMessage) || {};
+
+  useEffect(() => {
+    const c = (ps.accentColor || '').trim();
+    document.documentElement.style.setProperty('--orange', /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ff6b1a');
+  }, [ps.accentColor]);
+
+  useEffect(() => {
+    if (!LEAGUE_ID || !db) return;
+    function track() {
+      const section = (window.location.hash || '').replace('#', '') || 'home';
+      const today = new Date().toISOString().split('T')[0];
+      const viewId = 'v_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      setDoc(doc(db, 'leagues', String(LEAGUE_ID), 'pageViews', viewId), {
+        timestamp: Date.now(), date: today, section,
+        sessionId: getAnalyticsSessionId(), userAgent: navigator.userAgent || '',
+      }).catch(e => console.error('[NLS Analytics] track error:', e));
+    }
+    track();
+    window.addEventListener('hashchange', track);
+    return () => window.removeEventListener('hashchange', track);
+  }, []);
+
+  const cats = view.categories || [];
+  const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
+  const [showExplorer, setShowExplorer] = useState(false);
+  const [selectedCat, setSelectedCat]   = useState(null);
+  const [activeTab, setActiveTab]       = useState('standings');
+  const [catSearch, setCatSearch]       = useState('');
+  const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
+
+  const [sortKey, setSortKey]   = useState('rank');
+  const [openTeam, setOpenTeam] = useState(null);
+  const standings = useMemo(() => {
+    const src = TEAMS.filter(tm => catMatch(tm.categoryId));
+    const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0 }));
+    if (sortKey === 'wins') rows.sort((a, b) => b.w - a.w);
+    else rows.sort((a, b) => b.pct - a.pct);
+    return rows;
+  }, [sortKey, TEAMS, selectedCat]);
+
+  const [schedFilter, setSchedFilter] = useState('all');
+  const [schedTeam, setSchedTeam]     = useState('all');
+  const [openGame, setOpenGame]       = useState(null);
+  const catTeamNames = useMemo(() => new Set(TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => tm.name)), [TEAMS, selectedCat]);
+  const games = useMemo(() => {
+    let g = [...GAMES]
+      .filter(x => catMatch(x.categoryId) || catTeamNames.has(x.home) || catTeamNames.has(x.away))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (schedFilter === 'upcoming') g = g.filter(x => x.hs === null);
+    if (schedFilter === 'past') g = g.filter(x => x.hs !== null).reverse();
+    if (schedTeam !== 'all') g = g.filter(x => x.home === schedTeam || x.away === schedTeam);
+    return g;
+  }, [schedFilter, schedTeam, GAMES, selectedCat, catTeamNames]);
+
+  const [search, setSearch]               = useState('');
+  const [fTier, setFTier]                 = useState('all');
+  const [fTeam, setFTeam]                 = useState('all');
+  const [fArch, setFArch]                 = useState('all');
+  const [showAllPlayers, setShowAllPlayers] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const archetypes = useMemo(() => {
+    const seen = new Map();
+    PLAYERS.forEach(p => { const a = p.arch && p.arch[lang]; if (a && !seen.has(a)) seen.set(a, a); });
+    return Array.from(seen.keys()).sort();
+  }, [PLAYERS, lang]);
+  const players = useMemo(() => {
+    let ps = [...PLAYERS]
+      .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
+      .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+    if (search) ps = ps.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+    if (fTier !== 'all') ps = ps.filter(p => p.tier === fTier);
+    if (fTeam !== 'all') ps = ps.filter(p => p.team === fTeam);
+    if (fArch !== 'all') ps = ps.filter(p => p.arch && p.arch[lang] === fArch);
+    return ps;
+  }, [search, fTier, fTeam, fArch, PLAYERS, lang, selectedCat, catTeamNames]);
+  const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all';
+  const galleryOpen = showAllPlayers || anyPlayerFilter;
+  const shownPlayers = galleryOpen ? players : players.slice(0, 5);
+
+  const catPlayersSorted = useMemo(() => [...PLAYERS]
+    .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
+    .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier)),
+    [PLAYERS, selectedCat, catTeamNames]);
+  const top5Players = catPlayersSorted.slice(0, 5);
+  const teamsInCat = useMemo(() => {
+    const names = new Set(catPlayersSorted.map(p => p.team));
+    return TEAMS.filter(tm => names.has(tm.name));
+  }, [TEAMS, catPlayersSorted]);
+  const teamPlayers = fTeam !== 'all' ? catPlayersSorted.filter(p => p.team === fTeam) : [];
+
+  const inCat = (p, catId) => catId === '__all__' || p.categoryId === catId;
+  const topByRp = (catId) => [...PLAYERS].filter(p => inCat(p, catId))
+    .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier))[0] || null;
+  const weekScore = (p) => {
+    const cutoff = Date.now() - 7 * 86400000;
+    return GAMES.reduce((s, g) => {
+      if (!g.playerStats || g.playerStats[p.id] === undefined) return s;
+      if (new Date((g.date || '1970') + 'T00:00').getTime() < cutoff) return s;
+      const st = g.playerStats[p.id] || {};
+      return s + (+st.points || 0) + (+st.rebounds || 0) * 0.7 + (+st.assists || 0) * 1.2 + (+st.steals || 0) * 1.5 + (+st.blocks || 0) * 1.5;
+    }, 0);
+  };
+  const topOfWeek = (catId) => {
+    const scored = PLAYERS.filter(p => inCat(p, catId)).map(p => ({ p, s: weekScore(p) }));
+    if (scored.some(x => x.s > 0)) return scored.sort((a, b) => b.s - a.s)[0].p;
+    return topByRp(catId);
+  };
+  const resolveSpotlight = (data, catId, computeFn) => {
+    const ov = ((data && data.categories) || {})[catId];
+    if (ov && ov.playerId) { const p = PLAYERS.find(x => String(x.id) === String(ov.playerId)); if (p) return p; }
+    return computeFn(catId);
+  };
+  const potmData = (view.meta && view.meta.playOfTheMonth) || {};
+  const potwData = (view.meta && view.meta.playerOfTheWeek) || {};
+  const potmCards = useMemo(() => effectiveCats
+    .map(c => ({ cat: c, player: resolveSpotlight(potmData, c.id, topByRp) }))
+    .filter(x => x.player), [effectiveCats, PLAYERS, potmData]);
+  const potwPlayer = selectedCat ? resolveSpotlight(potwData, selectedCat, topOfWeek) : null;
+
+  useEffect(() => {
+    function setH() {
+      const el = document.querySelector('.potm-banner');
+      document.documentElement.style.setProperty('--potm-h', (el ? el.offsetHeight : 0) + 'px');
+    }
+    setH();
+    window.addEventListener('resize', setH);
+    return () => window.removeEventListener('resize', setH);
+  }, [potmCards.length, selectedCat]);
+
+  const leaders = key => [...PLAYERS]
+    .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
+    .sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
+
+  const openExplorer = () => {
+    setShowExplorer(true);
+    setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
+  };
+
+  const showcasePlayers = useMemo(() => {
+    const ranked = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0));
+    const byCat = new Map();
+    ranked.forEach(p => { const c = p.categoryId || '__none__'; if (!byCat.has(c)) byCat.set(c, p); });
+    const picks = Array.from(byCat.values()).slice(0, 4);
+    const ids = new Set(picks.map(p => p.id));
+    for (const p of ranked) { if (picks.length >= 4) break; if (!ids.has(p.id)) { picks.push(p); ids.add(p.id); } }
+    return picks;
+  }, [PLAYERS]);
+
+  function shareCard(p) {
+    const el = document.getElementById(`pcard-${p.id}`);
+    if (!el) return;
+    html2canvas(el, { backgroundColor: null, scale: 3 }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
+  const [logoOk, setLogoOk] = useState(true);
+
+  return (
+    <div>
+      {/* ── PLAY OF THE MONTH banner ── */}
+      {(ps.showPlayers !== false && ps.showPlayerCards !== false) && potmCards.length > 0 && (() => {
+        const ym = potmData && potmData.month;
+        const monthDate = (/^\d{4}-\d{2}$/.test(ym || '') ? new Date(ym + '-01T12:00') : new Date())
+          .toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { month: 'long', year: 'numeric' }).toUpperCase();
+        const copies = Math.max(2, Math.ceil(10 / potmCards.length));
+        const loop = Array.from({ length: copies }, () => potmCards).flat();
+        const scrollPercent = 100 / copies;
+        const duration = Math.max(3, potmCards.length * 1.5);
+        return (
+          <div className="potm-banner">
+            <div className="potm-label">🏆 {t.potmTitle} · <b>{monthDate}</b></div>
+            <div className="potm-viewport">
+              <div className="potm-track" style={{ animationDuration: `${duration}s`, '--scroll-percent': `-${scrollPercent}%` }}>
+                {loop.map((x, i) => {
+                  const tier = TIERS[x.player.tier];
+                  const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
+                  const initials = x.player.name.split(' ').map(w => w[0]).join('');
+                  return (
+                    <div key={i} className="potm-chip" onClick={() => setSelectedPlayer(x.player)}>
+                      <div className="potm-chip-photo" style={{ borderColor: tColor, boxShadow: TIER_GLOW[x.player.tier] ? `0 0 10px ${tColor}99` : 'none' }}>
+                        {x.player.photoUrl ? <img src={x.player.photoUrl} alt={x.player.name} loading="lazy" /> : <span style={{ color: tColor }}>{initials}</span>}
+                      </div>
+                      <div className="potm-chip-txt">
+                        <div className="potm-chip-name">{x.player.name}</div>
+                        <div className="potm-chip-cat" style={{ color: tColor }}>{tier ? tier.label : ''} · <span style={{ color: 'var(--ink-soft)' }}>{x.cat.name}</span></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── HERO ── */}
+      <header className="hero">
+        <HeroVideo />
+        <div className="hero-scrim"></div>
+        <div className="hero-fade-top"></div>
+        <div className="hero-fade-bottom"></div>
+        <div className="hero-ball"></div>
+        <div className="hero-topbar">
+          {logoOk
+            ? <img className="hero-logo" src={NLS_LOGO} alt="NLS Création" onError={() => setLogoOk(false)} />
+            : <div className="hero-logo-fallback">NLS<span>·</span>CRÉATION</div>}
+          <div className="lang-toggle">
+            <button className={lang === 'fr' ? 'active' : ''} onClick={() => setLang('fr')}>FR</button>
+            <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
+          </div>
+        </div>
+        <div className="hero-inner">
+          <div className="hero-kicker">{live && view.meta && view.meta.name ? view.meta.name.toUpperCase() : t.kicker}</div>
+          <h1 className="hero-title">{t.heroTitle}</h1>
+          <p className="hero-sub">{t.heroSub}</p>
+          <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
+            {t.cta} →
+          </button>
+        </div>
+      </header>
+
+      {/* ── LOADING / ERROR overlays ── */}
+      {live && data.loading && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, #ff8d4d, #c24808 70%, #6e2604)', animation: 'floatBall 1.1s ease-in-out infinite' }}></div>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.32em', color: 'var(--ink-soft)', textTransform: 'uppercase' }}>{t.loadingLeague}</div>
+        </div>
+      )}
+      {live && data.error === 'not-found' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 44, marginBottom: 14 }}>🏀</div>
+            <div style={{ fontFamily: 'var(--ff-display)', fontSize: 24, marginBottom: 8 }}>404</div>
+            <div style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{t.notFound}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LANDING (before explorer) ── */}
+      {!showExplorer && (
+        <>
+          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
+            <section className="landing-sec">
+              <div className="lsec-title">{t.showcaseTitle}</div>
+              <div className="lsec-sub">{t.showcaseSub}</div>
+              <div className="arc-row">
+                {showcasePlayers.map(p => (
+                  <div key={p.id} className="arc-card">
+                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+                  </div>
+                ))}
+              </div>
+              <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
+            </section>
+          )}
+
+          <section className="landing-sec">
+            <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
+            <div className="lsec-title">{lm.title || t.missionTitle}</div>
+            <div className="mission-body">
+              {lm.body
+                ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
+                : <>{t.missionP1}<br /><br />{t.missionP2}</>}
+            </div>
+            <div className="mission-pillars">
+              {[
+                ['🏆', t.pillarExcellence, t.pillarExcellenceD],
+                ['🤝', t.pillarCommunity, t.pillarCommunityD],
+                ['📈', t.pillarProgress, t.pillarProgressD],
+              ].map(([icon, title, desc]) => (
+                <div key={title} className="pillar">
+                  <div className="pillar-icon">{icon}</div>
+                  <div className="pillar-t">{title}</div>
+                  <div className="pillar-d">{desc}</div>
+                </div>
+              ))}
+            </div>
+            <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{lm.cta || `${t.cta} →`}</button>
+          </section>
+        </>
+      )}
+
+      {/* ── CATEGORY SELECTOR ── */}
+      {showExplorer && !selectedCat && (
+        <section className="cat-selector" id="explorer">
+          <h2>{t.selectCat}</h2>
+          <div className="cs-sub">{t.selectCatSub}</div>
+          <div className="cat-grid">
+            {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
+              <button key={c.id} className="cat-btn" onClick={() => { setSelectedCat(c.id); setActiveTab('standings'); setShowAllPlayers(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <div className="cat-btn-icon">🏀</div>{c.name}
+              </button>
+            ))}
+          </div>
+          {effectiveCats.length > 4 && (
+            <input className="search-inp" placeholder={t.searchCat} value={catSearch} onChange={e => setCatSearch(e.target.value)} />
+          )}
+          {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
+            <div className="empty-note">{t.noCatMatch}</div>
+          )}
+        </section>
+      )}
+
+      {/* ── CATEGORY HEADER + TAB NAV ── */}
+      {selectedCat && (() => {
+        const catName = (effectiveCats.find(c => c.id === selectedCat) || {}).name || '';
+        const tabs = [
+          ps.showStandings !== false && ['standings', t.navStandings],
+          ps.showSchedule !== false && ['schedule', t.navSchedule],
+          (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
+          ps.showStats !== false && ['stats', t.navStats],
+        ].filter(Boolean);
+        return (
+          <>
+            <div className="cat-header">
+              <div className="cat-header-inner">
+                <div className="cat-header-title">{catName}</div>
+                <button className="cat-change" onClick={() => { setSelectedCat(null); setCatSearch(''); setSchedTeam('all'); setFTeam('all'); setSearch(''); setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); }}>{t.changeCat}</button>
+              </div>
+            </div>
+            <nav className="nav">
+              {tabs.map(([k, label]) => (
+                <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => setActiveTab(k)}>{label}</a>
+              ))}
+            </nav>
+          </>
+        );
+      })()}
+
+      {/* ── STANDINGS ── */}
+      {selectedCat && activeTab === 'standings' && ps.showStandings !== false && (
+      <section className="section" id="classement">
+        <div className="sec-kicker">{t.standingsKicker}</div>
+        <h2 className="sec-title">{t.standingsTitle}</h2>
+        <div className="standings-card">
+          <table className="standings-table">
+            <thead>
+              <tr>
+                <th onClick={() => setSortKey('rank')}>{t.thRank}</th>
+                <th>{t.thTeam}</th>
+                <th onClick={() => setSortKey('wins')}>{t.thRecord}</th>
+                <th className="hide-m" onClick={() => setSortKey('rank')}>{t.thPct}</th>
+                <th className="hide-m" title="Points For">{t.thPF}</th>
+                <th className="hide-m" title="Points Against">{t.thPA}</th>
+                <th className="hide-m">{t.thLast5}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((tm, i) => (
+                <React.Fragment key={tm.id}>
+                  <tr onClick={() => setOpenTeam(openTeam === tm.id ? null : tm.id)}>
+                    <td><span className={`rank-badge rank-${i + 1}`}>{i + 1}</span></td>
+                    <td>
+                      <div className="team-cell">
+                        <div className="team-logo-sq" style={{ background: (tm.color || '#ff6b1a') + '22', overflow: 'hidden' }}>
+                          {tm.logoUrl
+                            ? <img src={tm.logoUrl} alt={tm.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }} />
+                            : tm.emoji}
+                        </div>
+                        {tm.name}
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)' }}>{(tm.pct * 100).toFixed(1)}%</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pf || 0}</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pa || 0}</td>
+                    <td className="hide-m">
+                      <div className="last5">{tm.last5.map((r, j) => <span key={j} className={`l5-dot ${r ? 'l5-w' : 'l5-l'}`}></span>)}</div>
+                    </td>
+                  </tr>
+                  {openTeam === tm.id && (
+                    <tr className="roster-row">
+                      <td colSpan="7">
+                        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 10 }}>{t.roster}</div>
+                        <div className="roster-chips">
+                          {PLAYERS.filter(p => p.team === tm.name).map(p => (
+                            <span key={p.id} className="roster-chip"><b>{p.name}</b> · {p.pos} · {p.ppg.toFixed(1)} {t.ppg}</span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      )}
+
+      {/* ── SCHEDULE ── */}
+      {selectedCat && activeTab === 'schedule' && ps.showSchedule !== false && (
+      <section className="section" id="calendrier">
+        <div className="sec-kicker">{t.schedKicker}</div>
+        <h2 className="sec-title">{t.schedTitle}</h2>
+        <div className="sched-filters">
+          {[['all', t.fAll], ['upcoming', t.fUpcoming], ['past', t.fPast]].map(([k, l]) => (
+            <button key={k} className={`chip-btn ${schedFilter === k ? 'active' : ''}`} onClick={() => setSchedFilter(k)}>{l}</button>
+          ))}
+          <select className="filter-select" value={schedTeam} onChange={e => setSchedTeam(e.target.value)}>
+            <option value="all">{t.allTeams}</option>
+            {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+          </select>
+        </div>
+        <div className="games-grid">
+          {games.map(g => {
+            const played = g.hs !== null;
+            const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
+            return (
+              <div key={g.id} className="game-card" onClick={() => setOpenGame(g)}>
+                <div className="game-date">
+                  <span>{fmtDate(g.date, lang)} · {g.time}</span>
+                  <span className={played ? 'game-final' : 'game-status-live'}>{played ? t.final : t.upcoming}</span>
+                </div>
+                <div className="game-matchup">
+                  <div className="game-team">
+                    <div className="game-team-info"><TeamBadge team={awayTeam} size={24} />{g.away}</div>
+                    {played && <span className={`game-score ${g.as > g.hs ? 'winner' : 'loser'}`}>{g.as}</span>}
+                  </div>
+                  <div className="game-team">
+                    <div className="game-team-info"><TeamBadge team={homeTeam} size={24} />{g.home}</div>
+                    {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
+                  </div>
+                </div>
+                <div className="game-venue"><span>📍 {g.venue}</span></div>
+              </div>
+            );
+          })}
+          {!games.length && <div className="empty-note" style={{ gridColumn: '1/-1' }}>—</div>}
+        </div>
+      </section>
+      )}
+
+      {/* ── PLAYERS ── */}
+      {selectedCat && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
+      <section className="section" id="joueurs">
+        <div className="sec-kicker">{t.playersKicker}</div>
+        <h2 className="sec-title">{t.playersTitle}</h2>
+
+        {potwPlayer && (
+          <div style={{ marginBottom: 40 }}>
+            <div className="sec-kicker">⭐ {t.potwTitle}</div>
+            <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potwSub}</div>
+            <div style={{ maxWidth: 250 }}>
+              <PlayerCard p={potwPlayer} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+            </div>
+          </div>
+        )}
+
+        <div className="sec-kicker" style={{ marginTop: 6 }}>{t.bestPlayers}</div>
+        <div className="cards-grid" style={{ marginBottom: 12 }}>
+          {top5Players.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+        </div>
+        {!top5Players.length && <div className="empty-note">{t.noPlayers}</div>}
+
+        {teamsInCat.length > 0 && (
+          <div style={{ marginTop: 44 }}>
+            <div className="sec-kicker">{t.findByTeam}</div>
+            <div className="player-filters" style={{ marginBottom: 24 }}>
+              <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
+                <option value="all">{t.selectTeamPh}</option>
+                {teamsInCat.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+              </select>
+            </div>
+            {fTeam !== 'all' && (
+              teamPlayers.length > 0 ? (
+                <div className="cards-grid">
+                  {teamPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />)}
+                </div>
+              ) : (
+                <div className="empty-note">{t.noTeamPlayers}</div>
+              )
+            )}
+          </div>
+        )}
+      </section>
+      )}
+
+      {/* ── STATS ── */}
+      {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
+      <section className="section" id="statistiques">
+        <div className="sec-kicker">{t.statsKicker}</div>
+        <h2 className="sec-title">{t.statsTitle}</h2>
+        <div className="leaders-grid">
+          {[
+            ['ppg', t.topScorers], ['rpg', t.topRebounders], ['apg', t.topPlaymakers],
+            ...(PLAYERS.some(p => (p.spg || 0) > 0) ? [['spg', t.topSteals]] : []),
+            ...(PLAYERS.some(p => (p.bpg || 0) > 0) ? [['bpg', t.topBlocks]] : []),
+          ].map(([key, title]) => {
+            const top = leaders(key);
+            if (!top.length) return null;
+            const max = top[0][key] || 1;
+            return (
+              <div key={key} className="leader-card">
+                <div className="leader-title">{title}</div>
+                {top.map((p, i) => (
+                  <div key={p.id} className="leader-row">
+                    <span className="leader-rank">{i + 1}</span>
+                    <div className="leader-info">
+                      <div className="leader-name">{p.name}</div>
+                      <div className="leader-team">{p.team}</div>
+                      <div className="leader-bar"><div className="leader-bar-fill" style={{ width: ((p[key] || 0) / max * 100) + '%' }}></div></div>
+                    </div>
+                    <span className="leader-val">{(p[key] || 0).toFixed(1)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      )}
+
+      {/* ── FOOTER ── */}
+      <footer className="footer">
+        <div className="footer-grid">
+          <div style={{ maxWidth: 320 }}>
+            <div className="footer-brand">
+              {(() => { const [a, b] = BRAND_NAME.split('·'); return <>{a}<span>·</span>{b}</>; })()}
+            </div>
+            <p>{t.footerAbout}</p>
+          </div>
+          <div>
+            <h4>{t.footerLeague}</h4>
+            <a href="#classement">{t.navStandings}</a>
+            <a href="#calendrier">{t.navSchedule}</a>
+            <a href="#joueurs">{t.navPlayers}</a>
+            <a href="#statistiques">{t.navStats}</a>
+          </div>
+          <div>
+            <h4>{t.footerContact}</h4>
+            <a href={WEBSITE_URL} target="_blank" rel="noopener noreferrer">{WEBSITE_URL.replace('https://www.', '')}</a>
+            <p>Québec, Canada</p>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>{COPYRIGHT}</span>
+          <span>{t.footerPowered} <strong style={{ color: 'var(--ink-mid)' }}>League Hunter</strong></span>
+        </div>
+      </footer>
+
+      {/* ── PLAYER MODAL ── */}
+      {selectedPlayer && (
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={() => setSelectedPlayer(null)} />
+      )}
+
+      {/* ── GAME MODAL ── */}
+      {openGame && (() => {
+        const g = openGame;
+        const played = g.hs !== null;
+        const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
+        return (
+          <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) setOpenGame(null); }}>
+            <div className="modal-bx">
+              <button className="modal-close" onClick={() => setOpenGame(null)}>✕</button>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--orange)', marginBottom: 18 }}>
+                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 16, margin: '22px 0' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 38, display: 'flex', justifyContent: 'center' }}><TeamBadge team={awayTeam} size={44} /></div>
+                  <div style={{ fontWeight: 800, marginTop: 8, fontSize: 14 }}>{g.away}</div>
+                  {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.as > g.hs ? 'var(--orange)' : 'var(--ink-soft)' }}>{g.as}</div>}
+                </div>
+                <div style={{ fontFamily: 'var(--ff-display)', fontSize: 18, color: 'var(--ink-soft)' }}>VS</div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 38, display: 'flex', justifyContent: 'center' }}><TeamBadge team={homeTeam} size={44} /></div>
+                  <div style={{ fontWeight: 800, marginTop: 8, fontSize: 14 }}>{g.home}</div>
+                  {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.hs > g.as ? 'var(--orange)' : 'var(--ink-soft)' }}>{g.hs}</div>}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                📍 {t.venue}: {g.venue}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
