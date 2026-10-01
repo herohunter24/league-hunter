@@ -21,8 +21,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .potm-banner { width: 100%; background: linear-gradient(180deg, #131320, #0a0a0c); border-bottom: 1px solid var(--border); height: 40px; display: flex; align-items: center; padding: 0 16px; overflow: hidden; }
 .potm-track { display: flex; align-items: center; gap: 8px; overflow: hidden; }
 .potm-label-inline { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); flex-shrink: 0; padding-right: 10px; border-right: 1px solid var(--border); margin-right: 4px; white-space: nowrap; }
-.potm-chip { display: flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; padding: 4px 12px; border: 1px solid var(--border); border-radius: 100px; background: var(--surface); transition: border-color 0.2s; }
-.potm-chip:hover { border-color: var(--orange); }
+.potm-chip { display: flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; padding: 4px 12px; border: 1px solid var(--border); border-radius: 100px; background: var(--surface); transition: border-color 0.2s, transform 0.2s; }
+.potm-chip:hover { border-color: var(--orange); transform: translateY(-2px); }
 .potm-chip-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
 .potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
 
