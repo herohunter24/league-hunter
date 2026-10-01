@@ -63,7 +63,7 @@ export const STR = {
     final: "Final", upcoming: "Upcoming",
     playersKicker: "Collectible cards", playersTitle: "Players",
     bestPlayers: "Find your player card!", findByTeam: "Find by team", selectTeamPh: "Select a team", noTeamPlayers: "No players in this team.",
-    potmTitle: "Play of the Month", potmSub: "The best of each category this month", potwTitle: "Player of the Week", potwSub: "The week's top performance",
+    potmTitle: "Player of the Month", potmSub: "The best of each category this month", potwTitle: "Player of the Week", potwSub: "The week's top performance",
     scoutBtn: "📋 Scouting Report", scoutTitle: "Scouting Report",
     searchPh: "Search player…", allTiers: "All tiers", allArch: "All archetypes",
     statsKicker: "League leaders", statsTitle: "Statistics",

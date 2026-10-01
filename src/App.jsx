@@ -152,15 +152,6 @@ export default function App() {
     .filter(x => x.player), [effectiveCats, PLAYERS, potmData]);
   const potwPlayer = selectedCat ? resolveSpotlight(potwData, selectedCat, topOfWeek) : null;
 
-  useEffect(() => {
-    function setH() {
-      const el = document.querySelector('.potm-banner');
-      document.documentElement.style.setProperty('--potm-h', (el ? el.offsetHeight : 0) + 'px');
-    }
-    setH();
-    window.addEventListener('resize', setH);
-    return () => window.removeEventListener('resize', setH);
-  }, [potmCards.length, selectedCat]);
 
   const leaders = key => [...PLAYERS]
     .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
@@ -196,37 +187,23 @@ export default function App() {
 
   return (
     <div>
-      {/* ── PLAY OF THE MONTH banner ── */}
-      {(ps.showPlayers !== false && ps.showPlayerCards !== false) && potmCards.length > 0 && (() => {
-        const ym = potmData && potmData.month;
-        const monthDate = (/^\d{4}-\d{2}$/.test(ym || '') ? new Date(ym + '-01T12:00') : new Date())
-          .toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { month: 'long', year: 'numeric' }).toUpperCase();
-        const copies = Math.max(2, Math.ceil(10 / potmCards.length));
-        const loop = Array.from({ length: copies }, () => potmCards).flat();
-        const scrollPercent = 100 / copies;
-        const duration = Math.max(3, potmCards.length * 1.5);
+      {/* ── JOUEUR DU MOIS ticker ── */}
+      {(ps.showPlayers !== false && ps.showPlayerCards !== false) && (() => {
+        const validCards = potmCards.filter(x => (x.player.gp || 0) >= 1);
+        if (!validCards.length) return null;
         return (
           <div className="potm-banner">
-            <div className="potm-label">🏆 {t.potmTitle} · <b>{monthDate}</b></div>
-            <div className="potm-viewport">
-              <div className="potm-track" style={{ animationDuration: `${duration}s`, '--scroll-percent': `-${scrollPercent}%` }}>
-                {loop.map((x, i) => {
-                  const tier = TIERS[x.player.tier];
-                  const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
-                  const initials = x.player.name.split(' ').map(w => w[0]).join('');
-                  return (
-                    <div key={i} className="potm-chip" onClick={() => setSelectedPlayer(x.player)}>
-                      <div className="potm-chip-photo" style={{ borderColor: tColor, boxShadow: TIER_GLOW[x.player.tier] ? `0 0 10px ${tColor}99` : 'none' }}>
-                        {x.player.photoUrl ? <img src={x.player.photoUrl} alt={x.player.name} loading="lazy" /> : <span style={{ color: tColor }}>{initials}</span>}
-                      </div>
-                      <div className="potm-chip-txt">
-                        <div className="potm-chip-name">{x.player.name}</div>
-                        <div className="potm-chip-cat" style={{ color: tColor }}>{tier ? tier.label : ''} · <span style={{ color: 'var(--ink-soft)' }}>{x.cat.name}</span></div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="potm-track">
+              <span className="potm-label-inline">🏆 {t.potmTitle}</span>
+              {validCards.map((x, i) => {
+                const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
+                return (
+                  <div key={i} className="potm-chip" onClick={() => setSelectedPlayer(x.player)}>
+                    <div className="potm-chip-name" style={{ color: tColor }}>{x.player.name}</div>
+                    {effectiveCats.length > 1 && <div className="potm-chip-cat">· {x.cat.name}</div>}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -249,7 +226,7 @@ export default function App() {
           </div>
         </div>
         <div className="hero-inner">
-          <div className="hero-kicker">{live && view.meta && view.meta.name ? view.meta.name.toUpperCase() : t.kicker}</div>
+          <div className="hero-kicker">{t.kicker}</div>
           <h1 className="hero-title">{t.heroTitle}</h1>
           <p className="hero-sub">{t.heroSub}</p>
           <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
@@ -289,7 +266,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{t.cta} →</button>
             </section>
           )}
 
@@ -314,7 +290,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <button className="hero-cta" style={{ marginTop: 0, border: 'none', cursor: 'pointer' }} onClick={openExplorer}>{lm.cta || `${t.cta} →`}</button>
           </section>
         </>
       )}
@@ -476,15 +451,19 @@ export default function App() {
         <div className="sec-kicker">{t.playersKicker}</div>
         <h2 className="sec-title">{t.playersTitle}</h2>
 
-        {potwPlayer && (
-          <div style={{ marginBottom: 40 }}>
-            <div className="sec-kicker">⭐ {t.potwTitle}</div>
-            <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potwSub}</div>
-            <div style={{ maxWidth: 250 }}>
-              <PlayerCard p={potwPlayer} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+        {(() => {
+          const pmPlayer = resolveSpotlight(potmData, selectedCat, topByRp);
+          if (!pmPlayer || (pmPlayer.gp || 0) < 1) return null;
+          return (
+            <div style={{ marginBottom: 40 }}>
+              <div className="sec-kicker">🏆 {t.potmTitle}</div>
+              <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
+              <div style={{ maxWidth: 250 }}>
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={setSelectedPlayer} teams={TEAMS} units={view.units} />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="sec-kicker" style={{ marginTop: 6 }}>{t.bestPlayers}</div>
         <div className="cards-grid" style={{ marginBottom: 12 }}>

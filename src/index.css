@@ -17,25 +17,14 @@ html { scroll-behavior: smooth; }
 body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -webkit-font-smoothing: antialiased; }
 ::selection { background: var(--orange); color: #000; }
 
-/* ── PLAY-OF-THE-MONTH BANNER (top, auto-scroll marquee) ── */
-.potm-banner { width: 100%; background: linear-gradient(180deg, #131320, #0a0a0c); border-bottom: 2px solid var(--orange); padding: 9px 0 11px; overflow: hidden; position: sticky; top: 0; z-index: 200; }
-.potm-label { text-align: center; font-size: 9.5px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-mid); margin-bottom: 9px; }
-.potm-label b { color: #f3da8a; font-weight: 800; }
-.potm-viewport { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-.potm-track { display: flex; gap: 12px; width: max-content; animation: potmScroll 26s linear infinite; }
-.potm-banner:hover .potm-track { animation-play-state: paused; }
-@keyframes potmScroll { from { transform: translateX(0); } to { transform: translateX(var(--scroll-percent, -33.333%)); } }
-.potm-chip { display: flex; align-items: center; gap: 9px; flex-shrink: 0; cursor: pointer; padding: 5px 16px 5px 5px; border: 1px solid var(--border); border-radius: 100px; background: var(--surface); transition: border-color 0.2s, transform 0.2s; }
-.potm-chip:hover { border-color: var(--orange); transform: translateY(-2px); }
-.potm-chip-photo { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ff-display); font-size: 15px; background: #23233a; border: 2px solid var(--border); }
-.potm-chip-photo img { width: 100%; height: 100%; object-fit: cover; }
-.potm-chip-txt { line-height: 1.2; }
-.potm-chip-name { font-weight: 800; font-size: 13px; white-space: nowrap; }
-.potm-chip-cat { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
-@media (max-width: 640px) {
-  .potm-chip-photo { width: 34px; height: 34px; }
-  .potm-chip-name { font-size: 12px; }
-}
+/* ── JOUEUR DU MOIS TICKER ── */
+.potm-banner { width: 100%; background: linear-gradient(180deg, #131320, #0a0a0c); border-bottom: 1px solid var(--border); height: 40px; display: flex; align-items: center; padding: 0 16px; overflow: hidden; }
+.potm-track { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.potm-label-inline { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); flex-shrink: 0; padding-right: 10px; border-right: 1px solid var(--border); margin-right: 4px; white-space: nowrap; }
+.potm-chip { display: flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; padding: 4px 12px; border: 1px solid var(--border); border-radius: 100px; background: var(--surface); transition: border-color 0.2s; }
+.potm-chip:hover { border-color: var(--orange); }
+.potm-chip-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
+.potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
 
 /* ── HERO ── */
 .hero {
@@ -112,7 +101,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 
 /* ── NAV ── */
 .nav {
-  position: sticky; top: var(--potm-h, 0px); z-index: 100; display: flex; justify-content: center; gap: 4px;
+  position: sticky; top: 0; z-index: 100; display: flex; justify-content: center; gap: 4px;
   background: rgba(10,10,12,0.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border); padding: 0 16px;
 }
