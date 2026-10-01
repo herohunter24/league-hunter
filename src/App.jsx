@@ -414,6 +414,9 @@ export default function App() {
         <section className="cat-selector" id="explorer">
           <h2>{t.selectCat}</h2>
           <div className="cs-sub">{t.selectCatSub}</div>
+          {effectiveCats.length > 4 && (
+            <input className="search-inp" style={{ marginBottom: 20 }} placeholder={t.searchCat} value={catSearch} onChange={e => setCatSearch(e.target.value)} />
+          )}
           <div className="cat-grid">
             {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
               <button key={c.id} className="cat-btn" onClick={() => selectCat(c.id)}>
@@ -421,9 +424,6 @@ export default function App() {
               </button>
             ))}
           </div>
-          {effectiveCats.length > 4 && (
-            <input className="search-inp" placeholder={t.searchCat} value={catSearch} onChange={e => setCatSearch(e.target.value)} />
-          )}
           {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
             <div className="empty-note">{t.noCatMatch}</div>
           )}
@@ -437,7 +437,7 @@ export default function App() {
           ps.showStandings !== false && ['standings', t.navStandings],
           ps.showSchedule !== false && ['schedule', t.navSchedule],
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
-          ps.showStats !== false && ['stats', t.navStats],
+          ps.showStats !== false && ['stats', t.navStats, 'Stats'],
         ].filter(Boolean);
         return (
           <>
@@ -448,8 +448,10 @@ export default function App() {
               </div>
             </div>
             <nav className="nav">
-              {tabs.map(([k, label]) => (
-                <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => switchTab(k)}>{label}</a>
+              {tabs.map(([k, label, short]) => (
+                <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => switchTab(k)}>
+                  {short ? <><span className="nav-full">{label}</span><span className="nav-short">{short}</span></> : label}
+                </a>
               ))}
             </nav>
           </>
