@@ -16,6 +16,7 @@ import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
 import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG } from './config/league.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
+const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
 
 function readUrlState() {
   const sp = new URLSearchParams(window.location.search);
@@ -279,6 +280,13 @@ export default function App() {
     history.replaceState({}, '', buildPageUrl(selectedCat, activeTab, null, null));
   }
 
+  useEffect(() => {
+    if (!openGame) return;
+    const onKey = e => { if (e.key === 'Escape') closeGameModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openGame]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function footerNav(tab) {
     if (selectedCat) {
       switchTab(tab);
@@ -489,7 +497,7 @@ export default function App() {
             <tbody>
               {standings.map((tm, i) => (
                 <React.Fragment key={tm.id}>
-                  <tr onClick={() => setOpenTeam(openTeam === tm.id ? null : tm.id)}>
+                  <tr style={{ cursor: 'pointer' }} onClick={() => setOpenTeam(openTeam === tm.id ? null : tm.id)}>
                     <td><span className={`rank-badge rank-${i + 1}`}>{i + 1}</span></td>
                     <td>
                       <div className="team-cell">
@@ -502,7 +510,8 @@ export default function App() {
                             fallback={<TeamInitials name={tm.name} color={tm.color} size={28} />}
                           />
                         </div>
-                        {tm.name}
+                        <span>{tm.name}</span>
+                        <span className={`standings-chev${openTeam === tm.id ? ' open' : ''}`}>›</span>
                       </div>
                     </td>
                     <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
@@ -546,32 +555,51 @@ export default function App() {
             {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
           </select>
         </div>
-        <div className="games-grid">
-          {games.map(g => {
-            const played = g.hs !== null;
-            const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
-            return (
-              <div key={g.id} className="game-card" onClick={() => openGameModal(g)}>
-                <div className="game-date">
-                  <span>{fmtDate(g.date, lang)} · {g.time}</span>
-                  <span className={played ? 'game-final' : 'game-status-live'}>{played ? t.final : t.upcoming}</span>
-                </div>
-                <div className="game-matchup">
-                  <div className="game-team">
-                    <div className="game-team-info"><TeamBadge team={awayTeam} size={24} />{g.away}</div>
-                    {played && <span className={`game-score ${g.as > g.hs ? 'winner' : 'loser'}`}>{g.as}</span>}
-                  </div>
-                  <div className="game-team">
-                    <div className="game-team-info"><TeamBadge team={homeTeam} size={24} />{g.home}</div>
-                    {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
-                  </div>
-                </div>
-                <div className="game-venue"><span>📍 {g.venue}</span></div>
+        {(() => {
+          if (!games.length) return <div className="empty-note">{schedFilter === 'upcoming' ? t.noUpcoming : '—'}</div>;
+          const nextGameId = (() => {
+            const upcoming = games.filter(g => g.hs === null);
+            if (!upcoming.length) return null;
+            return [...upcoming].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0]?.id;
+          })();
+          const grouped = [];
+          const dateMap = new Map();
+          for (const g of games) {
+            if (!dateMap.has(g.date)) { dateMap.set(g.date, []); grouped.push({ date: g.date, items: dateMap.get(g.date) }); }
+            dateMap.get(g.date).push(g);
+          }
+          return grouped.map(({ date, items }) => (
+            <div key={date}>
+              <div className="date-group-header">{fmtDateHeader(date, lang)}</div>
+              <div className="games-grid">
+                {items.map(g => {
+                  const played = g.hs !== null;
+                  const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
+                  return (
+                    <div key={g.id} className="game-card" onClick={() => openGameModal(g)}>
+                      {g.id === nextGameId && <div className="next-game-badge">{t.nextGame}</div>}
+                      <div className="game-date">
+                        <span>{fmtDate(g.date, lang)} · {g.time}</span>
+                        <span className={played ? 'game-final' : 'game-status-live'}>{played ? t.final : t.upcoming}</span>
+                      </div>
+                      <div className="game-matchup">
+                        <div className="game-team">
+                          <div className="game-team-info"><TeamBadge team={awayTeam} size={24} />{g.away}</div>
+                          {played && <span className={`game-score ${g.as > g.hs ? 'winner' : 'loser'}`}>{g.as}</span>}
+                        </div>
+                        <div className="game-team">
+                          <div className="game-team-info"><TeamBadge team={homeTeam} size={24} />{g.home}</div>
+                          {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
+                        </div>
+                      </div>
+                      {g.venue && <div className="game-venue"><span>📍 {g.venue}</span></div>}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-          {!games.length && <div className="empty-note" style={{ gridColumn: '1/-1' }}>—</div>}
-        </div>
+            </div>
+          ));
+        })()}
       </section>
       )}
 
@@ -715,9 +743,11 @@ export default function App() {
                   {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.hs > g.as ? 'var(--orange)' : 'var(--ink-soft)' }}>{g.hs}</div>}
                 </div>
               </div>
-              <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                📍 {t.venue}: {g.venue}
-              </div>
+              {g.venue && (
+                <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                  📍 {t.venue}: {g.venue}
+                </div>
+              )}
             </div>
           </div>
         );

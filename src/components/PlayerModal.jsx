@@ -7,6 +7,7 @@ import { TeamBadge } from './TeamBadge.jsx';
 
 export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare }) {
   const [report, setReport] = useState(null);
+  const [toast, setToast] = useState(false);
   useEffect(() => { setReport(null); }, [p.id, lang]);
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose(); };
@@ -40,6 +41,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
 
   return (
     <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) onClose(); }}>
+      {toast && <div className="copy-toast">{t.linkCopied}</div>}
       <div className="pmodal" style={{ position: 'relative' }}>
         <button className="pmodal-close" onClick={onClose} aria-label="Close">✕</button>
         <div className="pmodal-body">
@@ -106,8 +108,8 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
               <button className="pm-btn" style={{ background: 'var(--orange)', color: '#000' }} onClick={() => onShare(p)}>⤓ {t.download}</button>
               <button className="pm-btn" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }} onClick={() => {
                 const url = `${location.origin}${location.pathname}?league=${LEAGUE_ID || ''}&player=${p.id}`;
-                if (navigator.share) navigator.share({ title: p.name, url }).catch(() => {});
-                else navigator.clipboard.writeText(url).then(() => {}).catch(() => {});
+                if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); }
+                else { navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {}); }
               }}>🔗 {t.share}</button>
             </div>
           </div>
