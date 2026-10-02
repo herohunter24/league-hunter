@@ -102,6 +102,10 @@ export default function App() {
   const [openTeam, setOpenTeam] = useState(null);
   const handleSort = key => { if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setSortKey(key); setSortDir('desc'); } };
   const thA = key => sortKey === key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
+  const [statSortKey, setStatSortKey] = useState('ppg');
+  const [statSortDir, setStatSortDir] = useState('desc');
+  const handleStatSort = key => { if (statSortKey === key) setStatSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setStatSortKey(key); setStatSortDir('desc'); } };
+  const thAS = key => statSortKey === key ? (statSortDir === 'desc' ? ' ↓' : ' ↑') : '';
   const standings = useMemo(() => {
     const src = TEAMS.filter(tm => catMatch(tm.categoryId));
     const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0, gp: tm.w + tm.l, diff: (tm.pf || 0) - (tm.pa || 0) }));
@@ -678,33 +682,83 @@ export default function App() {
       {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
       <section className="section" id="statistiques">
         <div className="sec-kicker">{t.statsKicker}</div>
-        <div className="leaders-grid">
-          {[
-            ['ppg', t.topScorers], ['rpg', t.topRebounders], ['apg', t.topPlaymakers],
-            ...(PLAYERS.some(p => (p.spg || 0) > 0) ? [['spg', t.topSteals]] : []),
-            ...(PLAYERS.some(p => (p.bpg || 0) > 0) ? [['bpg', t.topBlocks]] : []),
-          ].map(([key, title]) => {
-            const top = leaders(key);
-            if (!top.length) return null;
-            const max = top[0][key] || 1;
-            return (
-              <div key={key} className="leader-card">
-                <div className="leader-title">{title}</div>
-                {top.map((p, i) => (
-                  <div key={p.id} className="leader-row">
-                    <span className="leader-rank">{i + 1}</span>
-                    <div className="leader-info">
-                      <div className="leader-name">{p.name}</div>
-                      <div className="leader-team">{p.team}</div>
-                      <div className="leader-bar"><div className="leader-bar-fill" style={{ width: ((p[key] || 0) / max * 100) + '%' }}></div></div>
+        {(() => {
+          const statPlayers = [...PLAYERS]
+            .filter(p => (catMatch(p.categoryId) || catTeamNames.has(p.team)) && (p.gp || 0) >= 1);
+          if (!statPlayers.length) return <div className="empty-note">{t.noStatsYet}</div>;
+          const leaders5 = key => [...statPlayers].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
+          const statCols = [
+            ['ppg', t.ppg], ['rpg', t.rpg], ['apg', t.apg],
+            ...(statPlayers.some(p => (p.spg || 0) > 0) ? [['spg', t.spg]] : []),
+            ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.bpg]] : []),
+          ];
+          const dir = statSortDir === 'asc' ? 1 : -1;
+          const sortedPlayers = [...statPlayers].sort((a, b) => dir * ((b[statSortKey] || 0) - (a[statSortKey] || 0)));
+          return (
+            <>
+              <div className="leaders-grid">
+                {[
+                  ['ppg', t.topScorers], ['rpg', t.topRebounders], ['apg', t.topPlaymakers],
+                  ...(statPlayers.some(p => (p.spg || 0) > 0) ? [['spg', t.topSteals]] : []),
+                  ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.topBlocks]] : []),
+                ].map(([key, title]) => {
+                  const top = leaders5(key);
+                  if (!top.length) return null;
+                  const max = top[0][key] || 1;
+                  return (
+                    <div key={key} className="leader-card">
+                      <div className="leader-title">{title}</div>
+                      {top.map((p, i) => (
+                        <div key={p.id} className="leader-row" style={{ cursor: 'pointer' }} onClick={() => openPlayerModal(p)}>
+                          <span className="leader-rank">{i + 1}</span>
+                          <div className="leader-info">
+                            <div className="leader-name">{p.name}</div>
+                            <div className="leader-team">{p.team}</div>
+                            {(p[key] || 0) > 0 && <div className="leader-bar"><div className="leader-bar-fill" style={{ width: ((p[key] || 0) / max * 100) + '%' }}></div></div>}
+                          </div>
+                          <span className="leader-val">{fmtN(p[key] || 0, lang)}</span>
+                        </div>
+                      ))}
                     </div>
-                    <span className="leader-val">{fmtN(p[key] || 0, lang)}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+
+              <div className="stats-table-wrap">
+                <div className="standings-scroll">
+                  <table className="standings-table stats-table">
+                    <thead>
+                      <tr>
+                        <th className="td-team-sticky" style={{ cursor: 'pointer' }} onClick={() => handleStatSort('name')}>{t.playerCol}{thAS('name')}</th>
+                        <th>{t.thTeam}</th>
+                        <th style={{ cursor: 'pointer' }} onClick={() => handleStatSort('gp')}>{t.gp}{thAS('gp')}</th>
+                        {statCols.map(([k, label]) => (
+                          <th key={k} style={{ cursor: 'pointer' }} onClick={() => handleStatSort(k)}>{label}{thAS(k)}</th>
+                        ))}
+                        {statPlayers.some(p => (p.fgPct || 0) > 0) && <th style={{ cursor: 'pointer' }} onClick={() => handleStatSort('fgPct')}>{t.fgPct}{thAS('fgPct')}</th>}
+                        {statPlayers.some(p => (p.ftPct || 0) > 0) && <th style={{ cursor: 'pointer' }} onClick={() => handleStatSort('ftPct')}>{t.ftPct}{thAS('ftPct')}</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedPlayers.map(p => (
+                        <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => openPlayerModal(p)}>
+                          <td className="td-team-sticky" style={{ fontWeight: 700 }}>{p.name}</td>
+                          <td style={{ color: 'var(--ink-mid)', whiteSpace: 'nowrap' }}>{p.team}</td>
+                          <td style={{ color: 'var(--ink-mid)' }}>{p.gp || 0}</td>
+                          {statCols.map(([k]) => (
+                            <td key={k} style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtN(p[k] || 0, lang)}</td>
+                          ))}
+                          {statPlayers.some(q => (q.fgPct || 0) > 0) && <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-mid)' }}>{(p.fgPct || 0) > 0 ? fmtN(p.fgPct, lang) + (lang === 'fr' ? ' %' : '%') : '—'}</td>}
+                          {statPlayers.some(q => (q.ftPct || 0) > 0) && <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-mid)' }}>{(p.ftPct || 0) > 0 ? fmtN(p.ftPct, lang) + (lang === 'fr' ? ' %' : '%') : '—'}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </section>
       )}
 
