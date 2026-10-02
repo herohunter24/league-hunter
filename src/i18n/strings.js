@@ -1,7 +1,7 @@
 export const STR = {
   fr: {
     kicker: "NLS CRÉATION · LA PERSONNALISATION SANS LIMITE",
-    heroTitle: "PORTEZ LA VICTOIRE",
+    heroTitle: "BRISEZ LES LIMITES",
     heroSub: "La ligue de basketball d'excellence",
     cta: "Explorer la Ligue",
     navStandings: "Classement", navSchedule: "Calendrier", navPlayers: "Joueurs", navStats: "Statistiques",
@@ -59,7 +59,7 @@ export const STR = {
   },
   en: {
     kicker: "NLS CRÉATION · CUSTOMIZATION WITHOUT LIMITS",
-    heroTitle: "WEAR THE VICTORY",
+    heroTitle: "BREAK THE LIMITS",
     heroSub: "The basketball league of excellence",
     cta: "Explore the League",
     navStandings: "Standings", navSchedule: "Schedule", navPlayers: "Players", navStats: "Stats",

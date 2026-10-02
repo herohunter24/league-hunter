@@ -5,3 +5,10 @@ export const BRAND_NAME      = 'NLS·CRÉATION';
 export const WEBSITE_URL     = 'https://www.nlscreation.com';
 export const COPYRIGHT       = '© 2026 NLS CRÉATION — LA PERSONNALISATION SANS LIMITE';
 export const DEFAULT_LANG    = 'fr';
+
+// Brand color palette
+export const BRAND_GOLD      = '#C9A24A';
+export const BRAND_GOLD_SOFT = '#D4B26A';
+export const BRAND_GOLD_DIM  = '#8B6F32';
+export const BRAND_BLACK     = '#0A0A0A';
+export const BRAND_OFFWHITE  = '#F4F1EA';

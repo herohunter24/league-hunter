@@ -22,7 +22,7 @@ export function TeamInitials({ name, color, size }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       width: size, height: size, borderRadius: '50%',
-      background: color || '#ff6b1a', color: '#fff',
+      background: color || '#C9A24A', color: '#000',
       fontWeight: 800, fontSize: Math.round(size * 0.38),
       flexShrink: 0, lineHeight: 1, userSelect: 'none',
     }}>

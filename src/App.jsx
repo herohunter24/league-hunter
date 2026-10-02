@@ -63,7 +63,7 @@ export default function App() {
 
   useEffect(() => {
     const c = (ps.accentColor || '').trim();
-    document.documentElement.style.setProperty('--orange', /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#ff6b1a');
+    document.documentElement.style.setProperty('--gold', /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#C9A24A');
   }, [ps.accentColor]);
 
   useEffect(() => {
@@ -344,7 +344,7 @@ export default function App() {
             <div className="potm-track">
               <span className="potm-label-inline">🏆 {t.potmTitle}</span>
               {validCards.map((x, i) => {
-                const tColor = TIER_COLOR[x.player.tier] || 'var(--orange)';
+                const tColor = TIER_COLOR[x.player.tier] || 'var(--gold)';
                 return (
                   <div key={i} className="potm-chip" onClick={() => openPlayerModal(x.player)}>
                     <div className="potm-chip-name" style={{ color: tColor }}>{x.player.name}</div>
@@ -363,7 +363,6 @@ export default function App() {
         <div className="hero-scrim"></div>
         <div className="hero-fade-top"></div>
         <div className="hero-fade-bottom"></div>
-        <div className="hero-ball"></div>
         <div className="hero-topbar">
           {logoOk
             ? <img className="hero-logo" src={NLS_LOGO} alt="NLS Création" onError={() => setLogoOk(false)} />
@@ -374,6 +373,9 @@ export default function App() {
           </div>
         </div>
         <div className="hero-inner">
+          {logoOk
+            ? <img className="hero-visual-logo" src={NLS_LOGO} alt="NLS Création" />
+            : null}
           <div className="hero-kicker">{t.kicker}</div>
           <h1 className="hero-title">{t.heroTitle}</h1>
           <p className="hero-sub">{t.heroSub}</p>
@@ -386,7 +388,7 @@ export default function App() {
       {/* ── LOADING / ERROR overlays ── */}
       {live && data.loading && (
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
-          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, #ff8d4d, #c24808 70%, #6e2604)', animation: 'floatBall 1.1s ease-in-out infinite' }}></div>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid var(--gold)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }}></div>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.32em', color: 'var(--ink-soft)', textTransform: 'uppercase' }}>{t.loadingLeague}</div>
         </div>
       )}
@@ -518,7 +520,7 @@ export default function App() {
                     <td><span className={`rank-badge rank-${i + 1}`}>{i + 1}</span></td>
                     <td className="td-team-sticky">
                       <div className="team-cell">
-                        <div className="team-logo-sq" style={{ background: (tm.color || '#ff6b1a') + '22', overflow: 'hidden' }}>
+                        <div className="team-logo-sq" style={{ background: (tm.color || '#C9A24A') + '22', overflow: 'hidden' }}>
                           <SafeImage
                             src={tm.logoUrl}
                             alt={tm.name}
@@ -804,20 +806,20 @@ export default function App() {
           <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) closeGameModal(); }}>
             <div className="modal-bx">
               <button className="modal-close" onClick={closeGameModal}>✕</button>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--orange)', marginBottom: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 18 }}>
                 {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 16, margin: '22px 0' }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 38, display: 'flex', justifyContent: 'center' }}><TeamBadge team={awayTeam} size={44} /></div>
                   <div style={{ fontWeight: 800, marginTop: 8, fontSize: 14 }}>{g.away}</div>
-                  {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.as > g.hs ? 'var(--orange)' : 'var(--ink-soft)' }}>{g.as}</div>}
+                  {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.as > g.hs ? 'var(--gold)' : 'var(--ink-soft)' }}>{g.as}</div>}
                 </div>
                 <div style={{ fontFamily: 'var(--ff-display)', fontSize: 18, color: 'var(--ink-soft)' }}>VS</div>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 38, display: 'flex', justifyContent: 'center' }}><TeamBadge team={homeTeam} size={44} /></div>
                   <div style={{ fontWeight: 800, marginTop: 8, fontSize: 14 }}>{g.home}</div>
-                  {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.hs > g.as ? 'var(--orange)' : 'var(--ink-soft)' }}>{g.hs}</div>}
+                  {played && <div style={{ fontFamily: 'var(--ff-display)', fontSize: 42, marginTop: 6, color: g.hs > g.as ? 'var(--gold)' : 'var(--ink-soft)' }}>{g.hs}</div>}
                 </div>
               </div>
               {g.venue && (
