@@ -39,6 +39,7 @@ function buildPageUrl(cat, tab, playerId, gameId) {
 
 const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const displayCatName = (name, t) => (t.catNames && t.catNames[name]) || name;
+const normalize = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export default function App() {
   const [lang, setLang] = useState(() => {
@@ -97,14 +98,23 @@ export default function App() {
   const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
 
   const [sortKey, setSortKey]   = useState('rank');
+  const [sortDir, setSortDir]   = useState('desc');
   const [openTeam, setOpenTeam] = useState(null);
+  const handleSort = key => { if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setSortKey(key); setSortDir('desc'); } };
+  const thA = key => sortKey === key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
   const standings = useMemo(() => {
     const src = TEAMS.filter(tm => catMatch(tm.categoryId));
-    const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0 }));
-    if (sortKey === 'wins') rows.sort((a, b) => b.w - a.w);
-    else rows.sort((a, b) => b.pct - a.pct);
+    const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0, gp: tm.w + tm.l, diff: (tm.pf || 0) - (tm.pa || 0) }));
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortKey === 'wins')  rows.sort((a, b) => dir * (b.w - a.w));
+    else if (sortKey === 'pct')  rows.sort((a, b) => dir * (b.pct - a.pct));
+    else if (sortKey === 'pf')   rows.sort((a, b) => dir * ((b.pf || 0) - (a.pf || 0)));
+    else if (sortKey === 'pa')   rows.sort((a, b) => dir * ((b.pa || 0) - (a.pa || 0)));
+    else if (sortKey === 'diff') rows.sort((a, b) => dir * (b.diff - a.diff));
+    else if (sortKey === 'gp')   rows.sort((a, b) => dir * (b.gp - a.gp));
+    else rows.sort((a, b) => dir * (b.pct - a.pct));
     return rows;
-  }, [sortKey, TEAMS, selectedCat]);
+  }, [sortKey, sortDir, TEAMS, selectedCat]);
 
   const [schedFilter, setSchedFilter] = useState('all');
   const [schedTeam, setSchedTeam]     = useState('all');
@@ -135,7 +145,7 @@ export default function App() {
     let ps = [...PLAYERS]
       .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
       .sort((a, b) => (b.rp || 0) - (a.rp || 0) || TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
-    if (search) ps = ps.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+    if (search) { const ns = normalize(search); ps = ps.filter(p => normalize(p.name).includes(ns)); }
     if (fTier !== 'all') ps = ps.filter(p => p.tier === fTier);
     if (fTeam !== 'all') ps = ps.filter(p => p.team === fTeam);
     if (fArch !== 'all') ps = ps.filter(p => p.arch && p.arch[lang] === fArch);
@@ -482,15 +492,18 @@ export default function App() {
       <section className="section" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
         <div className="standings-card">
+          <div className="standings-scroll">
           <table className="standings-table">
             <thead>
               <tr>
-                <th onClick={() => setSortKey('rank')}>{t.thRank}</th>
-                <th>{t.thTeam}</th>
-                <th onClick={() => setSortKey('wins')}>{t.thRecord}</th>
-                <th className="hide-m" onClick={() => setSortKey('rank')}>{t.thPct}</th>
-                <th className="hide-m" title="Points For">{t.thPF}</th>
-                <th className="hide-m" title="Points Against">{t.thPA}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('rank')}>{t.thRank}{thA('rank')}</th>
+                <th className="td-team-sticky">{t.thTeam}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('wins')}>{t.thRecord}{thA('wins')}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('diff')}>{t.thDiff}{thA('diff')}</th>
+                <th className="hide-m" style={{ cursor: 'pointer' }} onClick={() => handleSort('pct')}>{t.thPct}{thA('pct')}</th>
+                <th className="hide-m" style={{ cursor: 'pointer' }} onClick={() => handleSort('gp')}>{t.thGP}{thA('gp')}</th>
+                <th className="hide-m" style={{ cursor: 'pointer' }} onClick={() => handleSort('pf')}>{t.thPF}{thA('pf')}</th>
+                <th className="hide-m" style={{ cursor: 'pointer' }} onClick={() => handleSort('pa')}>{t.thPA}{thA('pa')}</th>
                 <th className="hide-m">{t.thLast5}</th>
               </tr>
             </thead>
@@ -499,7 +512,7 @@ export default function App() {
                 <React.Fragment key={tm.id}>
                   <tr style={{ cursor: 'pointer' }} onClick={() => setOpenTeam(openTeam === tm.id ? null : tm.id)}>
                     <td><span className={`rank-badge rank-${i + 1}`}>{i + 1}</span></td>
-                    <td>
+                    <td className="td-team-sticky">
                       <div className="team-cell">
                         <div className="team-logo-sq" style={{ background: (tm.color || '#ff6b1a') + '22', overflow: 'hidden' }}>
                           <SafeImage
@@ -514,17 +527,19 @@ export default function App() {
                         <span className={`standings-chev${openTeam === tm.id ? ' open' : ''}`}>›</span>
                       </div>
                     </td>
-                    <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
+                                        <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
+                    <td style={{ fontWeight: 700, color: tm.diff > 0 ? '#34d27b' : tm.diff < 0 ? '#e05555' : 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.diff > 0 ? '+' : ''}{tm.diff}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)' }}>{fmtN(tm.pct * 100, lang)}{lang === 'fr' ? ' %' : '%'}</td>
+                    <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.gp}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pf || 0}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.pa || 0}</td>
                     <td className="hide-m">
-                      <div className="last5">{tm.last5.map((r, j) => <span key={j} className={`l5-dot ${r ? 'l5-w' : 'l5-l'}`}></span>)}</div>
+                      <div className="last5">{(tm.last5 || []).map((r, j) => <span key={j} className={`l5-chip ${r ? 'l5-w' : 'l5-l'}`}>{r ? t.l5W : t.l5L}</span>)}</div>
                     </td>
                   </tr>
                   {openTeam === tm.id && (
                     <tr className="roster-row">
-                      <td colSpan="7">
+                      <td colSpan="9">
                         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 10 }}>{t.roster}</div>
                         <div className="roster-chips">
                           {PLAYERS.filter(p => p.team === tm.name).map(p => (
@@ -538,6 +553,7 @@ export default function App() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
       )}
@@ -622,32 +638,39 @@ export default function App() {
           );
         })()}
 
-        <div className="sec-kicker" style={{ marginTop: 6 }}>{t.bestPlayers}</div>
-        <div className="cards-grid" style={{ marginBottom: 12 }}>
-          {top5Players.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
-        </div>
-        {!top5Players.length && <div className="empty-note">{t.noPlayers}</div>}
-
-        {teamsInCat.length > 0 && (
-          <div style={{ marginTop: 44 }}>
-            <div className="sec-kicker">{t.findByTeam}</div>
-            <div className="player-filters" style={{ marginBottom: 24 }}>
-              <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
-                <option value="all">{t.selectTeamPh}</option>
-                {teamsInCat.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
-              </select>
-            </div>
-            {fTeam !== 'all' && (
-              teamPlayers.length > 0 ? (
+        {(() => {
+          const pmPlayer = resolveSpotlight(potmData, selectedCat, topByRp);
+          const pmId = pmPlayer && (pmPlayer.gp || 0) >= 1 ? pmPlayer.id : null;
+          const ns = normalize(search);
+          const filterActive = !!ns || fTeam !== 'all';
+          const gridPlayers = PLAYERS.filter(p => {
+            if (!catTeamNames.has(p.team)) return false;
+            if (!filterActive && p.id === pmId) return false;
+            if (fTeam !== 'all' && p.team !== fTeam) return false;
+            if (ns && !normalize(p.name).includes(ns)) return false;
+            return true;
+          });
+          return (
+            <>
+              <div className="player-filters" style={{ marginBottom: 20 }}>
+                <input className="inp search-inp" type="text" placeholder={t.searchPh} value={search} onChange={e => setSearch(e.target.value)} />
+                {teamsInCat.length > 0 && (
+                  <select className="filter-select" value={fTeam} onChange={e => setFTeam(e.target.value)}>
+                    <option value="all">{t.selectTeamPh}</option>
+                    {teamsInCat.map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+                  </select>
+                )}
+              </div>
+              {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {teamPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
                 </div>
               ) : (
-                <div className="empty-note">{t.noTeamPlayers}</div>
-              )
-            )}
-          </div>
-        )}
+                <div className="empty-note">{t.noPlayersFound}</div>
+              )}
+            </>
+          );
+        })()}
       </section>
       )}
 
