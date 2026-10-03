@@ -15,7 +15,7 @@ import { PlayerModal } from './components/PlayerModal.jsx';
 import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
 import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
-  REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL } from './config/league.js';
+  REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
@@ -164,7 +164,7 @@ export default function App() {
     sorted.forEach((p, i) => m.set(p.id, i + 1));
     return m;
   }, [PLAYERS]);
-  const cardTotal = PLAYERS.length;
+  const cardTotal = SET_TOTAL || PLAYERS.length;
 
   const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all';
   const galleryOpen = showAllPlayers || anyPlayerFilter;
@@ -491,8 +491,8 @@ export default function App() {
       {selectedCat && (() => {
         const catName = displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
         const tabs = [
-          ps.showStandings !== false && ['standings', t.navStandings],
-          ps.showSchedule !== false && ['schedule', t.navSchedule],
+          ps.showStandings !== false && ['standings', t.navStandings, lang === 'fr' ? 'Classe.' : 'Stands'],
+          ps.showSchedule !== false && ['schedule', t.navSchedule, lang === 'fr' ? 'Calend.' : 'Sched.'],
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
           ps.showStats !== false && ['stats', t.navStats, 'Stats'],
         ].filter(Boolean);

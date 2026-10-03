@@ -14,6 +14,9 @@ export const REGISTRATION_URL   = 'https://form.jotform.com/231035775359259';
 export const TEAM_SHOP_URL      = 'https://www.nlscreation.com/pages/team-shop';
 export const UNIFORM_QUOTE_URL  = 'https://www.nlscreation.com/pages/soumission';
 
+// Card set size override — null means use real player count
+export const SET_TOTAL = null;
+
 // Brand color palette
 export const BRAND_GOLD      = '#C9A24A';
 export const BRAND_GOLD_SOFT = '#D4B26A';

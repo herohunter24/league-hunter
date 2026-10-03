@@ -548,8 +548,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .header-tabs { display: none; }
 
   /* ── NAV: all 4 tabs always visible, sticks below header ── */
-  .nav { gap: 0; overflow-x: hidden; justify-content: flex-start; display: flex; top: 56px; }
-  .nav a { flex: 1; text-align: center; padding: 14px 2px; font-size: 12px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; }
+  .nav { gap: 0; overflow-x: hidden; justify-content: stretch; display: flex; top: 56px; }
+  .nav a { flex: 1; text-align: center; padding: 13px 2px; font-size: 11px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: clip; }
   .nav a::after { left: 4px; right: 4px; }
   .nav-full { display: none; }
   .nav-short { display: inline; }
