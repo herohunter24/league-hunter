@@ -34,7 +34,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   background: none; border: none; cursor: pointer; padding: 0;
   display: flex; align-items: center; flex-shrink: 0;
 }
-.site-header-logo img { height: 30px; filter: invert(1) brightness(1.5); }
+.site-header-logo img { height: 30px; }
 .site-header-logo-fallback { font-family: var(--ff-display); font-weight: 700; letter-spacing: 0.12em; font-size: 17px; color: var(--ink); }
 .header-tabs { display: flex; align-items: center; gap: 2px; }
 .header-tab {
@@ -78,7 +78,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .hero-topbar, .hero-inner { position: relative; z-index: 10; }
 
 .hero-inner { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px 40px; position: relative; z-index: 1; }
-.hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; filter: invert(1) brightness(1.5); opacity: 0.92; animation: fadeUp 0.6s ease both; }
+.hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; opacity: 0.92; animation: fadeUp 0.6s ease both; }
 .hero-kicker { font-family: var(--ff-display); font-size: 12px; font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap; }
 .hero-title {
   font-family: var(--ff-display); font-size: clamp(44px, 9vw, 110px); line-height: 0.95;
@@ -263,7 +263,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 /* Top bar */
 .pc-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 11px 12px 6px; position: relative; z-index: 3; margin-bottom: auto; gap: 6px; }
 .pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
-.pc-logo-img { height: 18px; width: auto; filter: invert(1) brightness(2); object-fit: contain; }
+.pc-logo-img { height: 18px; width: auto; object-fit: contain; }
 .pc-league-text { font-family: var(--ff-display); font-size: 14px; font-weight: 900; letter-spacing: 0.15em; line-height: 1; }
 .pc-season-text { font-size: 8px; font-weight: 700; letter-spacing: 0.2em; opacity: 0.55; }
 .pc-tier-block { text-align: right; flex: 1; }
@@ -435,7 +435,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .footer-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
 .footer-col {}
 .footer-col--brand {}
-.footer-logo { height: 28px; filter: invert(1) brightness(1.5); margin-bottom: 14px; display: block; }
+.footer-logo { height: 28px; margin-bottom: 14px; display: block; }
 .footer-tagline { font-size: 13px; color: var(--ink-soft); margin-bottom: 16px; }
 .footer-ig { display: flex; align-items: center; gap: 8px; color: var(--ink-mid); text-decoration: none; font-size: 13px; }
 .footer-ig:hover { color: var(--gold); }

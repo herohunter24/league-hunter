@@ -13,7 +13,7 @@ import { TeamBadge } from './components/TeamBadge.jsx';
 import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
 import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
-import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
+import { NLS_LOGO, NLS_LOGO_WHITE, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
 
@@ -361,7 +361,7 @@ export default function App() {
         <div className="site-header-inner">
           <button className="site-header-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Accueil">
             {logoOk
-              ? <img src={NLS_LOGO} alt="NLS Création" onError={() => setLogoOk(false)} />
+              ? <img src={NLS_LOGO_WHITE} alt="NLS Création" onError={() => setLogoOk(false)} />
               : <span className="site-header-logo-fallback">NLS</span>}
           </button>
           <div className="header-tabs">
@@ -409,7 +409,7 @@ export default function App() {
         <div className="hero-fade-bottom"></div>
         <div className="hero-inner">
           {logoOk
-            ? <img className="hero-visual-logo" src={NLS_LOGO} alt="NLS Création" />
+            ? <img className="hero-visual-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
             : null}
           <div className="hero-kicker">{t.kicker}</div>
           <h1 className="hero-title">{t.heroTitle}</h1>
@@ -790,7 +790,7 @@ export default function App() {
       <footer className="footer">
         <div className="footer-grid">
           <div className="footer-col footer-col--brand">
-            <img className="footer-logo" src={NLS_LOGO} alt="NLS Création" />
+            <img className="footer-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
             <p className="footer-tagline">{t.footerAbout}</p>
             <a className="footer-ig" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">

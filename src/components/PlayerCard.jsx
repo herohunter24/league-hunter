@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { TIERS } from '../lib/tiers.js';
 import { TeamBadge } from './TeamBadge.jsx';
 import { SafeImage, PlayerSilhouette, isLegacyOrange } from './SafeImage.jsx';
-import { NLS_LOGO } from '../config/league.js';
+import { NLS_LOGO_WHITE } from '../config/league.js';
 
 const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pad3 = n => String(n || 0).padStart(3, '0');
@@ -91,10 +91,12 @@ function useHolo() {
       setupTilt();
     }
 
-    // Slow auto-shimmer when no mouse/tilt interaction
+    // Slow auto-shimmer — only runs while card is visible on screen
     let shimPos = 0.3, shimDir = 1;
     let shimTimer = null;
-    if (!reduce.current) {
+
+    const startShimmer = () => {
+      if (shimTimer || reduce.current) return;
       shimTimer = setInterval(() => {
         if (hovered.current) return;
         shimPos += 0.004 * shimDir;
@@ -102,14 +104,24 @@ function useHolo() {
         if (shimPos < 0.18) shimDir = 1;
         el.style.setProperty('--holo-x', `${shimPos * 100}%`);
       }, 100);
-    }
+    };
+    const stopShimmer = () => {
+      if (shimTimer) { clearInterval(shimTimer); shimTimer = null; }
+    };
+
+    // IntersectionObserver: only animate when visible
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => { if (entry.isIntersecting) startShimmer(); else stopShimmer(); });
+    }, { threshold: 0, rootMargin: '80px' });
+    observer.observe(el);
 
     return () => {
+      observer.disconnect();
       el.removeEventListener('mousemove', onMove);
       el.removeEventListener('mouseleave', onLeave);
       mq.removeEventListener('change', onMq);
       if (rafId.current) { cancelAnimationFrame(rafId.current); rafId.current = null; }
-      if (shimTimer) clearInterval(shimTimer);
+      stopShimmer();
       if (tiltCleanup.current) { tiltCleanup.current(); tiltCleanup.current = null; }
     };
   }, [apply, reset]);
@@ -147,7 +159,7 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, cardNumber, car
         <div className="pc-top">
           <div className="pc-league-badge">
             {logoOk
-              ? <img src={NLS_LOGO} alt="NLS" className="pc-logo-img" crossOrigin="anonymous" onError={() => setLogoOk(false)} />
+              ? <img src={NLS_LOGO_WHITE} alt="NLS" className="pc-logo-img" crossOrigin="anonymous" onError={() => setLogoOk(false)} />
               : <span className="pc-league-text">NLS</span>
             }
             <span className="pc-season-text">2026</span>
