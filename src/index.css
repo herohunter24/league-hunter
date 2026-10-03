@@ -252,17 +252,18 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   background: linear-gradient(180deg, transparent, rgba(0,0,0,0.92) 60%);
 }
 
-/* Holographic glare overlay */
+/* Holographic glare overlay — opacity scaled per-tier via --holo-op on the card */
 .pc-holo {
   position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: 8px;
-  background: radial-gradient(ellipse at var(--holo-x, 50%) var(--holo-y, 30%), rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.04) 40%, transparent 70%);
+  background: radial-gradient(ellipse at var(--holo-x, 50%) var(--holo-y, 30%), rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 40%, transparent 70%);
   mix-blend-mode: screen;
-  transition: background 0.1s;
+  opacity: var(--holo-op, 0.5);
 }
 
 /* Top bar */
 .pc-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 11px 12px 6px; position: relative; z-index: 3; margin-bottom: auto; gap: 6px; }
-.pc-league-badge { display: flex; flex-direction: column; gap: 1px; }
+.pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
+.pc-logo-img { height: 18px; width: auto; filter: invert(1) brightness(2); object-fit: contain; }
 .pc-league-text { font-family: var(--ff-display); font-size: 14px; font-weight: 900; letter-spacing: 0.15em; line-height: 1; }
 .pc-season-text { font-size: 8px; font-weight: 700; letter-spacing: 0.2em; opacity: 0.55; }
 .pc-tier-block { text-align: right; flex: 1; }
@@ -282,6 +283,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pc-name { font-family: var(--ff-display); font-size: 15px; letter-spacing: 0.02em; line-height: 1.1; }
 .pc-num { opacity: 0.65; margin-right: 3px; }
 .pc-meta { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.65; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+
+/* Team accent line above player name */
+.pc-accent-line { height: 2px; margin: 0 11px 5px; border-radius: 1px; position: relative; z-index: 3; opacity: 0.65; }
 
 /* Stats */
 .pc-stats { display: flex; gap: 0; margin: 7px 11px 6px; border-radius: 4px; overflow: hidden; position: relative; z-index: 3; }
@@ -306,6 +310,15 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pc-share:hover { background: var(--gold); color: #000; }
 
 /* TIER FRAMES */
+/* Per-tier jersey watermark colors */
+.t-bronze .pc-jersey-bg { color: #cd9858; }
+.t-silver .pc-jersey-bg { color: #d7dce2; }
+.t-gold .pc-jersey-bg { color: #ffd75e; }
+.t-platinum .pc-jersey-bg { color: #e6ebf1; }
+.t-diamond .pc-jersey-bg { color: #8ee6ff; }
+.t-champion .pc-jersey-bg { color: #ffd24a; }
+.t-legend .pc-jersey-bg { color: #c890ff; }
+
 .t-bronze { background: repeating-linear-gradient(37deg, #6e4a26 0px, #7d5630 5px, #5c3c1d 9px, #75502b 14px); }
 .t-bronze .pcard-inner { background: linear-gradient(168deg, #36250f 0%, #241808 100%); color: #e8d4b8; }
 .t-bronze .pc-tier { color: #cd9858; }

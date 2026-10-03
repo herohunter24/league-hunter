@@ -157,6 +157,15 @@ export default function App() {
     if (fArch !== 'all') ps = ps.filter(p => p.arch && p.arch[lang] === fArch);
     return ps;
   }, [search, fTier, fTeam, fArch, PLAYERS, lang, selectedCat, catTeamNames]);
+  // Stable card numbers: sort all players by id string for a consistent order
+  const cardIndexMap = useMemo(() => {
+    const sorted = [...PLAYERS].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const m = new Map();
+    sorted.forEach((p, i) => m.set(p.id, i + 1));
+    return m;
+  }, [PLAYERS]);
+  const cardTotal = PLAYERS.length;
+
   const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all';
   const galleryOpen = showAllPlayers || anyPlayerFilter;
   const shownPlayers = galleryOpen ? players : players.slice(0, 5);
@@ -325,12 +334,16 @@ export default function App() {
   function shareCard(p) {
     const el = document.getElementById(`pcard-${p.id}`);
     if (!el) return;
-    html2canvas(el, { backgroundColor: null, scale: 3 }).then(canvas => {
+    // Hide holo overlay (mix-blend-mode doesn't render in html2canvas)
+    const holo = el.querySelector('.pc-holo');
+    if (holo) holo.style.display = 'none';
+    html2canvas(el, { backgroundColor: null, scale: 3, useCORS: true, allowTaint: false }).then(canvas => {
+      if (holo) holo.style.display = '';
       const link = document.createElement('a');
       link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-    });
+    }).catch(() => { if (holo) holo.style.display = ''; });
   }
 
   const [logoOk, setLogoOk] = useState(true);
@@ -434,7 +447,7 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
+                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
                   </div>
                 ))}
               </div>
@@ -647,7 +660,7 @@ export default function App() {
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div style={{ maxWidth: 250 }}>
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
               </div>
             </div>
           );
@@ -678,7 +691,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>
@@ -814,7 +827,7 @@ export default function App() {
 
       {/* ── PLAYER MODAL ── */}
       {selectedPlayer && (
-        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} />
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} />
       )}
 
       {/* ── GAME MODAL ── */}

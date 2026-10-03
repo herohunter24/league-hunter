@@ -17,6 +17,7 @@ export function PlayerSilhouette() {
 }
 
 const LEGACY_ORANGE = /^#?(ff6b1a|ff8d4d|e84e00)$/i;
+export const isLegacyOrange = color => !color || LEGACY_ORANGE.test(color);
 
 export function TeamInitials({ name, color, size }) {
   const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
