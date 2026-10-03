@@ -20,6 +20,7 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
             <div className="pc-tier">{tier.label}</div>
             <div className="pc-arch">{(p.arch[lang] || '').charAt(0).toUpperCase() + (p.arch[lang] || '').slice(1).toLowerCase()}</div>
           </div>
+          {onShare && <button className="pc-share" title={t.download} onClick={e => { e.stopPropagation(); onShare(p); }}>⤓</button>}
         </div>
         <div className="pc-photo">
           <SafeImage
@@ -44,7 +45,6 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units }) {
           <div className="pc-stat"><div className="pc-stat-v">{fmtN(p.apg, lang)}</div><div className="pc-stat-k">{t.apg}</div></div>
         </div>
       </div>
-      {onShare && <button className="pc-share" title={t.download} onClick={e => { e.stopPropagation(); onShare(p); }}>⤓</button>}
     </div>
   );
 }

@@ -342,7 +342,7 @@ export default function App() {
         return (
           <div className="potm-banner">
             <div className="potm-track">
-              <span className="potm-label-inline">🏆 {t.potmTitle}</span>
+              <span className="potm-label-inline">{t.potmTitle}</span>
               {validCards.map((x, i) => {
                 const tColor = TIER_COLOR[x.player.tier] || 'var(--gold)';
                 return (
@@ -455,7 +455,7 @@ export default function App() {
           <div className="cat-grid">
             {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
               <button key={c.id} className="cat-btn" onClick={() => selectCat(c.id)}>
-                <div className="cat-btn-icon">🏀</div>{displayCatName(c.name, t)}
+                {displayCatName(c.name, t)}
               </button>
             ))}
           </div>
@@ -635,7 +635,7 @@ export default function App() {
           if (!pmPlayer || (pmPlayer.gp || 0) < 1) return null;
           return (
             <div style={{ marginBottom: 40 }}>
-              <div className="sec-kicker">🏆 {t.potmTitle}</div>
+              <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div style={{ maxWidth: 250 }}>
                 <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
@@ -695,7 +695,7 @@ export default function App() {
             ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.bpg]] : []),
           ];
           const dir = statSortDir === 'asc' ? 1 : -1;
-          const sortedPlayers = [...statPlayers].sort((a, b) => dir * ((b[statSortKey] || 0) - (a[statSortKey] || 0)));
+          const sortedPlayers = [...statPlayers].sort((a, b) => dir * (parseFloat(b[statSortKey] || 0) - parseFloat(a[statSortKey] || 0)));
           return (
             <>
               <div className="leaders-grid">

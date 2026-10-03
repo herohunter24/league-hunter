@@ -1,6 +1,6 @@
 export function scoutingReport(p, pGames, fgPct, lang) {
   const fr = lang === 'fr';
-  const f = n => (n || 0).toFixed(1);
+  const f = n => (+(n || 0)).toLocaleString(fr ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const name = p.name;
   const ppg = p.ppg || 0, rpg = p.rpg || 0, apg = p.apg || 0, spg = p.spg || 0, bpg = p.bpg || 0;
   const fg = fgPct != null ? parseFloat(fgPct) : null;

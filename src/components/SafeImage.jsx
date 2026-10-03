@@ -16,13 +16,16 @@ export function PlayerSilhouette() {
   );
 }
 
+const LEGACY_ORANGE = /^#?(ff6b1a|ff8d4d|e84e00)$/i;
+
 export function TeamInitials({ name, color, size }) {
   const initials = (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const bg = (!color || LEGACY_ORANGE.test(color)) ? '#C9A24A' : color;
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       width: size, height: size, borderRadius: '50%',
-      background: color || '#C9A24A', color: '#000',
+      background: bg, color: '#000',
       fontWeight: 800, fontSize: Math.round(size * 0.38),
       flexShrink: 0, lineHeight: 1, userSelect: 'none',
     }}>

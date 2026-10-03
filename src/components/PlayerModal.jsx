@@ -58,7 +58,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
             {!report && <button className="pm-scout-btn" onClick={() => setReport(scoutingReport(p, pGames, fgPct, lang))}>{t.scoutBtn}</button>}
             {report && (
               <div className="pm-report">
-                <div className="pm-report-h">📋 {t.scoutTitle}</div>
+                <div className="pm-report-h">{t.scoutTitle}</div>
                 {report}
               </div>
             )}
@@ -72,8 +72,8 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
 
             <div className="pm-section-t">{t.tierProgress}</div>
             <div className="pm-prog-head">
-              <span className="pm-prog-tier">{prog.curIcon} {prog.curLabel}</span>
-              {!prog.isMax && <span className="pm-prog-tier" style={{ color: 'var(--ink-soft)' }}>{prog.nextIcon} {prog.nextLabel}</span>}
+              <span className="pm-prog-tier">{prog.curLabel}</span>
+              {!prog.isMax && <span className="pm-prog-tier" style={{ color: 'var(--ink-soft)' }}>{prog.nextLabel}</span>}
             </div>
             <div className="pm-prog-bar"><div className="pm-prog-fill" style={{ width: prog.pct + '%' }}></div></div>
             <div className="pm-prog-need">{prog.isMax ? t.maxTier : t.rpToReach(prog.rpNeeded, prog.nextLabel)}</div>
@@ -110,7 +110,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
                 const url = `${location.origin}${location.pathname}?league=${LEAGUE_ID || ''}&player=${p.id}`;
                 if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); }
                 else { navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {}); }
-              }}>🔗 {t.share}</button>
+              }}>{t.share}</button>
             </div>
           </div>
         </div>
