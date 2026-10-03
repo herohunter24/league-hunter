@@ -425,20 +425,7 @@ export default function App() {
             <div className="mission-body">
               {lm.body
                 ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
-                : <>{t.missionP1}<br /><br />{t.missionP2}</>}
-            </div>
-            <div className="mission-pillars">
-              {[
-                ['🏆', t.pillarExcellence, t.pillarExcellenceD],
-                ['🤝', t.pillarCommunity, t.pillarCommunityD],
-                ['📈', t.pillarProgress, t.pillarProgressD],
-              ].map(([icon, title, desc]) => (
-                <div key={title} className="pillar">
-                  <div className="pillar-icon">{icon}</div>
-                  <div className="pillar-t">{title}</div>
-                  <div className="pillar-d">{desc}</div>
-                </div>
-              ))}
+                : t.missionP1}
             </div>
           </section>
         </>

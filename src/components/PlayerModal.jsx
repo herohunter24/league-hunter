@@ -55,13 +55,17 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
               <span>{p.team}{p.pos ? ' · ' + p.pos : ''} · {(p.arch[lang] || '').charAt(0).toUpperCase() + (p.arch[lang] || '').slice(1).toLowerCase()}</span>
             </div>
 
-            {!report && <button className="pm-scout-btn" onClick={() => setReport(scoutingReport(p, pGames, fgPct, lang))}>{t.scoutBtn}</button>}
-            {report && (
-              <div className="pm-report">
-                <div className="pm-report-h">{t.scoutTitle}</div>
-                {report}
-              </div>
-            )}
+            {(p.gp || 0) < 3
+              ? <p style={{ marginTop: 14, fontSize: 13, color: 'var(--ink-soft)' }}>{t.noScoutData}</p>
+              : !report
+                ? <button className="pm-scout-btn" onClick={() => setReport(scoutingReport(p, pGames, fgPct, lang))}>{t.scoutBtn}</button>
+                : (
+                  <div className="pm-report">
+                    <div className="pm-report-h">{t.scoutTitle}</div>
+                    {report}
+                  </div>
+                )
+            }
 
             <div className="pm-section-t">{t.seasonStats}</div>
             <div className="pm-stats-grid">
