@@ -18,6 +18,36 @@ html { scroll-behavior: smooth; }
 body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -webkit-font-smoothing: antialiased; overflow-x: clip; }
 ::selection { background: var(--gold); color: #000; }
 
+/* ── SITE HEADER ── */
+.site-header {
+  position: sticky; top: 0; z-index: 200;
+  background: var(--bg); border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.site-header.scrolled { border-bottom-color: var(--border); }
+.site-header-inner {
+  max-width: 1180px; margin: 0 auto; height: 64px;
+  padding: 0 clamp(20px, 5vw, 56px);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.site-header-logo {
+  background: none; border: none; cursor: pointer; padding: 0;
+  display: flex; align-items: center; flex-shrink: 0;
+}
+.site-header-logo img { height: 30px; filter: invert(1) brightness(1.5); }
+.site-header-logo-fallback { font-family: var(--ff-display); font-weight: 700; letter-spacing: 0.12em; font-size: 17px; color: var(--ink); }
+.header-tabs { display: flex; align-items: center; gap: 2px; }
+.header-tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--ink-soft); cursor: pointer;
+  font-family: var(--ff-body); font-weight: 700; font-size: 12.5px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 0 16px; height: 64px; display: flex; align-items: center; white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
+}
+.header-tab:hover { color: var(--ink); }
+.header-tab.active { color: var(--ink); border-bottom-color: var(--gold); }
+
 /* ── JOUEUR DU MOIS TICKER ── */
 .potm-banner { width: 100%; background: #0A0A0A; border-bottom: 1px solid var(--border); height: 40px; display: flex; align-items: center; padding: 0 16px; overflow: hidden; }
 .potm-track { display: flex; align-items: center; gap: 8px; overflow: hidden; }
@@ -80,10 +110,11 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .lang-toggle button.active { background: var(--gold); color: #000; }
 
 /* ── NAV ── */
+/* Nav tab bar: mobile-only (desktop uses header tabs) */
+@media (min-width: 641px) { .nav { display: none; } }
 .nav {
-  position: sticky; top: 0; z-index: 100; display: flex; justify-content: center; gap: 4px;
-  background: rgba(10,10,12,0.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border); padding: 0 16px;
+  position: sticky; top: 64px; z-index: 100; display: flex; justify-content: center; gap: 4px;
+  background: rgba(10,10,12,0.96); border-bottom: 1px solid var(--border); padding: 0 16px;
 }
 .nav a {
   color: var(--ink-soft); text-decoration: none; font-weight: 700; font-size: 13px;
@@ -354,13 +385,17 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 
 /* ── FOOTER ── */
 .footer { border-top: 1px solid var(--border); background: #08080a; padding: 56px clamp(18px, 4vw, 40px) 40px; }
-.footer-grid { max-width: 1180px; margin: 0 auto; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 36px; }
-.footer h4 { font-size: 12px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 14px; }
-.footer p, .footer a { font-size: 13.5px; color: var(--ink-mid); line-height: 2; text-decoration: none; display: block; }
+.footer-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
+.footer-col {}
+.footer-col--brand {}
+.footer-logo { height: 28px; filter: invert(1) brightness(1.5); margin-bottom: 14px; display: block; }
+.footer-tagline { font-size: 13px; color: var(--ink-soft); margin-bottom: 16px; }
+.footer-ig { display: flex; align-items: center; gap: 8px; color: var(--ink-mid); text-decoration: none; font-size: 13px; }
+.footer-ig:hover { color: var(--gold); }
+.footer h4 { font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 14px; }
+.footer a { font-size: 13.5px; color: var(--ink-mid); line-height: 2.2; text-decoration: none; display: block; }
 .footer a:hover { color: var(--gold); }
-.footer-brand { font-family: var(--ff-display); font-size: 22px; margin-bottom: 8px; }
-.footer-brand span { color: var(--gold); }
-.footer-bottom { max-width: 1180px; margin: 44px auto 0; padding-top: 22px; border-top: 1px solid #1a1a20; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--ink-soft); }
+.footer-bottom { max-width: 1180px; margin: 44px auto 0; padding-top: 22px; border-top: 1px solid #1a1a20; font-size: 11.5px; color: var(--ink-soft); }
 
 /* ── MODAL ── */
 .modal-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.82); backdrop-filter: blur(8px); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s; }
@@ -461,8 +496,12 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   /* no sideways overflow — clip doesn't create a scroll container so sticky still works */
   html, body { overflow-x: clip; }
 
-  /* ── NAV: all 4 tabs always visible ── */
-  .nav { gap: 0; overflow-x: hidden; justify-content: flex-start; display: flex; }
+  /* ── SITE HEADER: compact on mobile ── */
+  .site-header-inner { height: 56px; }
+  .header-tabs { display: none; }
+
+  /* ── NAV: all 4 tabs always visible, sticks below header ── */
+  .nav { gap: 0; overflow-x: hidden; justify-content: flex-start; display: flex; top: 56px; }
   .nav a { flex: 1; text-align: center; padding: 14px 2px; font-size: 12px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; }
   .nav a::after { left: 4px; right: 4px; }
   .nav-full { display: none; }
@@ -494,4 +533,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .standings-table .hide-m { display: none; }
 
   .hero-kicker { font-size: 10px; letter-spacing: 0.15em; white-space: normal; text-align: center; }
+
+  /* ── FOOTER: 2-column on mobile ── */
+  .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
+  .footer-col--brand { grid-column: 1 / -1; }
 }
