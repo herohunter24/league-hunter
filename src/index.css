@@ -325,7 +325,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 /* Set line — two variants, switched by container width */
 .pc-setline {
   text-align: center; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
-  opacity: 0.4; padding: 0 4cqi 1.5cqi; margin-top: auto;
+  opacity: 0.4; padding: 2cqi 4cqi 2cqi;
   white-space: nowrap; overflow: hidden;
 }
 .pc-setline-long  { font-size: clamp(6px, 3.4cqi, 9px); }

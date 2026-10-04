@@ -12,7 +12,7 @@ import { HeroVideo } from './components/HeroVideo.jsx';
 import { TeamBadge } from './components/TeamBadge.jsx';
 import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
-import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
+import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImage.jsx';
 import { NLS_LOGO, NLS_LOGO_WHITE, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
@@ -331,24 +331,48 @@ export default function App() {
     return picks;
   }, [PLAYERS]);
 
+  // Before html2canvas: replace any broken <img> that's visible and failed to load
+  // with the silhouette PNG so the photo zone is never empty in the export.
+  async function swapBrokenImages(el) {
+    const sil = getSilhouettePng();
+    const swapped = [];
+    for (const img of el.querySelectorAll('img')) {
+      if (getComputedStyle(img).display === 'none') continue; // hidden by SafeImage while loading
+      if (img.src.startsWith('data:')) continue;             // already a data URI (silhouette/logo)
+      if (!img.complete || img.naturalWidth === 0) {
+        const orig = img.src;
+        img.src = sil;
+        swapped.push({ img, orig });
+        await new Promise(r => { img.onload = r; img.onerror = r; });
+      }
+    }
+    return swapped;
+  }
+
   function shareCard(p) {
-    // Prefer the card rendered in the modal (usually larger) for better quality
     const modal = document.querySelector('.pmodal');
     const el = (modal && modal.querySelector(`#pcard-${p.id}`))
       || document.getElementById(`pcard-${p.id}`);
     if (!el) return;
     const holo = el.querySelector('.pc-holo');
     if (holo) holo.style.display = 'none';
-    // Scale up so PNG is at least 750px wide
     const cardW = el.getBoundingClientRect().width || 250;
     const scale = Math.max(3, Math.ceil(750 / cardW));
-    html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false }).then(canvas => {
-      if (holo) holo.style.display = '';
-      const link = document.createElement('a');
-      link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    }).catch(() => { if (holo) holo.style.display = ''; });
+    swapBrokenImages(el).then(swapped => {
+      html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false })
+        .then(canvas => {
+          swapped.forEach(({ img, orig }) => { img.src = orig; });
+          if (holo) holo.style.display = '';
+          const link = document.createElement('a');
+          link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        })
+        .catch(() => {
+          swapped.forEach(({ img, orig }) => { img.src = orig; });
+          if (holo) holo.style.display = '';
+        });
+    });
   }
 
   const [logoOk, setLogoOk] = useState(true);
