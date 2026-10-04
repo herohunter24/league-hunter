@@ -111,7 +111,7 @@ export default function App() {
   const standings = useMemo(() => {
     const src = TEAMS.filter(tm => catMatch(tm.categoryId));
     const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0, gp: tm.w + tm.l, diff: (tm.pf || 0) - (tm.pa || 0) }));
-    const dir = sortDir === 'asc' ? 1 : -1;
+    const dir = sortDir === 'asc' ? -1 : 1;
     if (sortKey === 'wins')  rows.sort((a, b) => dir * (b.w - a.w));
     else if (sortKey === 'pct')  rows.sort((a, b) => dir * (b.pct - a.pct));
     else if (sortKey === 'pf')   rows.sort((a, b) => dir * ((b.pf || 0) - (a.pf || 0)));
@@ -552,7 +552,7 @@ export default function App() {
           <table className="standings-table">
             <thead>
               <tr>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('rank')}>{t.thRank}{thA('rank')}</th>
+                <th>{t.thRank}</th>
                 <th className="td-team-sticky">{t.thTeam}</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('wins')}>{t.thRecord}{thA('wins')}</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('diff')}>{t.thDiff}{thA('diff')}</th>
