@@ -111,11 +111,11 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 
 /* ── NAV ── */
 /* Nav tab bar: mobile-only (desktop uses header tabs) */
-@media (min-width: 641px) { .nav { display: none; } }
 .nav {
   position: sticky; top: 64px; z-index: 100; display: flex; justify-content: center; gap: 4px;
   background: rgba(10,10,12,0.96); border-bottom: 1px solid var(--border); padding: 0 16px;
 }
+@media (min-width: 641px) { .nav { display: none; } }
 .nav a {
   color: var(--ink-soft); text-decoration: none; font-weight: 700; font-size: 13px;
   letter-spacing: 0.14em; text-transform: uppercase; padding: 18px 22px; position: relative; transition: color 0.2s;
