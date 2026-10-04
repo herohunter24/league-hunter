@@ -746,7 +746,10 @@ export default function App() {
             ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.bpg]] : []),
           ];
           const dir = statSortDir === 'asc' ? 1 : -1;
-          const sortedPlayers = [...statPlayers].sort((a, b) => dir * (parseFloat(b[statSortKey] || 0) - parseFloat(a[statSortKey] || 0)));
+          const sortedPlayers = [...statPlayers].sort((a, b) => {
+            if (statSortKey === 'name') return dir * (a.name || '').localeCompare(b.name || '');
+            return dir * (parseFloat(b[statSortKey] || 0) - parseFloat(a[statSortKey] || 0));
+          });
           return (
             <>
               <div className="leaders-grid">
