@@ -704,6 +704,28 @@ button:active { transform: scale(0.98); }
 .skel-bar-sm { width: min(140px, 40vw); height: 44px; }
 @keyframes skelPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.7; } }
 
+/* 3b — Sliding tab underline (desktop) */
+.header-tabs { position: relative; }
+.header-tabs::after {
+  content: ''; position: absolute; bottom: 0;
+  left: var(--tab-left, 0px); width: var(--tab-width, 0px);
+  height: 2px; background: var(--gold);
+  transition: left 0.25s ease-out, width 0.2s ease-out;
+  pointer-events: none;
+}
+/* Individual tab border hidden — indicator handles it */
+.header-tab.active { border-bottom-color: transparent; }
+
+/* 2b — Card fan spreads on arc-row hover */
+.arc-row:hover .arc-card { animation: none !important; translate: 0 0 !important; }
+.arc-row:hover .arc-card:nth-child(1):not(:hover) { transform: translateY(30px) rotate(-10deg); }
+.arc-row:hover .arc-card:nth-child(2):not(:hover) { transform: translateY(8px) rotate(-4deg); }
+.arc-row:hover .arc-card:nth-child(3):not(:hover) { transform: translateY(8px) rotate(4deg); }
+.arc-row:hover .arc-card:nth-child(4):not(:hover) { transform: translateY(30px) rotate(10deg); }
+
+/* 4b — Dimmed loser score */
+.game-score.loser { color: #5c5954; opacity: 0.75; }
+
 /* prefers-reduced-motion: disable all animations */
 @media (prefers-reduced-motion: reduce) {
   .reveal { transition: none; opacity: 1; transform: none; }
@@ -719,5 +741,7 @@ button:active { transform: scale(0.98); }
   .arc-card:nth-child(2),
   .arc-card:nth-child(3),
   .arc-card:nth-child(4) { animation: none !important; }
+  .arc-row:hover .arc-card { animation: none !important; translate: 0 0 !important; }
   .skel-bar { animation: none; opacity: 0.5; }
+  .header-tabs::after { transition: none; }
 }

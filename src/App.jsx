@@ -119,6 +119,34 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // ── Count-up numbers ──────────────────────────────────────
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.querySelectorAll('[data-count]:not([data-counted])').forEach(el => { el.dataset.counted = '1'; });
+      return;
+    }
+    const easeOut = t => 1 - Math.pow(1 - t, 3);
+    const locale = lang === 'fr' ? 'fr-CA' : 'en-CA';
+    const animateEl = (el) => {
+      const raw = parseFloat(el.dataset.count);
+      if (isNaN(raw)) return;
+      const dec = (el.dataset.count.includes('.') ? (el.dataset.count.split('.')[1] || '').length : 0);
+      const start = performance.now();
+      const tick = (now) => {
+        const p = Math.min((now - start) / 700, 1);
+        el.textContent = (raw * easeOut(p)).toLocaleString(locale, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) { animateEl(e.target); obs.unobserve(e.target); } }),
+      { threshold: 0.2 }
+    );
+    document.querySelectorAll('[data-count]:not([data-counted])').forEach(el => { el.dataset.counted = '1'; obs.observe(el); });
+    return () => obs.disconnect();
+  });
+
   const cats = view.categories || [];
   const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
   const initUrl = useMemo(readUrlState, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,6 +155,19 @@ export default function App() {
   const [activeTab, setActiveTab]       = useState(initUrl.tab);
   const [catSearch, setCatSearch]       = useState('');
   const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
+
+  // ── Sliding tab indicator ─────────────────────────────────
+  const tabsRef = useRef(null);
+  useEffect(() => {
+    const container = tabsRef.current;
+    if (!container) return;
+    const active = container.querySelector('.header-tab.active');
+    if (!active) return;
+    const cr = active.getBoundingClientRect();
+    const pr = container.getBoundingClientRect();
+    container.style.setProperty('--tab-left', (cr.left - pr.left) + 'px');
+    container.style.setProperty('--tab-width', cr.width + 'px');
+  }, [activeTab, selectedCat]);
 
   const [sortKey, setSortKey]   = useState('rank');
   const [sortDir, setSortDir]   = useState('desc');
@@ -422,7 +463,7 @@ export default function App() {
               ? <img src={NLS_LOGO_WHITE} alt="NLS Création" onError={() => setLogoOk(false)} />
               : <span className="site-header-logo-fallback">NLS</span>}
           </button>
-          <div className="header-tabs">
+          <div className="header-tabs" ref={tabsRef}>
             {selectedCat && [
               ['standings', t.navStandings], ['schedule', t.navSchedule],
               ['players', t.navPlayers], ['stats', t.navStats],
@@ -641,7 +682,7 @@ export default function App() {
                         <span className={`standings-chev${openTeam === tm.id ? ' open' : ''}`}>›</span>
                       </div>
                     </td>
-                                        <td style={{ fontWeight: 700 }}>{tm.w}–{tm.l}</td>
+                                        <td style={{ fontWeight: 700 }}><span data-count={tm.w}>{tm.w}</span>–<span data-count={tm.l}>{tm.l}</span></td>
                     <td style={{ fontWeight: 700, color: tm.diff > 0 ? '#34d27b' : tm.diff < 0 ? '#e05555' : 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.diff > 0 ? '+' : ''}{tm.diff}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)' }}>{fmtN(tm.pct * 100, lang)}{lang === 'fr' ? ' %' : '%'}</td>
                     <td className="hide-m" style={{ color: 'var(--ink-mid)', fontVariantNumeric: 'tabular-nums' }}>{tm.gp}</td>
@@ -829,7 +870,7 @@ export default function App() {
                             <div className="leader-team">{p.team}</div>
                             {(p[key] || 0) > 0 && <div className="leader-bar"><div className="leader-bar-fill" style={{ '--target-w': ((p[key] || 0) / max * 100) + '%' }}></div></div>}
                           </div>
-                          <span className="leader-val">{fmtN(p[key] || 0, lang)}</span>
+                          <span className="leader-val" data-count={(p[key] || 0).toFixed(1)}>{fmtN(p[key] || 0, lang)}</span>
                         </div>
                       ))}
                     </div>
@@ -859,7 +900,7 @@ export default function App() {
                           <td style={{ color: 'var(--ink-mid)', whiteSpace: 'nowrap' }}>{p.team}</td>
                           <td style={{ color: 'var(--ink-mid)' }}>{p.gp || 0}</td>
                           {statCols.map(([k]) => (
-                            <td key={k} style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtN(p[k] || 0, lang)}</td>
+                            <td key={k} style={{ fontVariantNumeric: 'tabular-nums' }}><span data-count={(+(p[k] || 0)).toFixed(1)}>{fmtN(p[k] || 0, lang)}</span></td>
                           ))}
                           {statPlayers.some(q => (q.fgPct || 0) > 0) && <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-mid)' }}>{(p.fgPct || 0) > 0 ? fmtN(p.fgPct, lang) + (lang === 'fr' ? ' %' : '%') : '—'}</td>}
                           {statPlayers.some(q => (q.ftPct || 0) > 0) && <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-mid)' }}>{(p.ftPct || 0) > 0 ? fmtN(p.ftPct, lang) + (lang === 'fr' ? ' %' : '%') : '—'}</td>}
