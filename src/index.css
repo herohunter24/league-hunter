@@ -235,7 +235,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pcard:hover { transform: translateY(-10px) scale(1.03); box-shadow: 0 28px 64px rgba(0,0,0,0.6); z-index: 2; }
 
 .pcard-inner {
-  position: absolute; inset: 7px; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; z-index: 1;
+  position: absolute; inset: 7px; border-radius: 8px;
+  display: grid; grid-template-rows: 62fr 38fr;
+  overflow: hidden; z-index: 1;
 }
 
 /* Holographic glare — diagonal rainbow band; masked lighter (×0.25) over photo zone */
@@ -254,19 +256,19 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   );
   mix-blend-mode: overlay;
   opacity: var(--holo-op, 0.5);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,1) 68%, rgba(0,0,0,1) 100%);
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,1) 68%, rgba(0,0,0,1) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.25) 59%, rgba(0,0,0,1) 65%, rgba(0,0,0,1) 100%);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.25) 59%, rgba(0,0,0,1) 65%, rgba(0,0,0,1) 100%);
 }
 .pcard:hover .pc-holo { opacity: min(1, calc(var(--holo-op, 0.5) + 0.25)); }
 
-/* ── PHOTO ZONE — top 65% of inner card ── */
+/* ── PHOTO ZONE — top 62% of inner card (grid row) ── */
 .pc-photo-zone {
-  position: relative; flex: 0 0 65%; overflow: hidden;
+  position: relative; overflow: hidden;
 }
-/* Dark gradient at top so logo/tier text is readable */
+/* Dark gradient at top so logo/tier text is readable — full-height to avoid seam in PNG */
 .pc-photo-zone::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 48%; z-index: 2; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%);
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%);
 }
 
 /* Photo fills the zone */
@@ -280,7 +282,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pc-top {
   position: absolute; top: 0; left: 0; right: 0; z-index: 3;
   display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 10px 11px 6px; gap: 6px;
+  padding: clamp(6px, 4cqi, 12px) clamp(6px, 4.5cqi, 13px) 4px; gap: 4px;
 }
 .pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
 .pc-logo-img { height: clamp(14px, 8cqi, 20px); width: auto; object-fit: contain; }
@@ -292,41 +294,42 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 
 /* Jersey number — outlined, bottom-left of photo zone, partly cropped */
 .pc-jersey-corner {
-  position: absolute; bottom: -10%; left: 3%; z-index: 1;
-  font-family: var(--ff-display); font-size: clamp(48px, 38cqi, 78px); font-weight: 900;
+  position: absolute; bottom: -8%; left: 3%; z-index: 1;
+  font-family: var(--ff-display); font-size: clamp(38px, 30cqi, 62px); font-weight: 900;
   -webkit-text-stroke: clamp(1.5px, 0.8cqi, 2.5px) currentColor; color: transparent;
-  opacity: 0.2; pointer-events: none; user-select: none; line-height: 1; letter-spacing: -0.05em;
+  opacity: 0.22; pointer-events: none; user-select: none; line-height: 1; letter-spacing: -0.05em;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.85));
 }
 
-/* ── INFO BAND — bottom 35% ── */
+/* ── INFO BAND — bottom 38% (grid row) ── */
 .pc-info-band {
-  flex: 1; display: flex; flex-direction: column; position: relative;
+  display: flex; flex-direction: column; position: relative;
   /* Background inherited from .pcard-inner tier rules */
 }
 
 /* Team accent line at top edge of info band */
-.pc-accent-line { height: 3px; flex-shrink: 0; opacity: 0.8; }
+.pc-accent-line { height: max(2px, 1.2cqi); max-height: 3px; flex-shrink: 0; opacity: 0.8; }
 
-/* Player name + meta */
-.pc-bottom { padding: 4px 10px 2px; }
-.pc-name { font-family: var(--ff-display); font-size: clamp(11px, 6.5cqi, 16px); letter-spacing: 0.02em; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pc-num { opacity: 0.65; margin-right: 3px; }
-.pc-meta { font-size: clamp(7px, 3.8cqi, 10px); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin-top: 2px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
+/* Player name + meta — all padding/spacing cqi so they scale with card width */
+.pc-bottom { padding: 1cqi 4cqi 0.5cqi; }
+.pc-name { font-family: var(--ff-display); font-size: clamp(10px, 6cqi, 16px); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-num { opacity: 0.65; margin-right: 2px; }
+.pc-meta { font-size: clamp(6.5px, 3.5cqi, 10px); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin-top: 0.8cqi; display: flex; align-items: center; gap: 2px; white-space: nowrap; overflow: hidden; }
 
 /* Stats bar */
-.pc-stats { display: flex; gap: 0; margin: 4px 10px 3px; border-radius: 3px; overflow: hidden; }
-.pc-stat { flex: 1; text-align: center; padding: 4px 2px; }
-.pc-stat-v { font-family: var(--ff-display); font-size: clamp(11px, 6.5cqi, 15px); line-height: 1; }
-.pc-stat-k { font-size: clamp(7px, 3.5cqi, 9px); font-weight: 800; letter-spacing: 0.16em; margin-top: 2px; opacity: 0.6; }
+.pc-stats { display: flex; gap: 0; margin: 1.5cqi 4cqi 1cqi; border-radius: 2px; overflow: hidden; }
+.pc-stat { flex: 1; text-align: center; padding: 1.5cqi 1cqi; }
+.pc-stat-v { font-family: var(--ff-display); font-size: clamp(10px, 6cqi, 15px); line-height: 1; }
+.pc-stat-k { font-size: clamp(6px, 3.2cqi, 9px); font-weight: 800; letter-spacing: 0.14em; margin-top: 0.8cqi; opacity: 0.6; }
 
 /* Set line — two variants, switched by container width */
 .pc-setline {
   text-align: center; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
-  opacity: 0.4; padding: 0 10px 5px; margin-top: auto;
+  opacity: 0.4; padding: 0 4cqi 1.5cqi; margin-top: auto;
   white-space: nowrap; overflow: hidden;
 }
-.pc-setline-long  { font-size: clamp(7px, 3.6cqi, 9px); }
-.pc-setline-short { display: none; font-size: clamp(7px, 3.8cqi, 9px); }
+.pc-setline-long  { font-size: clamp(6px, 3.4cqi, 9px); }
+.pc-setline-short { display: none; font-size: clamp(6px, 3.6cqi, 9px); }
 @container (max-width: 196px) {
   .pc-setline-long  { display: none; }
   .pc-setline-short { display: inline; }

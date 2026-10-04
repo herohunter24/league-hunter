@@ -1,12 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TIERS } from '../lib/tiers.js';
-import { TeamBadge } from './TeamBadge.jsx';
 import { SafeImage, PlayerSilhouette, isLegacyOrange } from './SafeImage.jsx';
 import { NLS_LOGO_WHITE } from '../config/league.js';
 import { formatHeight, formatWeight } from '../lib/data.js';
 
 const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pad3 = n => String(n || 0).padStart(3, '0');
+
+// Inline badge — always renders as initials circle with inline styles (survives html2canvas)
+const LEGACY_RE = /^#?(ff6b1a|ff8d4d|e84e00)$/i;
+function CardBadge({ team, size = 11 }) {
+  const bg = team?.color && !LEGACY_RE.test(team.color) ? team.color : '#C9A24A';
+  const initials = team ? (team.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
+  return (
+    <span style={{
+      display: 'inline-block', width: size, height: size, borderRadius: '50%',
+      background: bg, color: '#000', fontWeight: 800, fontSize: Math.round(size * 0.45),
+      lineHeight: `${size}px`, textAlign: 'center', flexShrink: 0,
+      userSelect: 'none', verticalAlign: 'middle',
+    }}>{initials}</span>
+  );
+}
 
 const HOLO_OP = { bronze: 0.25, silver: 0.4, gold: 0.72, platinum: 1, diamond: 1, champion: 1, legend: 1 };
 
@@ -194,7 +208,7 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
               {p.number ? <span className="pc-num">#{p.number}</span> : null}{p.name}
             </div>
             <div className="pc-meta">
-              <TeamBadge team={team} size={13} />
+              <CardBadge team={team} size={11} />
               <span>{p.team}{p.pos ? ` · ${p.pos}` : ''}</span>
             </div>
             {hw && <div className="pc-meta" style={{ marginTop: 1 }}>{hw}</div>}
