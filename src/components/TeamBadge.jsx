@@ -1,7 +1,7 @@
 import { SafeImage, TeamInitials } from './SafeImage.jsx';
 
 export function TeamBadge({ team, size = 24 }) {
-  if (!team) return <span style={{ fontSize: Math.round(size * 0.72), lineHeight: 1 }}>🏀</span>;
+  if (!team) return <TeamInitials name="?" color="#555" size={size} />;
   return (
     <span className="team-logo-small" style={{ width: size, height: size }}>
       <SafeImage

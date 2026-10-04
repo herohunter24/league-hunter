@@ -12,10 +12,10 @@ import { HeroVideo } from './components/HeroVideo.jsx';
 import { TeamBadge } from './components/TeamBadge.jsx';
 import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
-import { SafeImage, TeamInitials } from './components/SafeImage.jsx';
-import { NLS_LOGO, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
+import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImage.jsx';
+import { NLS_LOGO, NLS_LOGO_WHITE, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
-  REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL } from './config/league.js';
+  REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
@@ -186,6 +186,15 @@ export default function App() {
     if (fArch !== 'all') ps = ps.filter(p => p.arch && p.arch[lang] === fArch);
     return ps;
   }, [search, fTier, fTeam, fArch, PLAYERS, lang, selectedCat, catTeamNames]);
+  // Stable card numbers: sort all players by id string for a consistent order
+  const cardIndexMap = useMemo(() => {
+    const sorted = [...PLAYERS].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const m = new Map();
+    sorted.forEach((p, i) => m.set(p.id, i + 1));
+    return m;
+  }, [PLAYERS]);
+  const cardTotal = SET_TOTAL || PLAYERS.length;
+
   const anyPlayerFilter = !!search || fTier !== 'all' || fTeam !== 'all' || fArch !== 'all';
   const galleryOpen = showAllPlayers || anyPlayerFilter;
   const shownPlayers = galleryOpen ? players : players.slice(0, 5);
@@ -351,14 +360,47 @@ export default function App() {
     return picks;
   }, [PLAYERS]);
 
+  // Before html2canvas: replace any broken <img> that's visible and failed to load
+  // with the silhouette PNG so the photo zone is never empty in the export.
+  async function swapBrokenImages(el) {
+    const sil = getSilhouettePng();
+    const swapped = [];
+    for (const img of el.querySelectorAll('img')) {
+      if (getComputedStyle(img).display === 'none') continue; // hidden by SafeImage while loading
+      if (img.src.startsWith('data:')) continue;             // already a data URI (silhouette/logo)
+      if (!img.complete || img.naturalWidth === 0) {
+        const orig = img.src;
+        img.src = sil;
+        swapped.push({ img, orig });
+        await new Promise(r => { img.onload = r; img.onerror = r; });
+      }
+    }
+    return swapped;
+  }
+
   function shareCard(p) {
-    const el = document.getElementById(`pcard-${p.id}`);
+    const modal = document.querySelector('.pmodal');
+    const el = (modal && modal.querySelector(`#pcard-${p.id}`))
+      || document.getElementById(`pcard-${p.id}`);
     if (!el) return;
-    html2canvas(el, { backgroundColor: null, scale: 3 }).then(canvas => {
-      const link = document.createElement('a');
-      link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+    const holo = el.querySelector('.pc-holo');
+    if (holo) holo.style.display = 'none';
+    const cardW = el.getBoundingClientRect().width || 250;
+    const scale = Math.max(3, Math.ceil(750 / cardW));
+    swapBrokenImages(el).then(swapped => {
+      html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false })
+        .then(canvas => {
+          swapped.forEach(({ img, orig }) => { img.src = orig; });
+          if (holo) holo.style.display = '';
+          const link = document.createElement('a');
+          link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        })
+        .catch(() => {
+          swapped.forEach(({ img, orig }) => { img.src = orig; });
+          if (holo) holo.style.display = '';
+        });
     });
   }
 
@@ -377,7 +419,7 @@ export default function App() {
         <div className="site-header-inner">
           <button className="site-header-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Accueil">
             {logoOk
-              ? <img src={NLS_LOGO} alt="NLS Création" onError={() => setLogoOk(false)} />
+              ? <img src={NLS_LOGO_WHITE} alt="NLS Création" onError={() => setLogoOk(false)} />
               : <span className="site-header-logo-fallback">NLS</span>}
           </button>
           <div className="header-tabs">
@@ -425,7 +467,7 @@ export default function App() {
         <div className="hero-fade-bottom"></div>
         <div className="hero-inner">
           {logoOk
-            ? <img className="hero-visual-logo" src={NLS_LOGO} alt="NLS Création" />
+            ? <img className="hero-visual-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
             : null}
           <div className="hero-kicker">{t.kicker}</div>
           <h1 className="hero-title">{t.heroTitle}</h1>
@@ -453,8 +495,7 @@ export default function App() {
       {live && data.error === 'not-found' && (
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 44, marginBottom: 14 }}>🏀</div>
-            <div style={{ fontFamily: 'var(--ff-display)', fontSize: 24, marginBottom: 8 }}>404</div>
+            <div style={{ fontFamily: 'var(--ff-display)', fontSize: 48, fontWeight: 900, marginBottom: 8, color: 'var(--gold)' }}>404</div>
             <div style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{t.notFound}</div>
           </div>
         </div>
@@ -470,7 +511,7 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
+                    <PlayerCard p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
                   </div>
                 ))}
               </div>
@@ -536,8 +577,8 @@ export default function App() {
       {selectedCat && (() => {
         const catName = displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
         const tabs = [
-          ps.showStandings !== false && ['standings', t.navStandings],
-          ps.showSchedule !== false && ['schedule', t.navSchedule],
+          ps.showStandings !== false && ['standings', t.navStandings, lang === 'fr' ? 'Rang' : 'Stands'],
+          ps.showSchedule !== false && ['schedule', t.navSchedule, lang === 'fr' ? 'Calend.' : 'Sched.'],
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
           ps.showStats !== false && ['stats', t.navStats, 'Stats'],
         ].filter(Boolean);
@@ -704,8 +745,8 @@ export default function App() {
             <div style={{ marginBottom: 40 }}>
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
-              <div style={{ maxWidth: 250 }}>
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />
+              <div className="potm-card-wrap">
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
               </div>
             </div>
           );
@@ -736,7 +777,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} units={view.units} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>
@@ -761,8 +802,11 @@ export default function App() {
             ...(statPlayers.some(p => (p.spg || 0) > 0) ? [['spg', t.spg]] : []),
             ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.bpg]] : []),
           ];
-          const dir = statSortDir === 'asc' ? 1 : -1;
-          const sortedPlayers = [...statPlayers].sort((a, b) => dir * (parseFloat(b[statSortKey] || 0) - parseFloat(a[statSortKey] || 0)));
+          const dir = statSortDir === 'asc' ? -1 : 1;
+          const sortedPlayers = [...statPlayers].sort((a, b) => {
+            if (statSortKey === 'name') return dir * (a.name || '').localeCompare(b.name || '');
+            return dir * (Number(b[statSortKey] || 0) - Number(a[statSortKey] || 0));
+          });
           return (
             <>
               <div className="leaders-grid">
@@ -835,7 +879,7 @@ export default function App() {
       <footer className="footer">
         <div className="footer-grid">
           <div className="footer-col footer-col--brand">
-            <img className="footer-logo" src={NLS_LOGO} alt="NLS Création" />
+            <img className="footer-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
             <p className="footer-tagline">{t.footerAbout}</p>
             <a className="footer-ig" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
@@ -872,7 +916,7 @@ export default function App() {
 
       {/* ── PLAYER MODAL ── */}
       {selectedPlayer && (
-        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} />
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} />
       )}
 
       {/* ── GAME MODAL ── */}

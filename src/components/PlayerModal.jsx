@@ -5,7 +5,7 @@ import { scoutingReport } from '../lib/scouting.js';
 import { PlayerCard } from './PlayerCard.jsx';
 import { TeamBadge } from './TeamBadge.jsx';
 
-export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare }) {
+export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare, cardNumber, cardTotal }) {
   const [report, setReport] = useState(null);
   const [toast, setToast] = useState(false);
   useEffect(() => { setReport(null); }, [p.id, lang]);
@@ -46,7 +46,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare 
         <button className="pmodal-close" onClick={onClose} aria-label="Close">✕</button>
         <div className="pmodal-body">
           <div className="pmodal-left">
-            <PlayerCard p={p} lang={lang} t={t} teams={teams} units={units} onShare={onShare} />
+            <PlayerCard p={p} lang={lang} t={t} teams={teams} units={units} onShare={onShare} cardNumber={cardNumber} cardTotal={cardTotal} />
           </div>
           <div className="pmodal-right">
             <div className="pm-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>
