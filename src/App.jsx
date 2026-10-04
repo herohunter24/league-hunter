@@ -459,8 +459,7 @@ export default function App() {
       {live && data.error === 'not-found' && (
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 44, marginBottom: 14 }}>🏀</div>
-            <div style={{ fontFamily: 'var(--ff-display)', fontSize: 24, marginBottom: 8 }}>404</div>
+            <div style={{ fontFamily: 'var(--ff-display)', fontSize: 48, fontWeight: 900, marginBottom: 8, color: 'var(--gold)' }}>404</div>
             <div style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{t.notFound}</div>
           </div>
         </div>
