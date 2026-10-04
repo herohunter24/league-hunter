@@ -638,7 +638,7 @@ button:active { transform: scale(0.98); }
 }
 
 /* 4 — Tab content cross-fade */
-.tab-pane { animation: tabFadeIn 0.15s ease-out; }
+.tab-pane { animation: tabFadeIn 0.15s ease-out; scroll-margin-top: 72px; }
 @keyframes tabFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* 1 — Category picker */

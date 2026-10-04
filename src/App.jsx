@@ -353,6 +353,11 @@ export default function App() {
   function switchTab(tab) {
     setActiveTab(tab);
     history.replaceState({}, '', buildPageUrl(selectedCat, tab, null, null));
+    const sectionId = { standings: 'classement', schedule: 'calendrier', players: 'joueurs', stats: 'statistiques' }[tab];
+    setTimeout(() => {
+      const el = sectionId ? document.getElementById(sectionId) : document.querySelector('.tab-pane');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   }
 
   function openPlayerModal(player) {
@@ -599,9 +604,9 @@ export default function App() {
                   {displayCatName(c.name, t)}
                   {(teamCount > 0 || playerCount > 0) && (
                     <span className="cat-btn-count">
-                      {teamCount > 0 ? `${teamCount} ${lang === 'fr' ? 'équipes' : 'teams'}` : ''}
+                      {teamCount > 0 ? `${teamCount} ${lang === 'fr' ? (teamCount === 1 ? 'équipe' : 'équipes') : (teamCount === 1 ? 'team' : 'teams')}` : ''}
                       {teamCount > 0 && playerCount > 0 ? ' · ' : ''}
-                      {playerCount > 0 ? `${playerCount} ${lang === 'fr' ? 'joueurs' : 'players'}` : ''}
+                      {playerCount > 0 ? `${playerCount} ${lang === 'fr' ? (playerCount === 1 ? 'joueur' : 'joueurs') : (playerCount === 1 ? 'player' : 'players')}` : ''}
                     </span>
                   )}
                 </button>
@@ -651,7 +656,7 @@ export default function App() {
           <table className="standings-table">
             <thead>
               <tr>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('rank')}>{t.thRank}{thA('rank')}</th>
+                <th>{t.thRank}</th>
                 <th className="td-team-sticky">{t.thTeam}</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('wins')}>{t.thRecord}{thA('wins')}</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('diff')}>{t.thDiff}{thA('diff')}</th>
