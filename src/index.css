@@ -234,29 +234,13 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 .pcard:hover { transform: translateY(-10px) scale(1.03); box-shadow: 0 28px 64px rgba(0,0,0,0.6); z-index: 2; }
 
-/* Jersey number watermark — inside pcard-inner, centered over photo */
-.pc-jersey-bg {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -38%);
-  font-family: var(--ff-display); font-size: clamp(64px, 44cqi, 110px); font-weight: 700;
-  letter-spacing: -0.06em; line-height: 1; pointer-events: none; z-index: 2;
-  opacity: 0.13; color: currentColor; user-select: none; white-space: nowrap; overflow: hidden;
-}
-
 .pcard-inner {
   position: absolute; inset: 7px; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; z-index: 1;
 }
-.pcard-inner::before {
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 50%; z-index: 2; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%);
-}
-.pcard-inner::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 65%; z-index: 2; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.92) 60%);
-}
 
-/* Holographic glare overlay — diagonal rainbow band, opacity scaled per-tier via --holo-op */
+/* Holographic glare — diagonal rainbow band; masked lighter (×0.25) over photo zone */
 .pc-holo {
-  position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: 8px;
+  position: absolute; inset: 0; z-index: 10; pointer-events: none; border-radius: 8px;
   background: linear-gradient(
     115deg,
     transparent 0%,
@@ -270,74 +254,98 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   );
   mix-blend-mode: overlay;
   opacity: var(--holo-op, 0.5);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,1) 68%, rgba(0,0,0,1) 100%);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,1) 68%, rgba(0,0,0,1) 100%);
 }
 .pcard:hover .pc-holo { opacity: min(1, calc(var(--holo-op, 0.5) + 0.25)); }
 
-/* Top bar */
-.pc-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 11px 12px 6px; position: relative; z-index: 3; margin-bottom: auto; gap: 6px; }
-.pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
-.pc-logo-img { height: 18px; width: auto; object-fit: contain; }
-.pc-league-text { font-family: var(--ff-display); font-size: 14px; font-weight: 900; letter-spacing: 0.15em; line-height: 1; }
-.pc-season-text { font-size: clamp(8.5px, 4.2cqi, 10px); font-weight: 700; letter-spacing: 0.2em; opacity: 0.55; }
-.pc-tier-block { text-align: right; flex: 1; }
-.pc-tier { font-family: var(--ff-display); font-size: 13px; letter-spacing: 0.1em; line-height: 1; }
-.pc-arch { font-size: clamp(9px, 4.8cqi, 11px); font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; opacity: 0.75; }
+/* ── PHOTO ZONE — top 65% of inner card ── */
+.pc-photo-zone {
+  position: relative; flex: 0 0 65%; overflow: hidden;
+}
+/* Dark gradient at top so logo/tier text is readable */
+.pc-photo-zone::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 48%; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%);
+}
 
-/* Photo */
+/* Photo fills the zone */
 .pc-photo {
-  position: absolute; inset: 0; margin: 0; z-index: 1; overflow: hidden;
+  position: absolute; inset: 0; overflow: hidden;
   background: linear-gradient(160deg, #2c2c34, #15151b);
   display: flex; align-items: center; justify-content: center;
 }
-.pc-photo-init { font-family: var(--ff-display); font-size: 64px; opacity: 0.35; }
 
-/* Bottom info */
-.pc-bottom { padding: 6px 11px 3px; position: relative; z-index: 3; }
-.pc-name { font-family: var(--ff-display); font-size: 15px; letter-spacing: 0.02em; line-height: 1.1; }
+/* Top bar — inside photo zone, corners only, above gradient */
+.pc-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 10px 11px 6px; gap: 6px;
+}
+.pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
+.pc-logo-img { height: clamp(14px, 8cqi, 20px); width: auto; object-fit: contain; }
+.pc-league-text { font-family: var(--ff-display); font-size: clamp(11px, 6cqi, 15px); font-weight: 900; letter-spacing: 0.15em; line-height: 1; }
+.pc-season-text { font-size: clamp(7px, 3.8cqi, 9px); font-weight: 700; letter-spacing: 0.2em; opacity: 0.55; }
+.pc-tier-block { text-align: right; flex: 1; }
+.pc-tier { font-family: var(--ff-display); font-size: clamp(10px, 6cqi, 14px); letter-spacing: 0.1em; line-height: 1; }
+.pc-arch { font-size: clamp(7px, 3.8cqi, 10px); font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; margin-top: 2px; opacity: 0.75; }
+
+/* Jersey number — outlined, bottom-left of photo zone, partly cropped */
+.pc-jersey-corner {
+  position: absolute; bottom: -10%; left: 3%; z-index: 1;
+  font-family: var(--ff-display); font-size: clamp(48px, 38cqi, 78px); font-weight: 900;
+  -webkit-text-stroke: clamp(1.5px, 0.8cqi, 2.5px) currentColor; color: transparent;
+  opacity: 0.2; pointer-events: none; user-select: none; line-height: 1; letter-spacing: -0.05em;
+}
+
+/* ── INFO BAND — bottom 35% ── */
+.pc-info-band {
+  flex: 1; display: flex; flex-direction: column; position: relative;
+  /* Background inherited from .pcard-inner tier rules */
+}
+
+/* Team accent line at top edge of info band */
+.pc-accent-line { height: 3px; flex-shrink: 0; opacity: 0.8; }
+
+/* Player name + meta */
+.pc-bottom { padding: 4px 10px 2px; }
+.pc-name { font-family: var(--ff-display); font-size: clamp(11px, 6.5cqi, 16px); letter-spacing: 0.02em; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-num { opacity: 0.65; margin-right: 3px; }
-.pc-meta { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.65; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.pc-meta { font-size: clamp(7px, 3.8cqi, 10px); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; margin-top: 2px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
 
-/* Team accent line above player name */
-.pc-accent-line { height: 3px; margin: 0 11px 5px; border-radius: 1px; position: relative; z-index: 3; opacity: 0.65; }
+/* Stats bar */
+.pc-stats { display: flex; gap: 0; margin: 4px 10px 3px; border-radius: 3px; overflow: hidden; }
+.pc-stat { flex: 1; text-align: center; padding: 4px 2px; }
+.pc-stat-v { font-family: var(--ff-display); font-size: clamp(11px, 6.5cqi, 15px); line-height: 1; }
+.pc-stat-k { font-size: clamp(7px, 3.5cqi, 9px); font-weight: 800; letter-spacing: 0.16em; margin-top: 2px; opacity: 0.6; }
 
-/* Stats */
-.pc-stats { display: flex; gap: 0; margin: 7px 11px 6px; border-radius: 4px; overflow: hidden; position: relative; z-index: 3; }
-.pc-stat { flex: 1; text-align: center; padding: 6px 2px; }
-.pc-stat-v { font-family: var(--ff-display); font-size: 14px; line-height: 1; }
-.pc-stat-k { font-size: clamp(8px, 4.5cqi, 11px); font-weight: 800; letter-spacing: 0.18em; margin-top: 3px; opacity: 0.6; }
-
-/* Set line */
+/* Set line — two variants, switched by container width */
 .pc-setline {
-  text-align: center; font-size: clamp(8px, 4.2cqi, 10px); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
-  opacity: 0.4; padding: 0 11px 7px; position: relative; z-index: 3; white-space: nowrap; overflow: hidden;
+  text-align: center; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+  opacity: 0.4; padding: 0 10px 5px; margin-top: auto;
+  white-space: nowrap; overflow: hidden;
 }
-
-/* Share button — absolutely positioned in top-right corner */
-.pc-share {
-  position: absolute; top: 8px; right: 8px; z-index: 5;
-  width: 26px; height: 26px; border-radius: 4px;
-  border: none; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.45); color: #fff; opacity: 0; transition: opacity 0.22s, background 0.22s;
-  backdrop-filter: blur(4px);
+.pc-setline-long  { font-size: clamp(7px, 3.6cqi, 9px); }
+.pc-setline-short { display: none; font-size: clamp(7px, 3.8cqi, 9px); }
+@container (max-width: 196px) {
+  .pc-setline-long  { display: none; }
+  .pc-setline-short { display: inline; }
 }
-.pcard:hover .pc-share { opacity: 1; }
-.pc-share:hover { background: var(--gold); color: #000; }
 
 /* TIER FRAMES */
-/* Per-tier jersey watermark colors */
-.t-bronze .pc-jersey-bg { color: #cd9858; }
-.t-silver .pc-jersey-bg { color: #d7dce2; }
-.t-gold .pc-jersey-bg { color: #ffd75e; }
-.t-platinum .pc-jersey-bg { color: #e6ebf1; }
-.t-diamond .pc-jersey-bg { color: #8ee6ff; }
-.t-champion .pc-jersey-bg { color: #ffd24a; }
-.t-legend .pc-jersey-bg { color: #c890ff; }
+/* Jersey corner per-tier color */
+.t-bronze .pc-jersey-corner  { color: #cd9858; }
+.t-silver .pc-jersey-corner  { color: #d7dce2; }
+.t-gold   .pc-jersey-corner  { color: #ffd75e; }
+.t-platinum .pc-jersey-corner { color: #e6ebf1; }
+.t-diamond  .pc-jersey-corner { color: #8ee6ff; }
+.t-champion .pc-jersey-corner { color: #ffd24a; }
+.t-legend   .pc-jersey-corner { color: #c890ff; }
 
 .t-bronze { background: repeating-linear-gradient(37deg, #6e4a26 0px, #7d5630 5px, #5c3c1d 9px, #75502b 14px); }
 .t-bronze .pcard-inner { background: linear-gradient(168deg, #36250f 0%, #241808 100%); color: #e8d4b8; }
 .t-bronze .pc-tier { color: #cd9858; }
 .t-bronze .pc-photo { background: linear-gradient(180deg, #4a3418, #33230e); }
-.t-bronze .pc-photo-init { color: #cd9858; }
 .t-bronze .pc-stats { background: rgba(0,0,0,0.35); }
 .t-bronze .pc-stat-v { color: #e0b87e; }
 
@@ -345,7 +353,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .t-silver .pcard-inner { background: linear-gradient(170deg, #272c33 0%, #171a1f 100%); color: #e6e9ed; }
 .t-silver .pc-tier { color: #d7dce2; }
 .t-silver .pc-photo { background: linear-gradient(180deg, #333942, #20242b); }
-.t-silver .pc-photo-init { color: #8e99a6; }
 .t-silver .pc-stats { background: rgba(255,255,255,0.06); }
 .t-silver .pc-stat-v { color: #fff; }
 
@@ -356,7 +363,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 .t-gold .pc-tier { color: #ffd75e; text-shadow: 0 0 8px rgba(255,200,60,0.5); }
 .t-gold .pc-photo { background: linear-gradient(180deg, #3a2c0d, #261c07); }
-.t-gold .pc-photo-init { color: #c9a440; }
 .t-gold .pc-stats { background: rgba(201,164,64,0.12); }
 .t-gold .pc-stat-v { color: #ffd75e; }
 
@@ -366,8 +372,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
 }
 .t-platinum .pc-tier { color: #e6ebf1; letter-spacing: 0.14em; }
-.t-platinum .pc-photo { background: linear-gradient(135deg, #292f37, #191d23); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
-.t-platinum .pc-photo-init { color: #7e8995; }
+.t-platinum .pc-photo { background: linear-gradient(135deg, #292f37, #191d23); }
 .t-platinum .pc-stats { background: rgba(255,255,255,0.05); }
 .t-platinum .pc-stat-v { color: #f4f7fa; }
 
@@ -382,7 +387,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .t-diamond .pcard-inner { background: linear-gradient(170deg, #06202b 0%, #03131c 100%); color: #d8f4fd; box-shadow: inset 0 0 22px rgba(95,205,245,0.25); }
 .t-diamond .pc-tier { color: #8ee6ff; text-shadow: 0 0 10px rgba(120,225,255,0.7); }
 .t-diamond .pc-photo { background: linear-gradient(180deg, #0a2c3a, #051b25); }
-.t-diamond .pc-photo-init { color: #5ab8d6; }
 .t-diamond .pc-stats { background: rgba(120,225,255,0.09); }
 .t-diamond .pc-stat-v { color: #8ee6ff; }
 
@@ -393,9 +397,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 .t-champion .pc-tier { color: #ffd24a; text-shadow: 0 0 8px rgba(255,200,60,0.55); }
 .t-champion .pc-photo { background: linear-gradient(180deg, #371453, #220b34); }
-.t-champion .pcard-inner::before { background: linear-gradient(180deg, rgba(38,13,56,0.88), transparent); }
+.t-champion .pc-photo-zone::before { background: linear-gradient(180deg, rgba(38,13,56,0.88), rgba(0,0,0,0)); }
 .t-champion .pc-photo::before { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #f0c640 40%, #f0c640 60%, transparent); opacity: 0.7; z-index: 2; }
-.t-champion .pc-photo-init { color: #b07fd8; }
 .t-champion .pc-stats { background: rgba(240,198,64,0.1); }
 .t-champion .pc-stat-v { color: #ffd24a; }
 
@@ -420,7 +423,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   filter: drop-shadow(0 0 6px rgba(190,140,255,0.7));
 }
 .t-legend .pc-photo { background: radial-gradient(ellipse at 50% 30%, #221242 0%, #0f0722 75%); }
-.t-legend .pc-photo-init { color: #9d8ac9; }
 .t-legend .pc-stats { background: rgba(160,110,255,0.12); }
 .t-legend .pc-stat-v {
   background: linear-gradient(90deg, #ff8ae8, #8ee6ff); -webkit-background-clip: text; background-clip: text; color: transparent;

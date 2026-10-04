@@ -332,12 +332,17 @@ export default function App() {
   }, [PLAYERS]);
 
   function shareCard(p) {
-    const el = document.getElementById(`pcard-${p.id}`);
+    // Prefer the card rendered in the modal (usually larger) for better quality
+    const modal = document.querySelector('.pmodal');
+    const el = (modal && modal.querySelector(`#pcard-${p.id}`))
+      || document.getElementById(`pcard-${p.id}`);
     if (!el) return;
-    // Hide holo overlay (mix-blend-mode doesn't render in html2canvas)
     const holo = el.querySelector('.pc-holo');
     if (holo) holo.style.display = 'none';
-    html2canvas(el, { backgroundColor: null, scale: 3, useCORS: true, allowTaint: false }).then(canvas => {
+    // Scale up so PNG is at least 750px wide
+    const cardW = el.getBoundingClientRect().width || 250;
+    const scale = Math.max(3, Math.ceil(750 / cardW));
+    html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false }).then(canvas => {
       if (holo) holo.style.display = '';
       const link = document.createElement('a');
       link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
@@ -447,7 +452,7 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
+                    <PlayerCard p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
                   </div>
                 ))}
               </div>
@@ -660,7 +665,7 @@ export default function App() {
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div className="potm-card-wrap">
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
               </div>
             </div>
           );
@@ -691,7 +696,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>
