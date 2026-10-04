@@ -44,7 +44,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
       else if (g.away === tm.name) { results.push(g.as > g.hs ? 1 : 0); pf += g.as; pa += g.hs; }
     });
     const w = results.filter(r => r).length;
-    return { id: tm.id || i, name: tm.name || '', emoji: tm.emoji || '🏀', logoUrl: tm.logoUrl || '', color: tm.color || '#ff6b1a', categoryId: tm.categoryId != null ? String(tm.categoryId) : '', w, l: results.length - w, pf, pa, last5: results.slice(-5) };
+    return { id: tm.id || i, name: tm.name || '', emoji: tm.emoji || '🏀', logoUrl: tm.logoUrl || '', color: tm.color || '#C9A24A', categoryId: tm.categoryId != null ? String(tm.categoryId) : '', w, l: results.length - w, pf, pa, last5: results.slice(-5) };
   });
 
   const players = (rawPlayers || []).map(p => {

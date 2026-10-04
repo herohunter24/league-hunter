@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Website X — Admin Control Center</title>
+<title>NLS — Admin</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -146,7 +146,7 @@
   <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;">
     <!-- Wordmark -->
     <div style="font-size:11px;font-weight:700;letter-spacing:0.22em;color:#6366f160;text-transform:uppercase;margin-bottom:8px;">League Hunter</div>
-    <div style="font-size:28px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;margin-bottom:36px;">Admin Panel</div>
+    <div style="font-size:28px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;margin-bottom:36px;">NLS — Admin</div>
     <!-- Basketball SVG -->
     <div style="position:relative;height:80px;display:flex;flex-direction:column;align-items:center;margin-bottom:28px;">
       <svg width="56" height="56" viewBox="0 0 60 60" style="animation:wx-bounce 0.72s ease-in-out infinite;transform-origin:50% 100%;display:block;flex-shrink:0;">
@@ -2948,8 +2948,8 @@ function App() {
     <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 380, padding: 40, ...card }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>WEBSITE X</div>
-          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin Control Center</div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>NLS</div>
+          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin</div>
         </div>
         {__fbUncfg && (
           <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
@@ -4644,8 +4644,8 @@ function App() {
                     <div>
                       <label style={lbl}>Accent Color</label>
                       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <input type="color" value={draftAccent || '#ff6b1a'} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, _lmTitle: draftTitle, _lmBody: draftBody })} style={{ height: 40, width: 64, borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 3 }} />
-                        <input style={{ ...inp, maxWidth: 130 }} value={draftAccent} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, _lmTitle: draftTitle, _lmBody: draftBody })} placeholder="#ff6b1a" />
+                        <input type="color" value={draftAccent || '#C9A24A'} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, _lmTitle: draftTitle, _lmBody: draftBody })} style={{ height: 40, width: 64, borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 3 }} />
+                        <input style={{ ...inp, maxWidth: 130 }} value={draftAccent} onChange={e => setPsDraft({ ...(psDraft || {}), accentColor: e.target.value, _lmTitle: draftTitle, _lmBody: draftBody })} placeholder="#C9A24A" />
                         {draftAccent && <button style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 12px", fontSize: 12, cursor: "pointer" }} onClick={() => setPsDraft({ ...(psDraft || {}), accentColor: '', _lmTitle: draftTitle, _lmBody: draftBody })}>Reset to default</button>}
                       </div>
                       <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Used for buttons and accents across the public site. Leave blank to use the default.</div>
