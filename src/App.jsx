@@ -744,10 +744,10 @@ export default function App() {
             ...(statPlayers.some(p => (p.spg || 0) > 0) ? [['spg', t.spg]] : []),
             ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.bpg]] : []),
           ];
-          const dir = statSortDir === 'asc' ? 1 : -1;
+          const dir = statSortDir === 'asc' ? -1 : 1;
           const sortedPlayers = [...statPlayers].sort((a, b) => {
             if (statSortKey === 'name') return dir * (a.name || '').localeCompare(b.name || '');
-            return dir * (parseFloat(b[statSortKey] || 0) - parseFloat(a[statSortKey] || 0));
+            return dir * (Number(b[statSortKey] || 0) - Number(a[statSortKey] || 0));
           });
           return (
             <>
