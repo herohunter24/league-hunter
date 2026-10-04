@@ -90,6 +90,35 @@ export default function App() {
     return () => window.removeEventListener('hashchange', track);
   }, []);
 
+  // ── Scroll reveal (runs after each render to catch newly rendered .reveal elements) ──
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-visible'); obs.unobserve(e.target); } }),
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.reveal:not(.is-visible)').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  });
+
+  // ── Leader bar count-up ────────────────────────────────────
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-counted'); obs.unobserve(e.target); } }),
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.leaders-grid:not(.is-counted)').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  });
+
+  const scrollCueRef = useRef(null);
+  useEffect(() => {
+    const cue = scrollCueRef.current;
+    if (!cue) return;
+    const onScroll = () => { if (window.scrollY > 60) { cue.classList.add('faded'); window.removeEventListener('scroll', onScroll); } };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const cats = view.categories || [];
   const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
   const initUrl = useMemo(readUrlState, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -405,13 +434,20 @@ export default function App() {
             {t.cta} →
           </button>
         </div>
+        <div ref={scrollCueRef} className="hero-scroll-cue" aria-hidden="true">
+          <span className="chev" /><span className="chev" />
+        </div>
       </header>
 
       {/* ── LOADING / ERROR overlays ── */}
       {live && data.loading && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid var(--gold)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }}></div>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.32em', color: 'var(--ink-soft)', textTransform: 'uppercase' }}>{t.loadingLeague}</div>
+        <div className="skel-screen" aria-label={t.loadingLeague}>
+          <div className="skel-header" />
+          <div className="skel-hero">
+            <div className="skel-bar skel-bar-md" />
+            <div className="skel-bar skel-bar-lg" />
+            <div className="skel-bar skel-bar-sm" style={{ marginTop: 8 }} />
+          </div>
         </div>
       )}
       {live && data.error === 'not-found' && (
@@ -428,7 +464,7 @@ export default function App() {
       {!showExplorer && (
         <>
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
-            <section className="landing-sec">
+            <section className="landing-sec reveal">
               <div className="lsec-title">{t.showcaseTitle}</div>
               <div className="lsec-sub">{t.showcaseSub}</div>
               <div className="arc-row">
@@ -441,7 +477,7 @@ export default function App() {
             </section>
           )}
 
-          <section className="landing-sec">
+          <section className="landing-sec reveal">
             <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
             <div className="lsec-title">{lm.title || t.missionTitle}</div>
             <div className="mission-body">
@@ -456,17 +492,39 @@ export default function App() {
       {/* ── CATEGORY SELECTOR ── */}
       {showExplorer && !selectedCat && (
         <section className="cat-selector" id="explorer">
+          <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
+            <rect x="10" y="10" width="580" height="380" rx="6"/>
+            <line x1="300" y1="10" x2="300" y2="390"/>
+            <circle cx="300" cy="200" r="65"/>
+            <rect x="10" y="130" width="145" height="140"/>
+            <circle cx="155" cy="200" r="55"/>
+            <rect x="445" y="130" width="145" height="140"/>
+            <circle cx="445" cy="200" r="55"/>
+            <path d="M10,155 C90,155 210,110 210,200 C210,290 90,245 10,245"/>
+            <path d="M590,155 C510,155 390,110 390,200 C390,290 510,245 590,245"/>
+          </svg>
           <h2>{t.selectCat}</h2>
           <div className="cs-sub">{t.selectCatSub}</div>
           {effectiveCats.length > 4 && (
             <input className="search-inp" style={{ marginBottom: 20 }} placeholder={t.searchCat} value={catSearch} onChange={e => setCatSearch(e.target.value)} />
           )}
           <div className="cat-grid">
-            {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map(c => (
-              <button key={c.id} className="cat-btn" onClick={() => selectCat(c.id)}>
-                {displayCatName(c.name, t)}
-              </button>
-            ))}
+            {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map((c, idx) => {
+              const teamCount = TEAMS.filter(tm => tm.categoryId === c.id).length;
+              const playerCount = PLAYERS.filter(p => p.categoryId === c.id).length;
+              return (
+                <button key={c.id} className="cat-btn" style={{ '--i': idx }} onClick={() => selectCat(c.id)}>
+                  {displayCatName(c.name, t)}
+                  {(teamCount > 0 || playerCount > 0) && (
+                    <span className="cat-btn-count">
+                      {teamCount > 0 ? `${teamCount} ${lang === 'fr' ? 'équipes' : 'teams'}` : ''}
+                      {teamCount > 0 && playerCount > 0 ? ' · ' : ''}
+                      {playerCount > 0 ? `${playerCount} ${lang === 'fr' ? 'joueurs' : 'players'}` : ''}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
             <div className="empty-note">{t.noCatMatch}</div>
@@ -504,7 +562,7 @@ export default function App() {
 
       {/* ── STANDINGS ── */}
       {selectedCat && activeTab === 'standings' && ps.showStandings !== false && (
-      <section className="section" id="classement">
+      <section className="section tab-pane" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
         <div className="standings-card">
           <div className="standings-scroll">
@@ -525,7 +583,7 @@ export default function App() {
             <tbody>
               {standings.map((tm, i) => (
                 <React.Fragment key={tm.id}>
-                  <tr style={{ cursor: 'pointer' }} onClick={() => setOpenTeam(openTeam === tm.id ? null : tm.id)}>
+                  <tr className={i === 0 ? 'rank-first-row' : ''} style={{ cursor: 'pointer' }} onClick={() => setOpenTeam(openTeam === tm.id ? null : tm.id)}>
                     <td><span className={`rank-badge rank-${i + 1}`}>{i + 1}</span></td>
                     <td className="td-team-sticky">
                       <div className="team-cell">
@@ -575,7 +633,7 @@ export default function App() {
 
       {/* ── SCHEDULE ── */}
       {selectedCat && activeTab === 'schedule' && ps.showSchedule !== false && (
-      <section className="section" id="calendrier">
+      <section className="section tab-pane" id="calendrier">
         <div className="sec-kicker">{t.schedKicker}</div>
         <div className="sched-filters">
           {[['all', t.fAll], ['upcoming', t.fUpcoming], ['past', t.fPast]].map(([k, l]) => (
@@ -607,11 +665,11 @@ export default function App() {
                   const played = g.hs !== null;
                   const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
                   return (
-                    <div key={g.id} className="game-card" onClick={() => openGameModal(g)}>
+                    <div key={g.id} className={`game-card${played ? ' played' : ' upcoming'}`} onClick={() => openGameModal(g)}>
                       {g.id === nextGameId && <div className="next-game-badge">{t.nextGame}</div>}
                       <div className="game-date">
                         <span>{fmtDate(g.date, lang)} · {g.time}</span>
-                        <span className={played ? 'game-final' : 'game-status-live'}>{played ? t.final : t.upcoming}</span>
+                        <span className={`game-pill${played ? ' pill-final' : ' pill-upcoming'}`}>{played ? t.final : t.upcoming}</span>
                       </div>
                       <div className="game-matchup">
                         <div className="game-team">
@@ -636,7 +694,7 @@ export default function App() {
 
       {/* ── PLAYERS ── */}
       {selectedCat && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
-      <section className="section" id="joueurs">
+      <section className="section tab-pane" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
 
         {(() => {
@@ -691,7 +749,7 @@ export default function App() {
 
       {/* ── STATS ── */}
       {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
-      <section className="section" id="statistiques">
+      <section className="section tab-pane" id="statistiques">
         <div className="sec-kicker">{t.statsKicker}</div>
         {(() => {
           const statPlayers = [...PLAYERS]
@@ -725,7 +783,7 @@ export default function App() {
                           <div className="leader-info">
                             <div className="leader-name">{p.name}</div>
                             <div className="leader-team">{p.team}</div>
-                            {(p[key] || 0) > 0 && <div className="leader-bar"><div className="leader-bar-fill" style={{ width: ((p[key] || 0) / max * 100) + '%' }}></div></div>}
+                            {(p[key] || 0) > 0 && <div className="leader-bar"><div className="leader-bar-fill" style={{ '--target-w': ((p[key] || 0) / max * 100) + '%' }}></div></div>}
                           </div>
                           <span className="leader-val">{fmtN(p[key] || 0, lang)}</span>
                         </div>
