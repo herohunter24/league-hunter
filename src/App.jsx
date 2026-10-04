@@ -447,7 +447,7 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
+                    <PlayerCard p={p} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
                   </div>
                 ))}
               </div>
@@ -491,7 +491,7 @@ export default function App() {
       {selectedCat && (() => {
         const catName = displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
         const tabs = [
-          ps.showStandings !== false && ['standings', t.navStandings, lang === 'fr' ? 'Classe.' : 'Stands'],
+          ps.showStandings !== false && ['standings', t.navStandings, lang === 'fr' ? 'Rang' : 'Stands'],
           ps.showSchedule !== false && ['schedule', t.navSchedule, lang === 'fr' ? 'Calend.' : 'Sched.'],
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
           ps.showStats !== false && ['stats', t.navStats, 'Stats'],
@@ -659,8 +659,8 @@ export default function App() {
             <div style={{ marginBottom: 40 }}>
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
-              <div style={{ maxWidth: 250 }}>
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
+              <div className="potm-card-wrap">
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onShare={shareCard} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
               </div>
             </div>
           );
@@ -691,7 +691,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onShare={null} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>

@@ -46,7 +46,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
         <button className="pmodal-close" onClick={onClose} aria-label="Close">✕</button>
         <div className="pmodal-body">
           <div className="pmodal-left">
-            <PlayerCard p={p} lang={lang} t={t} teams={teams} onShare={onShare} cardNumber={cardNumber} cardTotal={cardTotal} />
+            <PlayerCard p={p} lang={lang} t={t} teams={teams} units={units} onShare={onShare} cardNumber={cardNumber} cardTotal={cardTotal} />
           </div>
           <div className="pmodal-right">
             <div className="pm-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>

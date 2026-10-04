@@ -3,12 +3,13 @@ import { TIERS } from '../lib/tiers.js';
 import { TeamBadge } from './TeamBadge.jsx';
 import { SafeImage, PlayerSilhouette, isLegacyOrange } from './SafeImage.jsx';
 import { NLS_LOGO_WHITE } from '../config/league.js';
+import { formatHeight, formatWeight } from '../lib/data.js';
 
 const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pad3 = n => String(n || 0).padStart(3, '0');
 
 // Holo opacity per tier — all tiers get the effect, scaled by prestige
-const HOLO_OP = { bronze: 0.3, silver: 0.5, gold: 0.72, platinum: 1, diamond: 1, champion: 1, legend: 1 };
+const HOLO_OP = { bronze: 0.25, silver: 0.4, gold: 0.72, platinum: 1, diamond: 1, champion: 1, legend: 1 };
 
 // Module-level iOS orientation permission state shared across all cards
 let orientationPermission = 'unknown'; // 'unknown' | 'requesting' | 'granted' | 'denied'
@@ -91,8 +92,9 @@ function useHolo() {
       setupTilt();
     }
 
-    // Slow auto-shimmer — only runs while card is visible on screen
-    let shimPos = 0.3, shimDir = 1;
+    // Slow auto-shimmer with random initial phase — only runs while card is visible
+    let shimPos = 0.18 + Math.random() * 0.64;
+    let shimDir = Math.random() > 0.5 ? 1 : -1;
     let shimTimer = null;
 
     const startShimmer = () => {
@@ -129,7 +131,7 @@ function useHolo() {
   return ref;
 }
 
-export function PlayerCard({ p, lang, t, onShare, onOpen, teams, cardNumber, cardTotal }) {
+export function PlayerCard({ p, lang, t, onShare, onOpen, teams, units, cardNumber, cardTotal }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const teamColor = (team && team.color && !isLegacyOrange(team.color)) ? team.color : 'var(--gold)';
@@ -140,6 +142,8 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, cardNumber, car
     ? `NLS · ${lang === 'fr' ? 'Saison' : 'Season'} 2026 · ${pad3(cardNumber)}/${pad3(cardTotal)}`
     : `NLS · 2026`;
 
+  const hw = [formatHeight(p.height, units), formatWeight(p.weight, units)].filter(Boolean).join(' · ');
+
   return (
     <div
       className={`pcard ${tier.cls}`}
@@ -148,12 +152,12 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, cardNumber, car
       style={{ '--holo-op': HOLO_OP[p.tier] ?? 0.5 }}
       onClick={onOpen ? () => onOpen(p) : undefined}
     >
-      {/* Jersey number watermark */}
-      {p.number && <div className="pc-jersey-bg">{p.number}</div>}
-
       <div className="pcard-inner">
         {/* Holographic glare overlay — all tiers, opacity scaled by HOLO_OP */}
         <div className="pc-holo" aria-hidden="true" />
+
+        {/* Jersey number watermark — inside inner so it clips correctly */}
+        {p.number && <div className="pc-jersey-bg" aria-hidden="true">{p.number}</div>}
 
         {/* Top bar */}
         <div className="pc-top">
@@ -168,12 +172,14 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, cardNumber, car
             <div className="pc-tier">{tier.label}</div>
             <div className="pc-arch">{(p.arch[lang] || '').toUpperCase()}</div>
           </div>
-          {onShare && (
-            <button className="pc-share" title={t.download} onClick={e => { e.stopPropagation(); onShare(p); }}>
-              ⤓
-            </button>
-          )}
         </div>
+
+        {/* Share button — absolutely positioned so it doesn't overlap tier block */}
+        {onShare && (
+          <button className="pc-share" title={t.download} onClick={e => { e.stopPropagation(); onShare(p); }}>
+            ⤓
+          </button>
+        )}
 
         {/* Player photo */}
         <div className="pc-photo">
@@ -196,6 +202,7 @@ export function PlayerCard({ p, lang, t, onShare, onOpen, teams, cardNumber, car
             <TeamBadge team={team} size={14} />
             <span>{p.team}{p.pos ? ` · ${p.pos}` : ''}</span>
           </div>
+          {hw && <div className="pc-meta" style={{ marginTop: 2 }}>{hw}</div>}
         </div>
 
         {/* Stats bar */}

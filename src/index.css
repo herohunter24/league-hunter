@@ -222,6 +222,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+.potm-card-wrap { max-width: 250px; }
 .search-inp { flex: 1; min-width: 180px; }
 
 /* ── PLAYER CARD — trading card 2.5×3.5 ── */
@@ -229,46 +230,58 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   aspect-ratio: 2.5 / 3.5; border-radius: 12px; position: relative; overflow: visible;
   transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2), box-shadow 0.28s; cursor: pointer;
   transform-style: preserve-3d; will-change: transform;
+  container-type: inline-size;
 }
 .pcard:hover { transform: translateY(-10px) scale(1.03); box-shadow: 0 28px 64px rgba(0,0,0,0.6); z-index: 2; }
 
-/* Jersey number watermark */
+/* Jersey number watermark — inside pcard-inner, centered over photo */
 .pc-jersey-bg {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-family: var(--ff-display); font-size: clamp(80px, 40%, 130px); font-weight: 900;
-  letter-spacing: -0.06em; line-height: 1; pointer-events: none; z-index: 0;
-  opacity: 0.07; color: currentColor; user-select: none; overflow: hidden; border-radius: 12px;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -38%);
+  font-family: var(--ff-display); font-size: clamp(64px, 44cqi, 110px); font-weight: 700;
+  letter-spacing: -0.06em; line-height: 1; pointer-events: none; z-index: 2;
+  opacity: 0.13; color: currentColor; user-select: none; white-space: nowrap; overflow: hidden;
 }
 
 .pcard-inner {
   position: absolute; inset: 7px; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; z-index: 1;
 }
 .pcard-inner::before {
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 35%; z-index: 2; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0,0,0,0.75), transparent);
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 50%; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%);
 }
 .pcard-inner::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 55%; z-index: 2; pointer-events: none;
-  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.92) 60%);
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 65%; z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.92) 60%);
 }
 
-/* Holographic glare overlay — opacity scaled per-tier via --holo-op on the card */
+/* Holographic glare overlay — diagonal rainbow band, opacity scaled per-tier via --holo-op */
 .pc-holo {
   position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: 8px;
-  background: radial-gradient(ellipse at var(--holo-x, 50%) var(--holo-y, 30%), rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 40%, transparent 70%);
-  mix-blend-mode: screen;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent calc(var(--holo-x, 50%) - 28%),
+    rgba(255, 210, 80,  0.55) calc(var(--holo-x, 50%) - 16%),
+    rgba(255, 255, 255, 0.80) calc(var(--holo-x, 50%) - 4%),
+    rgba(120, 230, 255, 0.55) calc(var(--holo-x, 50%) + 6%),
+    rgba(190, 120, 255, 0.35) calc(var(--holo-x, 50%) + 18%),
+    transparent calc(var(--holo-x, 50%) + 30%),
+    transparent 100%
+  );
+  mix-blend-mode: overlay;
   opacity: var(--holo-op, 0.5);
 }
+.pcard:hover .pc-holo { opacity: min(1, calc(var(--holo-op, 0.5) + 0.25)); }
 
 /* Top bar */
 .pc-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 11px 12px 6px; position: relative; z-index: 3; margin-bottom: auto; gap: 6px; }
 .pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
 .pc-logo-img { height: 18px; width: auto; object-fit: contain; }
 .pc-league-text { font-family: var(--ff-display); font-size: 14px; font-weight: 900; letter-spacing: 0.15em; line-height: 1; }
-.pc-season-text { font-size: 8px; font-weight: 700; letter-spacing: 0.2em; opacity: 0.55; }
+.pc-season-text { font-size: clamp(8.5px, 4.2cqi, 10px); font-weight: 700; letter-spacing: 0.2em; opacity: 0.55; }
 .pc-tier-block { text-align: right; flex: 1; }
 .pc-tier { font-family: var(--ff-display); font-size: 13px; letter-spacing: 0.1em; line-height: 1; }
-.pc-arch { font-size: 8px; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; opacity: 0.75; }
+.pc-arch { font-size: clamp(9px, 4.8cqi, 11px); font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; margin-top: 3px; opacity: 0.75; }
 
 /* Photo */
 .pc-photo {
@@ -285,25 +298,26 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pc-meta { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.65; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
 
 /* Team accent line above player name */
-.pc-accent-line { height: 2px; margin: 0 11px 5px; border-radius: 1px; position: relative; z-index: 3; opacity: 0.65; }
+.pc-accent-line { height: 3px; margin: 0 11px 5px; border-radius: 1px; position: relative; z-index: 3; opacity: 0.65; }
 
 /* Stats */
 .pc-stats { display: flex; gap: 0; margin: 7px 11px 6px; border-radius: 4px; overflow: hidden; position: relative; z-index: 3; }
 .pc-stat { flex: 1; text-align: center; padding: 6px 2px; }
 .pc-stat-v { font-family: var(--ff-display); font-size: 14px; line-height: 1; }
-.pc-stat-k { font-size: 7px; font-weight: 800; letter-spacing: 0.18em; margin-top: 3px; opacity: 0.6; }
+.pc-stat-k { font-size: clamp(8px, 4.5cqi, 11px); font-weight: 800; letter-spacing: 0.18em; margin-top: 3px; opacity: 0.6; }
 
 /* Set line */
 .pc-setline {
-  text-align: center; font-size: 7px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
-  opacity: 0.4; padding: 0 11px 7px; position: relative; z-index: 3;
+  text-align: center; font-size: clamp(8px, 4.2cqi, 10px); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+  opacity: 0.4; padding: 0 11px 7px; position: relative; z-index: 3; white-space: nowrap; overflow: hidden;
 }
 
-/* Share button */
+/* Share button — absolutely positioned in top-right corner */
 .pc-share {
-  width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0;
-  border: none; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.4); color: #fff; opacity: 0; transition: opacity 0.22s, background 0.22s;
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  width: 26px; height: 26px; border-radius: 4px;
+  border: none; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45); color: #fff; opacity: 0; transition: opacity 0.22s, background 0.22s;
   backdrop-filter: blur(4px);
 }
 .pcard:hover .pc-share { opacity: 1; }
@@ -575,7 +589,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .cat-btn-icon { font-size: 20px; margin-bottom: 0; flex-shrink: 0; }
 
   /* ── CARDS + GAMES ── */
-  .cards-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .potm-card-wrap { max-width: 180px; }
   .games-grid { grid-template-columns: 1fr; }
   .standings-table .hide-m { display: none; }
 
