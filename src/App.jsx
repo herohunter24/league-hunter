@@ -290,6 +290,18 @@ export default function App() {
     setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
   };
 
+  const scrollToAllStar = () => {
+    if (showExplorer) {
+      setShowExplorer(false);
+      setSelectedCat(null);
+      history.pushState({}, '', buildPageUrl(null, 'standings', null, null));
+    }
+    setTimeout(() => {
+      const el = document.getElementById('allstar');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, showExplorer ? 80 : 0);
+  };
+
   // ── URL / navigation helpers ──────────────────────────────
   const didInitRef = useRef(false);
 
@@ -565,7 +577,7 @@ export default function App() {
           )}
 
           {ps.showAllStar !== false && (
-            <section className="allstar-section reveal">
+            <section className="allstar-section reveal" id="allstar">
               <div className="allstar-bg" aria-hidden="true" />
               <div className="allstar-content">
                 <div className="allstar-kicker">{t.allstarKicker}</div>
@@ -573,6 +585,20 @@ export default function App() {
                 <div className="allstar-sub">{t.allstarSub}</div>
                 <div className="allstar-badge">{t.allstarBadge}</div>
                 <div className="allstar-vote">{t.allstarVote}</div>
+              </div>
+              <div className="allstar-photos">
+                <div className="allstar-photo-panel" style={{ '--as-delay': '0ms' }}>
+                  <img src="/images/allstar/allstar-1.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" className="allstar-photo-img" />
+                  <div className="allstar-photo-fade" aria-hidden="true" />
+                </div>
+                <div className="allstar-photo-panel allstar-photo-mid" style={{ '--as-delay': '150ms' }}>
+                  <img src="/images/allstar/allstar-2.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" className="allstar-photo-img" />
+                  <div className="allstar-photo-fade" aria-hidden="true" />
+                </div>
+                <div className="allstar-photo-panel" style={{ '--as-delay': '300ms' }}>
+                  <img src="/images/allstar/allstar-3.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" className="allstar-photo-img" />
+                  <div className="allstar-photo-fade" aria-hidden="true" />
+                </div>
               </div>
             </section>
           )}
@@ -625,6 +651,12 @@ export default function App() {
                 </button>
               );
             })}
+            {ps.showAllStar !== false && (
+              <button className="cat-btn cat-btn-allstar" onClick={scrollToAllStar}>
+                <span className="cat-btn-allstar-badge">{t.allstarBadge}</span>
+                All-Star
+              </button>
+            )}
           </div>
           {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
             <div className="empty-note">{t.noCatMatch}</div>
