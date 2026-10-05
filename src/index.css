@@ -490,8 +490,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
 
-/* ── ALL-STAR SECTION ── */
-.allstar-section { position: relative; width: 100%; overflow: hidden; padding: clamp(60px, 10vw, 110px) clamp(18px, 5vw, 60px); text-align: center; }
+/* ── ALL-STAR — shared animations & content styles ── */
 .allstar-bg { position: absolute; inset: 0; pointer-events: none; }
 .allstar-bg::before {
   content: '';
@@ -541,51 +540,54 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   50%       { border-color: rgba(201,162,74,0.35); }
 }
 .allstar-vote { font-size: 12.5px; color: var(--ink-faint, var(--ink-mid)); letter-spacing: 0.04em; }
+/* ── ALL-STAR VIEW ── */
+.allstar-view { width: 100%; }
+.allstar-vp-banner { position: relative; display: flex; width: 100%; gap: 2px; }
+.allstar-vp {
+  flex: 1; aspect-ratio: 3/4; overflow: hidden;
+  transition-delay: var(--as-delay, 0ms);
+}
+.allstar-vp img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  animation: allstar-zoom 12s ease-in-out infinite alternate;
+}
+.allstar-vp:nth-child(2) img { animation-delay: -4s; }
+.allstar-vp:nth-child(3) img { animation-delay: -8s; }
+@keyframes allstar-zoom {
+  from { transform: scale(1); }
+  to   { transform: scale(1.03); }
+}
+.allstar-vp-edge {
+  position: absolute; inset: auto 0 0 0; height: 80px; pointer-events: none;
+  background: linear-gradient(to top, var(--bg) 0%, rgba(10,10,10,0.5) 50%, transparent 100%);
+}
+.allstar-view-text {
+  position: relative; text-align: center;
+  padding: clamp(50px, 8vw, 90px) clamp(18px, 5vw, 60px);
+}
 @media (max-width: 480px) {
   .allstar-title { font-size: clamp(36px, 11vw, 60px); }
   .allstar-bg::after { font-size: 200px; }
 }
-/* All-Star photo row */
-.allstar-photos { display: flex; justify-content: center; align-items: flex-end; gap: 16px; max-width: 1100px; margin: 40px auto 0; padding: 0 clamp(18px,4vw,40px); }
-.allstar-photo-panel {
-  position: relative; flex: 1; max-width: 340px; border-radius: 4px; overflow: hidden;
-  border: 1px solid rgba(201,162,74,0.4); opacity: 0; transform: translateY(20px);
-  transition: opacity 0.5s ease-out, transform 0.5s ease-out, border-color 0.2s, box-shadow 0.2s;
-  transition-delay: var(--as-delay, 0ms);
-}
-.allstar-section.is-visible .allstar-photo-panel { opacity: 1; transform: translateY(0); }
-.allstar-photo-mid { margin-bottom: 28px; }
-.allstar-photo-panel:hover { transform: translateY(-4px); border-color: rgba(201,162,74,1); }
-.allstar-section.is-visible .allstar-photo-panel:hover { transform: translateY(-4px); }
-.allstar-photo-img {
-  display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top;
-  animation: allstar-zoom 12s ease-in-out infinite alternate;
-}
-.allstar-photo-mid .allstar-photo-img { animation-delay: -4s; }
-.allstar-photo-panel:last-child .allstar-photo-img { animation-delay: -8s; }
-@keyframes allstar-zoom {
-  from { transform: scale(1); }
-  to   { transform: scale(1.04); }
-}
-.allstar-photo-fade {
-  position: absolute; inset: auto 0 0 0; height: 35%;
-  background: linear-gradient(to top, #0a0a0a 0%, rgba(10,10,10,0.6) 50%, transparent 100%);
-  pointer-events: none;
-}
 @media (max-width: 640px) {
-  .allstar-photos { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x mandatory; justify-content: flex-start; -webkit-overflow-scrolling: touch; gap: 12px; padding-left: clamp(18px,5vw,40px); padding-right: clamp(18px,5vw,40px); scrollbar-width: none; }
-  .allstar-photos::-webkit-scrollbar { display: none; }
-  .allstar-photo-panel { flex: 0 0 75vw; max-width: none; scroll-snap-align: start; }
-  .allstar-photo-mid { margin-bottom: 0; }
+  .allstar-vp-banner { overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; gap: 8px; scrollbar-width: none; padding-left: clamp(18px,5vw,40px); }
+  .allstar-vp-banner::-webkit-scrollbar { display: none; }
+  .allstar-vp { flex: 0 0 80vw; scroll-snap-align: start; }
 }
 /* All-Star tile in category grid */
 .cat-btn-allstar {
-  position: relative; overflow: hidden; border-color: rgba(201,162,74,0.5); background-image: url(/images/allstar/allstar-2.webp);
+  position: relative; overflow: hidden; border-color: rgba(201,162,74,0.5);
+  background-image: url(/images/allstar/allstar-2.webp);
   background-size: cover; background-position: center top;
 }
-.cat-btn-allstar::before { content: ''; position: absolute; inset: 0; background: rgba(10,10,10,0.78); transition: background 0.2s; }
+.cat-btn-allstar::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.05) 100%);
+  transition: background 0.2s;
+}
 .cat-btn-allstar:hover { border-color: var(--gold); }
-.cat-btn-allstar:hover::before { background: rgba(10,10,10,0.65); }
+.cat-btn-allstar:hover::before { background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.08) 55%, rgba(0,0,0,0) 100%); }
 .cat-btn-allstar > * { position: relative; z-index: 1; }
 .cat-btn-allstar-badge { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
 .mission-pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 880px; margin: 0 auto 36px; text-align: left; }
@@ -714,6 +716,7 @@ button:active { transform: scale(0.98); }
 /* 2 — Scroll reveal */
 .reveal { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease-out, transform 0.5s ease-out; }
 .reveal.is-visible { opacity: 1; transform: none; }
+.allstar-vp.reveal { transition-delay: var(--as-delay, 0ms); }
 
 /* 3 — Hero scroll cue */
 .hero-scroll-cue {
@@ -846,6 +849,5 @@ button:active { transform: scale(0.98); }
   .allstar-shine { animation: none; }
   .allstar-badge { animation: none; }
   .allstar-bg::after { animation: none; }
-  .allstar-photo-panel { transition: border-color 0.2s, box-shadow 0.2s; opacity: 1; transform: none; }
-  .allstar-photo-img { animation: none; }
+  .allstar-vp img { animation: none; }
 }

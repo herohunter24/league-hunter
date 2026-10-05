@@ -290,18 +290,6 @@ export default function App() {
     setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
   };
 
-  const scrollToAllStar = () => {
-    if (showExplorer) {
-      setShowExplorer(false);
-      setSelectedCat(null);
-      history.pushState({}, '', buildPageUrl(null, 'standings', null, null));
-    }
-    setTimeout(() => {
-      const el = document.getElementById('allstar');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, showExplorer ? 80 : 0);
-  };
-
   // ── URL / navigation helpers ──────────────────────────────
   const didInitRef = useRef(false);
 
@@ -576,32 +564,6 @@ export default function App() {
             </section>
           )}
 
-          {ps.showAllStar !== false && (
-            <section className="allstar-section reveal" id="allstar">
-              <div className="allstar-bg" aria-hidden="true" />
-              <div className="allstar-content">
-                <div className="allstar-kicker">{t.allstarKicker}</div>
-                <div className="allstar-title">{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
-                <div className="allstar-sub">{t.allstarSub}</div>
-                <div className="allstar-badge">{t.allstarBadge}</div>
-                <div className="allstar-vote">{t.allstarVote}</div>
-              </div>
-              <div className="allstar-photos">
-                <div className="allstar-photo-panel" style={{ '--as-delay': '0ms' }}>
-                  <img src="/images/allstar/allstar-1.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" className="allstar-photo-img" />
-                  <div className="allstar-photo-fade" aria-hidden="true" />
-                </div>
-                <div className="allstar-photo-panel allstar-photo-mid" style={{ '--as-delay': '150ms' }}>
-                  <img src="/images/allstar/allstar-2.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" className="allstar-photo-img" />
-                  <div className="allstar-photo-fade" aria-hidden="true" />
-                </div>
-                <div className="allstar-photo-panel" style={{ '--as-delay': '300ms' }}>
-                  <img src="/images/allstar/allstar-3.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" className="allstar-photo-img" />
-                  <div className="allstar-photo-fade" aria-hidden="true" />
-                </div>
-              </div>
-            </section>
-          )}
 
           <section className="landing-sec reveal">
             <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
@@ -652,7 +614,7 @@ export default function App() {
               );
             })}
             {ps.showAllStar !== false && (
-              <button className="cat-btn cat-btn-allstar" onClick={scrollToAllStar}>
+              <button className="cat-btn cat-btn-allstar" onClick={() => selectCat('allstar')}>
                 <span className="cat-btn-allstar-badge">{t.allstarBadge}</span>
                 All-Star
               </button>
@@ -666,8 +628,9 @@ export default function App() {
 
       {/* ── CATEGORY HEADER + TAB NAV ── */}
       {selectedCat && (() => {
-        const catName = displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
-        const tabs = [
+        const isAllStar = selectedCat === 'allstar';
+        const catName = isAllStar ? t.allstarTitle : displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
+        const tabs = isAllStar ? [] : [
           ps.showStandings !== false && ['standings', t.navStandings, lang === 'fr' ? 'Rang' : 'Stands'],
           ps.showSchedule !== false && ['schedule', t.navSchedule, lang === 'fr' ? 'Calend.' : 'Sched.'],
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
@@ -681,6 +644,7 @@ export default function App() {
                 <button className="cat-change" onClick={unselectCat}>{t.changeCat}</button>
               </div>
             </div>
+            {tabs.length > 0 && (
             <nav className="nav">
               {tabs.map(([k, label, short]) => (
                 <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => switchTab(k)}>
@@ -688,12 +652,41 @@ export default function App() {
                 </a>
               ))}
             </nav>
+            )}
           </>
         );
       })()}
 
+      {/* ── ALL-STAR VIEW ── */}
+      {selectedCat === 'allstar' && (
+        <div className="allstar-view">
+          <div className="allstar-vp-banner">
+            <div className="allstar-vp reveal" style={{ '--as-delay': '0ms' }}>
+              <img src="/images/allstar/allstar-1.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" />
+            </div>
+            <div className="allstar-vp reveal" style={{ '--as-delay': '150ms' }}>
+              <img src="/images/allstar/allstar-2.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" />
+            </div>
+            <div className="allstar-vp reveal" style={{ '--as-delay': '300ms' }}>
+              <img src="/images/allstar/allstar-3.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" />
+            </div>
+            <div className="allstar-vp-edge" aria-hidden="true" />
+          </div>
+          <div className="allstar-view-text">
+            <div className="allstar-bg" aria-hidden="true" />
+            <div className="allstar-content">
+              <div className="allstar-kicker">{t.allstarKicker}</div>
+              <div className="allstar-title">{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
+              <div className="allstar-sub">{t.allstarSub}</div>
+              <div className="allstar-badge">{t.allstarBadge}</div>
+              <div className="allstar-vote">{t.allstarVote}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── STANDINGS ── */}
-      {selectedCat && activeTab === 'standings' && ps.showStandings !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'standings' && ps.showStandings !== false && (
       <section className="section tab-pane" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
         <div className="standings-card">
@@ -764,7 +757,7 @@ export default function App() {
       )}
 
       {/* ── SCHEDULE ── */}
-      {selectedCat && activeTab === 'schedule' && ps.showSchedule !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'schedule' && ps.showSchedule !== false && (
       <section className="section tab-pane" id="calendrier">
         <div className="sec-kicker">{t.schedKicker}</div>
         <div className="sched-filters">
@@ -825,7 +818,7 @@ export default function App() {
       )}
 
       {/* ── PLAYERS ── */}
-      {selectedCat && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
       <section className="section tab-pane" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
 
@@ -880,7 +873,7 @@ export default function App() {
       )}
 
       {/* ── STATS ── */}
-      {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'stats' && ps.showStats !== false && (
       <section className="section tab-pane" id="statistiques">
         <div className="sec-kicker">{t.statsKicker}</div>
         {(() => {
