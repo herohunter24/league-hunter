@@ -123,24 +123,6 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // ── All-Star hero parallax ──────────────────────────────
-  useEffect(() => {
-    if (selectedCat !== 'allstar') return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let raf = null;
-    const hero = allstarHeroRef.current;
-    if (!hero) return;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = null;
-        const y = Math.min(Math.max(-hero.getBoundingClientRect().top * 0.25, 0), 40);
-        hero.style.setProperty('--parallax-y', `${y}px`);
-      });
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [selectedCat]);
 
   // ── Count-up numbers ──────────────────────────────────────
   useEffect(() => {
@@ -191,6 +173,24 @@ export default function App() {
     container.style.setProperty('--tab-left', (cr.left - pr.left) + 'px');
     container.style.setProperty('--tab-width', cr.width + 'px');
   }, [activeTab, selectedCat]);
+  // ── All-Star hero parallax ──────────────────────────────
+  useEffect(() => {
+    if (selectedCat !== 'allstar') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = null;
+    const hero = allstarHeroRef.current;
+    if (!hero) return;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const y = Math.min(Math.max(-hero.getBoundingClientRect().top * 0.25, 0), 40);
+        hero.style.setProperty('--parallax-y', `${y}px`);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [selectedCat]);
 
   const [sortKey, setSortKey]   = useState('rank');
   const [sortDir, setSortDir]   = useState('desc');
@@ -492,7 +492,7 @@ export default function App() {
               : <span className="site-header-logo-fallback">NLS</span>}
           </button>
           <div className="header-tabs" ref={tabsRef}>
-            {selectedCat && [
+            {selectedCat && selectedCat !== 'allstar' && [
               ['standings', t.navStandings], ['schedule', t.navSchedule],
               ['players', t.navPlayers], ['stats', t.navStats],
             ].map(([k, label]) => (
