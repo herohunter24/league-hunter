@@ -93,10 +93,13 @@ export default function App() {
   // ── Scroll reveal (runs after each render to catch newly rendered .reveal elements) ──
   useEffect(() => {
     const obs = new IntersectionObserver(
-      entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-visible'); obs.unobserve(e.target); } }),
+      entries => entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('is-visible');
+        else e.target.classList.remove('is-visible');
+      }),
       { threshold: 0.1 }
     );
-    document.querySelectorAll('.reveal:not(.is-visible)').forEach(el => obs.observe(el));
+    document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
     return () => obs.disconnect();
   });
 
@@ -111,6 +114,7 @@ export default function App() {
   });
 
   const scrollCueRef = useRef(null);
+  const allstarHeroRef = useRef(null);
   useEffect(() => {
     const cue = scrollCueRef.current;
     if (!cue) return;
@@ -118,6 +122,25 @@ export default function App() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // ── All-Star hero parallax ──────────────────────────────
+  useEffect(() => {
+    if (selectedCat !== 'allstar') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = null;
+    const hero = allstarHeroRef.current;
+    if (!hero) return;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const y = Math.min(Math.max(-hero.getBoundingClientRect().top * 0.25, 0), 40);
+        hero.style.setProperty('--parallax-y', `${y}px`);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [selectedCat]);
 
   // ── Count-up numbers ──────────────────────────────────────
   useEffect(() => {
@@ -332,8 +355,8 @@ export default function App() {
     setShowAllPlayers(false);
     history.pushState({}, '', buildPageUrl(catId, 'standings', null, null));
     setTimeout(() => {
-      const nav = document.querySelector('.nav');
-      if (nav) nav.scrollIntoView({ behavior: 'smooth' });
+      const target = catId === 'allstar' ? document.querySelector('.cat-header') : document.querySelector('.nav');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
   }
 
@@ -659,27 +682,29 @@ export default function App() {
 
       {/* ── ALL-STAR VIEW ── */}
       {selectedCat === 'allstar' && (
-        <div className="allstar-view">
-          <div className="allstar-vp-banner">
-            <div className="allstar-vp reveal" style={{ '--as-delay': '0ms' }}>
-              <img src="/images/allstar/allstar-1.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" />
+        <div className="allstar-view" ref={allstarHeroRef}>
+          <div className="allstar-hero">
+            {/* Photos — background layer */}
+            <div className="allstar-hero-photos" aria-hidden="true">
+              <div className="allstar-hp reveal" style={{ '--as-delay': '0ms' }}>
+                <div className="allstar-hp-inner"><img src="/images/allstar/allstar-1.webp" alt="" width="400" height="600" /></div>
+              </div>
+              <div className="allstar-hp reveal" style={{ '--as-delay': '150ms' }}>
+                <div className="allstar-hp-inner"><img src="/images/allstar/allstar-2.webp" alt="" width="400" height="600" /></div>
+              </div>
+              <div className="allstar-hp reveal" style={{ '--as-delay': '300ms' }}>
+                <div className="allstar-hp-inner"><img src="/images/allstar/allstar-3.webp" alt="" width="400" height="600" /></div>
+              </div>
             </div>
-            <div className="allstar-vp reveal" style={{ '--as-delay': '150ms' }}>
-              <img src="/images/allstar/allstar-2.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" />
-            </div>
-            <div className="allstar-vp reveal" style={{ '--as-delay': '300ms' }}>
-              <img src="/images/allstar/allstar-3.webp" alt={lang === 'fr' ? 'Joueurs NLS All-Star' : 'NLS All-Star players'} width="400" height="600" loading="lazy" />
-            </div>
-            <div className="allstar-vp-edge" aria-hidden="true" />
-          </div>
-          <div className="allstar-view-text">
-            <div className="allstar-bg" aria-hidden="true" />
-            <div className="allstar-content">
-              <div className="allstar-kicker">{t.allstarKicker}</div>
-              <div className="allstar-title">{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
-              <div className="allstar-sub">{t.allstarSub}</div>
-              <div className="allstar-badge">{t.allstarBadge}</div>
-              <div className="allstar-vote">{t.allstarVote}</div>
+            {/* Overlays */}
+            <div className="allstar-hero-ov" aria-hidden="true" />
+            {/* Text — on top */}
+            <div className="allstar-hero-text">
+              <div className="allstar-kicker reveal" style={{ '--as-delay': '500ms' }}>{t.allstarKicker}</div>
+              <div className="allstar-title reveal" style={{ '--as-delay': '600ms' }}>{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
+              <div className="allstar-sub reveal" style={{ '--as-delay': '700ms' }}>{t.allstarSub}</div>
+              <div className="allstar-badge reveal" style={{ '--as-delay': '800ms' }}>{t.allstarBadge}</div>
+              <div className="allstar-vote reveal" style={{ '--as-delay': '900ms' }}>{t.allstarVote}</div>
             </div>
           </div>
         </div>
