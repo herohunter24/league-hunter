@@ -192,6 +192,15 @@ export default function App() {
     return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
   }, [selectedCat]);
 
+  // ── All-Star entrance: trigger reveal immediately on view open ──
+  useEffect(() => {
+    if (selectedCat !== 'allstar') return;
+    const t = setTimeout(() => {
+      document.querySelectorAll('.allstar-hero .reveal').forEach(el => el.classList.add('is-visible'));
+    }, 80);
+    return () => clearTimeout(t);
+  }, [selectedCat]);
+
   const [sortKey, setSortKey]   = useState('rank');
   const [sortDir, setSortDir]   = useState('desc');
   const [openTeam, setOpenTeam] = useState(null);

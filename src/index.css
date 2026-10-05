@@ -761,6 +761,7 @@ button:active { transform: scale(0.98); }
   animation: courtDrift 35s linear infinite;
 }
 .cat-selector > * { position: relative; z-index: 1; }
+.cat-selector > .cat-court-bg { position: absolute; inset: 0; margin: auto; width: min(900px, 100%); height: 100%; z-index: 0; pointer-events: none; }
 @keyframes courtDrift { to { transform: rotate(360deg); } }
 /* gold top-border slides in on hover; name shifts up 2px */
 .cat-btn { border-top-width: 2px; border-top-color: transparent; padding-top: 24px; }
