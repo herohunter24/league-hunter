@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+﻿import { useState, useMemo, useEffect, useRef } from 'react';
 import React from 'react';
 import html2canvas from 'html2canvas';
 import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
@@ -560,6 +560,19 @@ export default function App() {
                     <PlayerCard p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {ps.showAllStar !== false && (
+            <section className="allstar-section reveal">
+              <div className="allstar-bg" aria-hidden="true" />
+              <div className="allstar-content">
+                <div className="allstar-kicker">{t.allstarKicker}</div>
+                <div className="allstar-title">{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
+                <div className="allstar-sub">{t.allstarSub}</div>
+                <div className="allstar-badge">{t.allstarBadge}</div>
+                <div className="allstar-vote">{t.allstarVote}</div>
               </div>
             </section>
           )}

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -4583,6 +4583,7 @@ function App() {
               ['showPlayerCards', '🃏 Show Player Cards',         'Tier system cards (Bronze → Legend) and rankings'],
               ['showStats',       '🏆 Show Stats',                'League leaders — top scorers, rebounders, etc.'],
               ['showLeagueInfo',  'ℹ️ Show League Info',          'Hero banner with league name and description'],
+              ['showAllStar',     '⭐ Show All-Star Section',      'Promotional NLS ALL-STAR coming-soon banner on the home page'],
             ];
             const lmsg = league.leagueMessage || {};
             const draftTitle  = psDraft && psDraft._lmTitle    !== undefined ? psDraft._lmTitle    : (lmsg.title || '');
@@ -4624,6 +4625,13 @@ function App() {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                {/* All-Star date — saved but not displayed yet; TODO: use for countdown / fan-vote button */}
+                <div style={{ ...card, marginBottom: 20 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>⭐ All-Star Event Date <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optional)</span></div>
+                  <div style={{ fontSize: 12, color: T2, marginBottom: 12, lineHeight: 1.6 }}>Saved for future use — will power a countdown timer or fan-vote button. Does not appear on the public page yet.</div>
+                  <input type="date" style={inp} value={ps.allstarDate || ''} onChange={e => savePublicSettings(league, { ...ps, allstarDate: e.target.value || null })} />
                 </div>
 
                 {/* League Message customization — drives the public site's League Message section (not the hero) */}

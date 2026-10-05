@@ -1,4 +1,4 @@
-export const STR = {
+﻿export const STR = {
   fr: {
     kicker: "NO LIMITS SHOWCASES · QUÉBEC",
     heroTitle: "BRISEZ LES LIMITES",
@@ -39,6 +39,11 @@ export const STR = {
     ppg: "PTS/M", rpg: "REB/M", apg: "PAS/M",
     spg: "INT/M", bpg: "CTR/M", ftPct: "LF %", fgPct: "TIR %",
     roster: "Alignement",
+    allstarKicker: "ÉVÉNEMENT SPÉCIAL",
+    allstarTitle: "NLS ALL-STAR",
+    allstarSub: "Les meilleurs joueurs de la ligue, réunis sur un seul terrain.",
+    allstarBadge: "BIENTÔT",
+    allstarVote: "Le vote des partisans ouvrira bientôt. Restez à l'affût.",
     pageTitle: "NLS · La Ligue",
     copyright: "© 2026 NLS CRÉATION — LA PERSONNALISATION SANS LIMITE",
     catNames: {
@@ -98,6 +103,11 @@ export const STR = {
     ppg: "PPG", rpg: "RPG", apg: "APG",
     spg: "SPG", bpg: "BPG", ftPct: "FT%", fgPct: "FG%",
     roster: "Roster",
+    allstarKicker: "SPECIAL EVENT",
+    allstarTitle: "NLS ALL-STAR",
+    allstarSub: "The league's best players, together on one court.",
+    allstarBadge: "COMING SOON",
+    allstarVote: "Fan voting opens soon. Stay tuned.",
     pageTitle: "NLS · The League",
     copyright: "© 2026 NLS CRÉATION — CUSTOMIZATION WITHOUT LIMITS",
     catNames: {
