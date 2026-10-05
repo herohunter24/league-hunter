@@ -93,10 +93,13 @@ export default function App() {
   // ── Scroll reveal (runs after each render to catch newly rendered .reveal elements) ──
   useEffect(() => {
     const obs = new IntersectionObserver(
-      entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-visible'); obs.unobserve(e.target); } }),
+      entries => entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('is-visible');
+        else e.target.classList.remove('is-visible');
+      }),
       { threshold: 0.1 }
     );
-    document.querySelectorAll('.reveal:not(.is-visible)').forEach(el => obs.observe(el));
+    document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
     return () => obs.disconnect();
   });
 
@@ -111,6 +114,7 @@ export default function App() {
   });
 
   const scrollCueRef = useRef(null);
+  const allstarHeroRef = useRef(null);
   useEffect(() => {
     const cue = scrollCueRef.current;
     if (!cue) return;
@@ -118,6 +122,7 @@ export default function App() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
 
   // ── Count-up numbers ──────────────────────────────────────
   useEffect(() => {
@@ -168,6 +173,33 @@ export default function App() {
     container.style.setProperty('--tab-left', (cr.left - pr.left) + 'px');
     container.style.setProperty('--tab-width', cr.width + 'px');
   }, [activeTab, selectedCat]);
+  // ── All-Star hero parallax ──────────────────────────────
+  useEffect(() => {
+    if (selectedCat !== 'allstar') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = null;
+    const hero = allstarHeroRef.current;
+    if (!hero) return;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const y = Math.min(Math.max(-hero.getBoundingClientRect().top * 0.25, 0), 40);
+        hero.style.setProperty('--parallax-y', `${y}px`);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [selectedCat]);
+
+  // ── All-Star entrance: trigger reveal immediately on view open ──
+  useEffect(() => {
+    if (selectedCat !== 'allstar') return;
+    const t = setTimeout(() => {
+      document.querySelectorAll('.allstar-hero .reveal').forEach(el => el.classList.add('is-visible'));
+    }, 80);
+    return () => clearTimeout(t);
+  }, [selectedCat]);
 
   const [sortKey, setSortKey]   = useState('rank');
   const [sortDir, setSortDir]   = useState('desc');
@@ -332,8 +364,8 @@ export default function App() {
     setShowAllPlayers(false);
     history.pushState({}, '', buildPageUrl(catId, 'standings', null, null));
     setTimeout(() => {
-      const nav = document.querySelector('.nav');
-      if (nav) nav.scrollIntoView({ behavior: 'smooth' });
+      const target = catId === 'allstar' ? document.querySelector('.cat-header') : document.querySelector('.nav');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
   }
 
@@ -469,7 +501,7 @@ export default function App() {
               : <span className="site-header-logo-fallback">NLS</span>}
           </button>
           <div className="header-tabs" ref={tabsRef}>
-            {selectedCat && [
+            {selectedCat && selectedCat !== 'allstar' && [
               ['standings', t.navStandings], ['schedule', t.navSchedule],
               ['players', t.navPlayers], ['stats', t.navStats],
             ].map(([k, label]) => (
@@ -564,18 +596,6 @@ export default function App() {
             </section>
           )}
 
-          {ps.showAllStar !== false && (
-            <section className="allstar-section reveal">
-              <div className="allstar-bg" aria-hidden="true" />
-              <div className="allstar-content">
-                <div className="allstar-kicker">{t.allstarKicker}</div>
-                <div className="allstar-title">{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
-                <div className="allstar-sub">{t.allstarSub}</div>
-                <div className="allstar-badge">{t.allstarBadge}</div>
-                <div className="allstar-vote">{t.allstarVote}</div>
-              </div>
-            </section>
-          )}
 
           <section className="landing-sec reveal">
             <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
@@ -625,6 +645,12 @@ export default function App() {
                 </button>
               );
             })}
+            {ps.showAllStar !== false && (
+              <button className="cat-btn cat-btn-allstar" onClick={() => selectCat('allstar')}>
+                <span className="cat-btn-allstar-badge">{t.allstarBadge}</span>
+                All-Star
+              </button>
+            )}
           </div>
           {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
             <div className="empty-note">{t.noCatMatch}</div>
@@ -634,8 +660,9 @@ export default function App() {
 
       {/* ── CATEGORY HEADER + TAB NAV ── */}
       {selectedCat && (() => {
-        const catName = displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
-        const tabs = [
+        const isAllStar = selectedCat === 'allstar';
+        const catName = isAllStar ? t.allstarTitle : displayCatName((effectiveCats.find(c => c.id === selectedCat) || {}).name || '', t);
+        const tabs = isAllStar ? [] : [
           ps.showStandings !== false && ['standings', t.navStandings, lang === 'fr' ? 'Rang' : 'Stands'],
           ps.showSchedule !== false && ['schedule', t.navSchedule, lang === 'fr' ? 'Calend.' : 'Sched.'],
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
@@ -649,6 +676,7 @@ export default function App() {
                 <button className="cat-change" onClick={unselectCat}>{t.changeCat}</button>
               </div>
             </div>
+            {tabs.length > 0 && (
             <nav className="nav">
               {tabs.map(([k, label, short]) => (
                 <a key={k} className={activeTab === k ? 'active' : ''} style={{ cursor: 'pointer' }} onClick={() => switchTab(k)}>
@@ -656,12 +684,43 @@ export default function App() {
                 </a>
               ))}
             </nav>
+            )}
           </>
         );
       })()}
 
+      {/* ── ALL-STAR VIEW ── */}
+      {selectedCat === 'allstar' && (
+        <div className="allstar-view" ref={allstarHeroRef}>
+          <div className="allstar-hero">
+            {/* Photos — background layer */}
+            <div className="allstar-hero-photos" aria-hidden="true">
+              <div className="allstar-hp reveal" style={{ '--as-delay': '0ms' }}>
+                <div className="allstar-hp-inner"><img src="/images/allstar/allstar-1.webp" alt="" width="400" height="600" /></div>
+              </div>
+              <div className="allstar-hp reveal" style={{ '--as-delay': '150ms' }}>
+                <div className="allstar-hp-inner"><img src="/images/allstar/allstar-2.webp" alt="" width="400" height="600" /></div>
+              </div>
+              <div className="allstar-hp reveal" style={{ '--as-delay': '300ms' }}>
+                <div className="allstar-hp-inner"><img src="/images/allstar/allstar-3.webp" alt="" width="400" height="600" /></div>
+              </div>
+            </div>
+            {/* Overlays */}
+            <div className="allstar-hero-ov" aria-hidden="true" />
+            {/* Text — on top */}
+            <div className="allstar-hero-text">
+              <div className="allstar-kicker reveal" style={{ '--as-delay': '500ms' }}>{t.allstarKicker}</div>
+              <div className="allstar-title reveal" style={{ '--as-delay': '600ms' }}>{t.allstarTitle}<span className="allstar-shine" aria-hidden="true" /></div>
+              <div className="allstar-sub reveal" style={{ '--as-delay': '700ms' }}>{t.allstarSub}</div>
+              <div className="allstar-badge reveal" style={{ '--as-delay': '800ms' }}>{t.allstarBadge}</div>
+              <div className="allstar-vote reveal" style={{ '--as-delay': '900ms' }}>{t.allstarVote}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── STANDINGS ── */}
-      {selectedCat && activeTab === 'standings' && ps.showStandings !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'standings' && ps.showStandings !== false && (
       <section className="section tab-pane" id="classement">
         <div className="sec-kicker">{t.standingsKicker}</div>
         <div className="standings-card">
@@ -732,7 +791,7 @@ export default function App() {
       )}
 
       {/* ── SCHEDULE ── */}
-      {selectedCat && activeTab === 'schedule' && ps.showSchedule !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'schedule' && ps.showSchedule !== false && (
       <section className="section tab-pane" id="calendrier">
         <div className="sec-kicker">{t.schedKicker}</div>
         <div className="sched-filters">
@@ -793,7 +852,7 @@ export default function App() {
       )}
 
       {/* ── PLAYERS ── */}
-      {selectedCat && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'players' && ps.showPlayers !== false && ps.showPlayerCards !== false && (
       <section className="section tab-pane" id="joueurs">
         <div className="sec-kicker">{t.playersKicker}</div>
 
@@ -848,7 +907,7 @@ export default function App() {
       )}
 
       {/* ── STATS ── */}
-      {selectedCat && activeTab === 'stats' && ps.showStats !== false && (
+      {selectedCat && selectedCat !== 'allstar' && activeTab === 'stats' && ps.showStats !== false && (
       <section className="section tab-pane" id="statistiques">
         <div className="sec-kicker">{t.statsKicker}</div>
         {(() => {

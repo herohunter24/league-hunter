@@ -490,32 +490,14 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
 
-/* ── ALL-STAR SECTION ── */
-.allstar-section { position: relative; width: 100%; overflow: hidden; padding: clamp(60px, 10vw, 110px) clamp(18px, 5vw, 60px); text-align: center; }
-.allstar-bg { position: absolute; inset: 0; pointer-events: none; }
-.allstar-bg::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(201,162,74,0.07) 0%, transparent 70%);
-}
-.allstar-bg::after {
-  content: 'NLS';
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  font-family: var(--ff-display); font-size: clamp(180px, 30vw, 380px); font-weight: 900;
-  color: rgba(201,162,74,0.04); letter-spacing: -0.04em; white-space: nowrap;
-  animation: allstar-drift 18s ease-in-out infinite alternate;
-}
-@keyframes allstar-drift {
-  from { transform: translate(-52%, -50%); }
-  to   { transform: translate(-48%, -50%); }
-}
-.allstar-content { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
-.allstar-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; margin-bottom: 14px; }
+/* â”€â”€ ALL-STAR â€” shared text styles & animations â”€â”€ */
+.allstar-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; margin-bottom: 14px; text-shadow: 0 1px 8px rgba(0,0,0,0.9); }
 .allstar-title {
   position: relative; display: inline-block;
   font-family: var(--ff-display); font-size: clamp(40px, 9vw, 88px); font-weight: 900;
-  text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink);
+  text-transform: uppercase; letter-spacing: 0.02em; color: #fff;
   margin-bottom: 20px; overflow: hidden;
+  text-shadow: 0 2px 24px rgba(0,0,0,0.8);
 }
 .allstar-shine {
   position: absolute; top: 0; left: -75%;
@@ -528,23 +510,82 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   72%      { opacity: 1; }
   100%     { left: 125%; opacity: 0; }
 }
-.allstar-sub { color: var(--ink-mid); font-size: clamp(14px, 2vw, 17px); line-height: 1.65; max-width: 500px; margin: 0 auto 28px; }
+.allstar-sub { color: rgba(255,255,255,0.8); font-size: clamp(14px, 2vw, 17px); line-height: 1.65; max-width: 500px; margin: 0 auto 28px; text-shadow: 0 1px 12px rgba(0,0,0,0.8); }
 .allstar-badge {
   display: inline-block; padding: 7px 22px; border-radius: 100px;
   border: 1.5px solid var(--gold); color: var(--gold);
   font-size: 11.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
   margin-bottom: 18px;
   animation: allstar-pulse 2.5s ease-in-out infinite;
+  backdrop-filter: blur(4px);
 }
 @keyframes allstar-pulse {
   0%, 100% { border-color: rgba(201,162,74,0.9); }
   50%       { border-color: rgba(201,162,74,0.35); }
 }
-.allstar-vote { font-size: 12.5px; color: var(--ink-faint, var(--ink-mid)); letter-spacing: 0.04em; }
+.allstar-vote { font-size: 12.5px; color: rgba(255,255,255,0.6); letter-spacing: 0.04em; text-shadow: 0 1px 8px rgba(0,0,0,0.8); }
+/* â”€â”€ ALL-STAR VIEW â€” cinematic hero â”€â”€ */
+.allstar-view { width: 100%; }
+.allstar-hero {
+  position: relative; width: 100%; height: 85vh; min-height: 560px; overflow: hidden;
+}
+.allstar-hero-photos {
+  position: absolute; inset: 0; display: flex;
+}
+.allstar-hp {
+  flex: 1; overflow: hidden;
+  transition-delay: var(--as-delay, 0ms);
+}
+.allstar-hp.reveal { transform: translateY(30px); transition: opacity 0.8s ease-out, transform 0.8s ease-out; }
+.allstar-hp-inner {
+  width: 100%; height: calc(100% + 80px); margin-top: -40px;
+  transform: translateY(var(--parallax-y, 0px));
+}
+.allstar-hp-inner img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 20%;
+  animation: allstar-zoom 15s ease-in-out infinite alternate;
+}
+.allstar-hp:nth-child(2) .allstar-hp-inner img { animation-delay: -5s; }
+.allstar-hp:nth-child(3) .allstar-hp-inner img { animation-delay: -10s; }
+@keyframes allstar-zoom {
+  from { transform: scale(1); }
+  to   { transform: scale(1.05); }
+}
+.allstar-hero-ov {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 12%),
+    linear-gradient(to top, #0a0a0a 0%, rgba(0,0,0,0.65) 28%, transparent 52%),
+    rgba(0,0,0,0.45);
+}
+.allstar-hero-text {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 0 clamp(18px, 5vw, 60px);
+}
+.allstar-hero-text .reveal { transition-delay: var(--as-delay, 0ms); }
 @media (max-width: 480px) {
   .allstar-title { font-size: clamp(36px, 11vw, 60px); }
-  .allstar-bg::after { font-size: 200px; }
 }
+@media (max-width: 640px) {
+  .allstar-hero { height: 75vh; min-height: 480px; }
+  .allstar-hp { position: absolute; inset: 0; flex: none; }
+  .allstar-hp.reveal { opacity: 1; transform: none; transition: none; }
+  .allstar-hp.reveal.is-visible { opacity: 1; transform: none; }
+  .allstar-hp:nth-child(1) { animation: as-crossfade 12s linear infinite 0s; }
+  .allstar-hp:nth-child(2) { animation: as-crossfade 12s linear infinite -8s; }
+  .allstar-hp:nth-child(3) { animation: as-crossfade 12s linear infinite -4s; }
+}
+@keyframes as-crossfade {
+  0%, 25%   { opacity: 1; }
+  33.3%     { opacity: 0; }
+  100%      { opacity: 0; }
+}
+/* All-Star tile */
+.cat-grid .cat-btn.cat-btn-allstar { border-color: rgba(201,162,74,0.5); }
+.cat-grid .cat-btn.cat-btn-allstar:hover { border-color: var(--gold); }
+.cat-btn-allstar-badge { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
 .mission-pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 880px; margin: 0 auto 36px; text-align: left; }
 .pillar { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 22px; }
 .pillar-icon { font-size: 26px; margin-bottom: 10px; }
@@ -552,7 +593,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pillar-d { font-size: 13px; color: var(--ink-mid); line-height: 1.6; }
 
 /* ── CATEGORY-FIRST NAVIGATION ── */
-.cat-selector { max-width: 720px; margin: 0 auto; padding: clamp(60px, 10vw, 110px) clamp(18px, 4vw, 40px); text-align: center; }
+.cat-selector { max-width: 720px; margin: 0 auto; padding: clamp(24px, 4vw, 48px) clamp(18px, 4vw, 40px); text-align: center; }
 .cat-selector h2 { font-family: var(--ff-display); font-size: clamp(28px, 5vw, 46px); text-transform: uppercase; margin-bottom: 10px; }
 .cat-selector .cs-sub { color: var(--ink-mid); font-size: 15px; margin-bottom: 36px; }
 .cat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 26px; }
@@ -671,6 +712,8 @@ button:active { transform: scale(0.98); }
 /* 2 — Scroll reveal */
 .reveal { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease-out, transform 0.5s ease-out; }
 .reveal.is-visible { opacity: 1; transform: none; }
+.allstar-hp.reveal { transition-delay: var(--as-delay, 0ms); }
+.allstar-hero-text .reveal { transition-delay: var(--as-delay, 0ms); }
 
 /* 3 — Hero scroll cue */
 .hero-scroll-cue {
@@ -705,6 +748,7 @@ button:active { transform: scale(0.98); }
   animation: courtDrift 35s linear infinite;
 }
 .cat-selector > * { position: relative; z-index: 1; }
+.cat-selector > .cat-court-bg { position: absolute; inset: 0; margin: auto; width: min(900px, 100%); height: 100%; z-index: 0; pointer-events: none; }
 @keyframes courtDrift { to { transform: rotate(360deg); } }
 /* gold top-border slides in on hover; name shifts up 2px */
 .cat-btn { border-top-width: 2px; border-top-color: transparent; padding-top: 24px; }
@@ -802,5 +846,6 @@ button:active { transform: scale(0.98); }
   .header-tabs::after { transition: none; }
   .allstar-shine { animation: none; }
   .allstar-badge { animation: none; }
-  .allstar-bg::after { animation: none; }
+  .allstar-hp-inner img { animation: none; }
+  .allstar-hp.reveal { transition: none; opacity: 1; transform: none; }
 }
