@@ -57,15 +57,19 @@ export function HeroSlideshow() {
   function renderSlot(slot) {
     const photo = HERO_PHOTOS[slot.idx % N];
     return (
-      <img
-        key={slot.key}
-        src={photo.src}
-        alt=""
-        className={`hero-slide${rm ? '' : ' hero-slide-pan'}`}
-        style={{ objectPosition: photo.objectPosition, opacity: slot.opacity }}
-        fetchpriority="low"
-        draggable="false"
-      />
+      <div key={slot.key} className="hero-slide-wrap" style={{ opacity: slot.opacity }}>
+        <img
+          src={photo.src}
+          alt=""
+          className={`hero-slide${rm ? '' : ' hero-slide-pan'}`}
+          style={{ objectPosition: photo.objectPosition }}
+          fetchpriority="low"
+          draggable="false"
+        />
+        {photo.dim > 0 && (
+          <div className="hero-slide-dim" style={{ background: `rgba(0,0,0,${photo.dim})` }} />
+        )}
+      </div>
     );
   }
 
