@@ -16,6 +16,8 @@ import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImag
 import { NLS_LOGO, NLS_LOGO_WHITE, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
+import { AlertsModal } from './components/AlertsModal.jsx';
+import { AlertsManage } from './components/AlertsManage.jsx';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
@@ -490,6 +492,27 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [manageToken, setManageToken] = useState(null);
+  const [manageAction, setManageAction] = useState(null);
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const tok = sp.get('manage');
+    const act = sp.get('action');
+    if (tok) { setManageToken(tok); setManageAction(act || null); }
+  }, []);
+
+  const alertsTeams = TEAMS.map(tm => ({ id: tm.id, name: tm.name }));
+  const alertsCats  = effectiveCats.filter(c => c.id !== '__all__').map(c => ({ id: c.id, name: displayCatName(c.name, t) }));
+  const leagueIdStr = String(LEAGUE_ID || '');
+
+  if (manageToken) return (
+    <AlertsManage
+      leagueId={leagueIdStr} token={manageToken} action={manageAction}
+      lang={lang} t={t} teams={alertsTeams} categories={alertsCats}
+    />
+  );
+
   return (
     <div>
       {/* ── SITE HEADER ── */}
@@ -508,6 +531,10 @@ export default function App() {
               <button key={k} className={`header-tab${activeTab === k ? ' active' : ''}`} onClick={() => switchTab(k)}>{label}</button>
             ))}
           </div>
+          <button className="alerts-trigger-btn" onClick={() => setAlertsOpen(true)} aria-label={t.alertsBtn}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>{t.alertsBtn}</span>
+          </button>
           <div className="lang-toggle">
             <button className={lang === 'fr' ? 'active' : ''} onClick={() => setLang('fr')}>FR</button>
             <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
@@ -673,7 +700,13 @@ export default function App() {
             <div className="cat-header">
               <div className="cat-header-inner">
                 <div className="cat-header-title">{catName}</div>
-                <button className="cat-change" onClick={unselectCat}>{t.changeCat}</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button className="alerts-trigger-btn" onClick={() => setAlertsOpen(true)} aria-label={t.alertsBtn}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span>{t.alertsBtn}</span>
+                  </button>
+                  <button className="cat-change" onClick={unselectCat}>{t.changeCat}</button>
+                </div>
               </div>
             </div>
             {tabs.length > 0 && (
@@ -1071,6 +1104,15 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* ── ALERTS MODAL ── */}
+      {alertsOpen && (
+        <AlertsModal
+          leagueId={leagueIdStr} lang={lang} t={t}
+          teams={alertsTeams} categories={alertsCats}
+          onClose={() => setAlertsOpen(false)}
+        />
+      )}
     </div>
   );
 }

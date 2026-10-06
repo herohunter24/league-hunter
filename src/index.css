@@ -849,3 +849,92 @@ button:active { transform: scale(0.98); }
   .allstar-hp-inner img { animation: none; }
   .allstar-hp.reveal { transition: none; opacity: 1; transform: none; }
 }
+
+
+/* ══ ALERTS MODAL & MANAGE PAGE ═══════════════════════════════════════════ */
+
+/* ── Button in header / cat-header ── */
+.alerts-trigger-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: none; border: 1px solid rgba(201,162,74,0.5); border-radius: 4px;
+  color: var(--gold); font-family: var(--ff-body); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; padding: 7px 14px;
+  cursor: pointer; white-space: nowrap; transition: border-color 0.2s, background 0.2s;
+}
+.alerts-trigger-btn:hover { border-color: var(--gold); background: rgba(201,162,74,0.08); }
+.alerts-trigger-btn svg { flex-shrink: 0; }
+
+/* ── Modal overlay ── */
+.alerts-modal-ov { align-items: center; }
+.alerts-modal-bx {
+  position: relative; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: clamp(24px, 5vw, 40px);
+  width: min(520px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto;
+}
+@media (max-width: 540px) {
+  .alerts-modal-ov { align-items: flex-end; }
+  .alerts-modal-bx { width: 100%; border-radius: 4px 4px 0 0; max-height: 92vh; }
+}
+
+/* ── Modal content ── */
+.alerts-kicker {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--gold);
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.alerts-title {
+  font-family: var(--ff-display); font-size: clamp(22px, 5vw, 30px); font-weight: 900;
+  text-transform: uppercase; color: var(--ink); margin-bottom: 10px;
+}
+.alerts-sub { font-size: 14px; color: var(--ink-mid); margin-bottom: 22px; line-height: 1.6; }
+.alerts-field { margin-bottom: 18px; }
+.alerts-label { font-size: 12px; font-weight: 700; color: var(--ink-mid); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.alerts-inp {
+  display: block; width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--ink); font-family: var(--ff-body); font-size: 14px;
+  padding: 11px 14px; outline: none; transition: border-color 0.2s;
+}
+.alerts-inp:focus { border-color: var(--gold); }
+.alerts-hint { font-size: 11px; color: var(--ink-mid); margin-top: 6px; opacity: 0.7; }
+.alerts-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.alerts-chip {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 100px;
+  color: var(--ink-mid); font-family: var(--ff-body); font-size: 12px; font-weight: 600;
+  padding: 5px 14px; cursor: pointer; transition: all 0.15s;
+}
+.alerts-chip.selected { background: rgba(201,162,74,0.12); border-color: var(--gold); color: var(--gold); }
+.alerts-chip:hover { border-color: var(--gold); }
+.alerts-checks { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.alerts-check-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 13.5px; color: var(--ink); line-height: 1.5; }
+.alerts-check-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+.alerts-privacy { font-size: 11.5px; color: var(--ink-mid); margin-bottom: 12px; line-height: 1.6; opacity: 0.8; }
+.alerts-consent-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 18px; }
+.alerts-consent-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--gold); flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+.alerts-consent-text { font-size: 12.5px; color: var(--ink-mid); line-height: 1.6; }
+.alerts-err { font-size: 13px; color: #e05151; background: rgba(224,81,81,0.08); border: 1px solid rgba(224,81,81,0.2); border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; }
+.alerts-btn { width: 100%; justify-content: center; padding: 13px; font-size: 14px; }
+.alerts-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Done state ── */
+.alerts-done { text-align: center; padding: 20px 0; }
+.alerts-done-icon { width: 52px; height: 52px; border-radius: 50%; background: rgba(201,162,74,0.12); border: 1.5px solid var(--gold); color: var(--gold); font-size: 22px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+.alerts-done-title { font-family: var(--ff-display); font-size: 22px; font-weight: 900; text-transform: uppercase; color: var(--ink); margin-bottom: 10px; }
+.alerts-done-sub { font-size: 14px; color: var(--ink-mid); margin-bottom: 24px; line-height: 1.6; }
+
+/* ── Manage / Preferences page ── */
+.manage-page { min-height: 60vh; display: flex; align-items: flex-start; justify-content: center; padding: clamp(40px, 8vw, 80px) clamp(18px, 5vw, 40px); }
+.manage-card { width: min(520px, 100%); }
+.manage-title { font-family: var(--ff-display); font-size: clamp(24px, 5vw, 34px); font-weight: 900; text-transform: uppercase; color: var(--ink); margin-bottom: 8px; }
+.manage-email { font-size: 13px; color: var(--ink-mid); margin-bottom: 28px; }
+.manage-btns { margin-top: 24px; }
+.manage-sep { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+.manage-unsub-btn { background: none; border: 1px solid rgba(224,81,81,0.4); border-radius: 4px; color: #e05151; font-family: var(--ff-body); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; padding: 10px 20px; cursor: pointer; transition: all 0.2s; }
+.manage-unsub-btn:hover { border-color: #e05151; background: rgba(224,81,81,0.06); }
+.manage-back { margin-top: 16px; font-size: 13px; }
+.manage-back a { color: var(--gold); text-decoration: none; }
+.manage-back a:hover { text-decoration: underline; }
+.manage-loading, .manage-error { font-size: 15px; color: var(--ink-mid); padding: 60px 0; }
+.manage-error { color: #e05151; }
+.manage-confirmed { text-align: center; padding: 40px 0; }
+.manage-confirmed-icon { width: 60px; height: 60px; border-radius: 50%; background: rgba(201,162,74,0.12); border: 1.5px solid var(--gold); color: var(--gold); font-size: 26px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+.manage-confirmed-title { font-family: var(--ff-display); font-size: 26px; font-weight: 900; text-transform: uppercase; color: var(--ink); margin-bottom: 12px; }
+.manage-confirmed-sub { font-size: 15px; color: var(--ink-mid); margin-bottom: 28px; line-height: 1.6; }

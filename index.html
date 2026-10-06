@@ -1441,6 +1441,68 @@ function App() {
   const [subsLoading, setSubsLoading] = useState(false);
   const [sendingNotif, setSendingNotif] = useState(false);
 
+  // ── Alertes tab state ──
+  const NLS_FN = 'https://us-east1-league-hunter.cloudfunctions.net';
+  const [nlsSubs, setNlsSubs] = useState([]);
+  const [nlsSubsLoading, setNlsSubsLoading] = useState(false);
+  const [nlsAlertsActive, setNlsAlertsActive] = useState(false);
+  const [nlsAnnSubject, setNlsAnnSubject] = useState('');
+  const [nlsAnnMsg, setNlsAnnMsg] = useState('');
+  const [nlsAnnTargetEmail, setNlsAnnTargetEmail] = useState('');
+  const [nlsSending, setNlsSending] = useState(false);
+
+  async function nlsLoadSubs() {
+    setNlsSubsLoading(true);
+    try {
+      const r = await fetch(`${NLS_FN}/nlsAdminSubs?leagueId=${encodeURIComponent(String(selId))}`);
+      const d = await r.json();
+      if (d.subs) setNlsSubs(d.subs);
+    } catch(e) { showToast('Erreur chargement abonnés', 'error'); }
+    finally { setNlsSubsLoading(false); }
+  }
+
+  async function nlsDeleteSub(subId) {
+    if (!confirm('Supprimer cet abonné ?')) return;
+    try {
+      const r = await fetch(`${NLS_FN}/nlsAdminDelSub`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ leagueId: String(selId), subId }) });
+      const d = await r.json();
+      if (d.ok) { setNlsSubs(prev => prev.filter(s=>s.id!==subId)); showToast('Abonné supprimé','success'); }
+      else showToast('Erreur suppression','error');
+    } catch { showToast('Erreur suppression','error'); }
+  }
+
+  async function nlsSendAnnouncement(testOnly) {
+    if (!nlsAnnSubject.trim() || !nlsAnnMsg.trim()) { showToast('Sujet et message requis','warning'); return; }
+    if (testOnly && !nlsAnnTargetEmail.trim()) { showToast('Adresse courriel de test requise','warning'); return; }
+    setNlsSending(true);
+    try {
+      const body = { leagueId: String(selId), subject: nlsAnnSubject, message: nlsAnnMsg };
+      if (testOnly) body.testEmail = nlsAnnTargetEmail;
+      const r = await fetch(`${NLS_FN}/nlsAdminSend`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.ok) showToast(testOnly ? `Test envoyé à ${nlsAnnTargetEmail}` : `Annonce envoyée à ${d.sent||0} abonné(s)`,'success');
+      else showToast(d.error||'Erreur envoi','error');
+    } catch { showToast('Erreur envoi','error'); }
+    finally { setNlsSending(false); }
+  }
+
+  function nlsExportCsv() {
+    const active = nlsSubs.filter(s=>s.status==='active');
+    if (!active.length) { showToast('Aucun abonné actif','warning'); return; }
+    const rows = active.map(s=>`"${s.email}","${s.status}","${(s.categories||[]).join(';')}","${(s.teams||[]).join(';')}","${s.createdAt||''}"`);
+    const csv = 'Email,Status,Categories,Teams,Date\n' + rows.join('\n');
+    const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='abonnes-nls.csv'; a.click();
+  }
+
+  // Load alertsActive from Firestore meta/publicSettings when alertes tab opens
+  useEffect(() => {
+    if (tab !== 'alertes' || !__fbReady || !_db) return;
+    const { doc, getDoc } = _FS;
+    getDoc(doc(_db, 'leagues', String(selId), 'meta', 'publicSettings'))
+      .then(snap => { if (snap.exists()) setNlsAlertsActive(!!snap.data().alertsActive); })
+      .catch(() => {});
+  }, [tab, selId]);
+
   // Dismiss the full-screen loading overlay once React + Firestore data is ready
   useEffect(() => {
     if (!loading) {
@@ -3380,7 +3442,7 @@ function App() {
   if (page === "league" && league) {
     const toggles = getToggles(league);
     const sport = league.sport;
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["public","🌐 Public"],["settings","⚙️ Settings"]];
+    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["public","🌐 Public"],["settings","⚙️ Settings"],["alertes","✉️ Alertes"]];
 
     // ── CATEGORY FILTERING ──
     const activeCat = (league.categories || []).find(c => c.id === activeCatId);
@@ -5688,6 +5750,114 @@ service cloud.firestore {
                   </div>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ── ALERTES TAB ── */}
+          {tab==="alertes" && (
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>✉️ Alertes courriel</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 28, lineHeight: 1.6 }}>Gère les abonnés aux alertes NLS. Les courriels sont envoyés via Cloud Functions + Resend. Le switch ci-dessous active ou désactive tous les envois automatiques.</div>
+
+              {/* ── Alertes actives switch ── */}
+              <div style={{ ...card, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Alertes actives</div>
+                  <div style={{ fontSize: 12, color: T2 }}>Quand désactivé, aucun courriel automatique n'est envoyé (rappels, scores, changements).</div>
+                </div>
+                <Toggle on={nlsAlertsActive} onChange={() => {
+                  const next = !nlsAlertsActive;
+                  setNlsAlertsActive(next);
+                  if (__fbReady && _db) {
+                    const { doc, setDoc } = _FS;
+                    setDoc(doc(_db, 'leagues', String(selId), 'meta', 'publicSettings'), { alertsActive: next }, { merge: true })
+                      .then(() => showToast(next ? 'Alertes activées' : 'Alertes désactivées', 'success'))
+                      .catch(() => showToast('Erreur sauvegarde','error'));
+                  }
+                }} />
+              </div>
+
+              {/* ── Subscriber list ── */}
+              <div style={{ ...card, marginBottom: 20 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:700 }}>Abonnés</div>
+                    <div style={{ fontSize:12, color:T2, marginTop:3 }}>
+                      {nlsSubsLoading ? "Chargement…" : `${nlsSubs.filter(s=>s.status==='active').length} actif(s) · ${nlsSubs.length} total`}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsLoadSubs}>↻ Charger</button>
+                    <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsExportCsv}>⬇ CSV</button>
+                  </div>
+                </div>
+                {nlsSubs.length === 0 && !nlsSubsLoading && (
+                  <div style={{ textAlign:"center", padding:"28px 0", color:T2, fontSize:13 }}>Clique sur "Charger" pour voir la liste des abonnés.</div>
+                )}
+                {nlsSubs.length > 0 && (
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                      <thead>
+                        <tr style={{ borderBottom:`1px solid ${BORDER}` }}>
+                          {["Courriel","Statut","Catégories","Équipes","Date",""].map((h,i)=>(
+                            <th key={i} style={{ padding:"8px 12px", textAlign:"left", color:T2, fontWeight:600, fontSize:11 }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nlsSubs.map(s=>(
+                          <tr key={s.id} style={{ borderBottom:`1px solid ${BORDER}`, opacity: s.status==='active' ? 1 : 0.45 }}>
+                            <td style={{ padding:"9px 12px", fontWeight:500 }}>{s.email}</td>
+                            <td style={{ padding:"9px 12px" }}>
+                              <span style={{ fontSize:11, fontWeight:700, color: s.status==='active'?'#22c55e':s.status==='pending'?'#f59e0b':T2 }}>
+                                {s.status==='active'?'✅ Actif':s.status==='pending'?'⏳ En attente':'❌ Désinscrit'}
+                              </span>
+                            </td>
+                            <td style={{ padding:"9px 12px", color:T2, fontSize:12 }}>{(s.categories||[]).join(', ')||'Toutes'}</td>
+                            <td style={{ padding:"9px 12px", color:T2, fontSize:12 }}>{(s.teams||[]).join(', ')||'Toutes'}</td>
+                            <td style={{ padding:"9px 12px", color:T2 }}>{(s.createdAt||'').slice(0,10)}</td>
+                            <td style={{ padding:"9px 12px" }}>
+                              <button onClick={()=>nlsDeleteSub(s.id)} style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:12, padding:"3px 8px", borderRadius:4 }}>Supprimer</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Envoyer une annonce ── */}
+              <div style={{ ...card, marginBottom: 20 }}>
+                <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>📢 Envoyer une annonce</div>
+                <div style={{ fontSize:12, color:T2, marginBottom:16, lineHeight:1.6 }}>Envoie un courriel à tous les abonnés actifs, ou à une adresse de test d'abord.</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                  <div>
+                    <label style={lbl}>Sujet</label>
+                    <input style={inp} value={nlsAnnSubject} onChange={e=>setNlsAnnSubject(e.target.value)} placeholder="ex: NLS — Match ce vendredi!" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Message</label>
+                    <textarea style={{ ...inp, minHeight:100, resize:"vertical" }} value={nlsAnnMsg} onChange={e=>setNlsAnnMsg(e.target.value)} placeholder="Texte du courriel (une phrase ou un paragraphe)…" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Adresse de test (optionnel)</label>
+                    <input style={inp} value={nlsAnnTargetEmail} onChange={e=>setNlsAnnTargetEmail(e.target.value)} placeholder="ton@courriel.com" type="email" />
+                  </div>
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                    <button style={{ ...btn("#252540"), fontSize:13, padding:"9px 18px" }} disabled={nlsSending}
+                      onClick={()=>nlsSendAnnouncement(true)}>
+                      {nlsSending ? "Envoi…" : "🧪 Envoyer test"}
+                    </button>
+                    <button style={{ ...btn(), fontSize:13, padding:"9px 18px" }} disabled={nlsSending || !nlsAlertsActive}
+                      onClick={()=>nlsSendAnnouncement(false)}
+                      title={!nlsAlertsActive?"Activez les alertes d'abord":""}>
+                      {nlsSending ? "Envoi…" : "📢 Envoyer à tous"}
+                    </button>
+                    {!nlsAlertsActive && <span style={{ fontSize:12, color:"#f59e0b", alignSelf:"center" }}>⚠️ Alertes désactivées</span>}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Leagues and sub-collections (existing app behaviour — clients read/write freely)
+    match /leagues/{leagueId} {
+      allow read, write: if true;
+
+      match /teams/{doc}        { allow read, write: if true; }
+      match /players/{doc}      { allow read, write: if true; }
+      match /games/{doc}        { allow read, write: if true; }
+      match /meta/{doc}         { allow read, write: if true; }
+      match /pageViews/{doc}    { allow create: if true; allow read, update, delete: if false; }
+
+      // Subscribers: create is via Cloud Function (Admin SDK bypasses rules).
+      // Clients can read their own subscriber record by token (for manage page).
+      // Admin reads via Cloud Function (Admin SDK bypasses rules).
+      match /subscribers/{subId} {
+        allow create: if false;   // Only Cloud Function
+        allow read:   if false;   // Only Cloud Function / Admin SDK
+        allow update: if false;   // Only Cloud Function
+        allow delete: if false;   // Only Cloud Function
+      }
+
+      // Email log: written only by Cloud Functions
+      match /emailLog/{logId} {
+        allow read:  if true;   // Admin panel reads directly
+        allow write: if false;  // Only Cloud Function
+      }
+    }
+
+    // Rate limits: written by Cloud Functions only
+    match /rateLimits/{doc} {
+      allow read, write: if false;
+    }
+  }
+}
