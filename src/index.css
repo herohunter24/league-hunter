@@ -60,24 +60,63 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 /* ── HERO ── */
 .hero {
   min-height: 80vh; position: relative; display: flex; flex-direction: column;
-  background:
-    linear-gradient(180deg, #0c0c0c 0%, #0a0a0a 100%);
+  background: #0a0a0c;
   overflow: hidden;
 }
+
+/* Layer 1 — photo slideshow (bottom) */
+.hero-slideshow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero-slide {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center center;
+  transition: opacity 1s ease;
+  user-select: none;
+}
+.hero-slide-pan {
+  animation: hero-pan 10s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes hero-pan {
+  0%   { transform: scale(1.08) translateX(-3%); }
+  100% { transform: scale(1.08) translateX(3%); }
+}
+@media (max-width: 640px) {
+  .hero-slide { object-position: center center !important; }
+  .hero-slide-pan { animation-name: hero-pan-mobile; }
+  @keyframes hero-pan-mobile {
+    0%   { transform: scale(1.05) translateX(-1.5%); }
+    100% { transform: scale(1.05) translateX(1.5%); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide-pan { animation: none; transform: none; }
+}
+
+/* Layer 2 — dark scrim (above photos, below video) */
+.hero-scrim {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(10,10,12,0.52) 0%, rgba(10,10,12,0.72) 100%);
+}
+
+/* Layer 3 — swirl video (semi-transparent, blends with photos through scrim) */
 .hero-video {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; z-index: 0; pointer-events: none;
+  object-fit: cover; z-index: 2; pointer-events: none;
+  opacity: 0.4; mix-blend-mode: screen;
 }
+
+/* Layer 4 — edge fades (above video) */
 .hero-fade-top, .hero-fade-bottom {
   position: absolute; left: 0; right: 0; height: 200px;
-  pointer-events: none; z-index: 1;
+  pointer-events: none; z-index: 3;
 }
 .hero-fade-top { top: 0; background: linear-gradient(to bottom, #0a0a0c, transparent); }
 .hero-fade-bottom { bottom: 0; background: linear-gradient(to top, #0a0a0c, transparent); }
-.hero-scrim { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: rgba(10,10,12,0.6); }
+
+/* Layer 5 — content (above everything) */
 .hero-topbar, .hero-inner { position: relative; z-index: 10; }
 
-.hero-inner { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px 40px; position: relative; z-index: 1; }
+.hero-inner { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px 40px; position: relative; z-index: 10; }
 .hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; opacity: 0.92; animation: fadeUp 0.6s ease both; }
 .hero-kicker { font-family: var(--ff-display); font-size: 12px; font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap; }
 .hero-title {
@@ -97,7 +136,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.hero-topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px clamp(20px, 5vw, 56px); position: relative; z-index: 2; }
+.hero-topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px clamp(20px, 5vw, 56px); position: relative; z-index: 10; }
 .hero-logo { height: 46px; filter: invert(1) brightness(1.6); }
 .hero-logo-fallback { font-family: var(--ff-display); font-size: 26px; letter-spacing: 0.06em; }
 .hero-logo-fallback span { color: var(--gold); }
