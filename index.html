@@ -1455,9 +1455,10 @@ function App() {
     setNlsSubsLoading(true);
     try {
       const r = await fetch(`${NLS_FN}/nlsAdminSubs?leagueId=${encodeURIComponent(String(selId))}`);
+      if (!r.ok) { setNlsSubs([]); return; }
       const d = await r.json();
-      if (d.subs) setNlsSubs(d.subs);
-    } catch(e) { showToast('Erreur chargement abonnés', 'error'); }
+      setNlsSubs(d.subs || []);
+    } catch { setNlsSubs([]); }
     finally { setNlsSubsLoading(false); }
   }
 
@@ -1482,7 +1483,7 @@ function App() {
       const d = await r.json();
       if (d.ok) showToast(testOnly ? `Test envoyé à ${nlsAnnTargetEmail}` : `Annonce envoyée à ${d.sent||0} abonné(s)`,'success');
       else showToast(d.error||'Erreur envoi','error');
-    } catch { showToast('Erreur envoi','error'); }
+    } catch { showToast('Fonctions non déployées — voir ACTIVATION.md','warning'); }
     finally { setNlsSending(false); }
   }
 
@@ -3442,7 +3443,7 @@ function App() {
   if (page === "league" && league) {
     const toggles = getToggles(league);
     const sport = league.sport;
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["public","🌐 Public"],["settings","⚙️ Settings"],["alertes","✉️ Alertes"]];
+    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["public","🌐 Public"],["settings","⚙️ Settings"],["alertes","Alertes"]];
 
     // ── CATEGORY FILTERING ──
     const activeCat = (league.categories || []).find(c => c.id === activeCatId);
@@ -5792,7 +5793,9 @@ service cloud.firestore {
                   </div>
                 </div>
                 {nlsSubs.length === 0 && !nlsSubsLoading && (
-                  <div style={{ textAlign:"center", padding:"28px 0", color:T2, fontSize:13 }}>Clique sur "Charger" pour voir la liste des abonnés.</div>
+                  <div style={{ textAlign:"center", padding:"28px 0", color:T2, fontSize:13 }}>
+                    Aucun abonné pour le moment. Clique sur "↻ Charger" après avoir déployé les fonctions (voir ACTIVATION.md).
+                  </div>
                 )}
                 {nlsSubs.length > 0 && (
                   <div style={{ overflowX:"auto" }}>

@@ -502,9 +502,10 @@ export default function App() {
     if (tok) { setManageToken(tok); setManageAction(act || null); }
   }, []);
 
-  const alertsTeams = TEAMS.map(tm => ({ id: tm.id, name: tm.name }));
-  const alertsCats  = effectiveCats.filter(c => c.id !== '__all__').map(c => ({ id: c.id, name: displayCatName(c.name, t) }));
-  const leagueIdStr = String(LEAGUE_ID || '');
+  const alertsActive = !!ps.alertsActive;
+  const alertsTeams  = TEAMS.map(tm => ({ id: tm.id, name: tm.name }));
+  const alertsCats   = effectiveCats.filter(c => c.id !== '__all__').map(c => ({ id: c.id, name: displayCatName(c.name, t) }));
+  const leagueIdStr  = String(LEAGUE_ID || '');
 
   if (manageToken) return (
     <AlertsManage
@@ -1105,8 +1106,24 @@ export default function App() {
         );
       })()}
 
-      {/* ── ALERTS MODAL ── */}
-      {alertsOpen && (
+      {/* ── ALERTS MODAL (dormant = bientôt; active = real form) ── */}
+      {alertsOpen && !alertsActive && (
+        <div className="modal-ov alerts-modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) setAlertsOpen(false); }}>
+          <div className="modal-bx alerts-modal-bx" role="dialog" aria-modal="true">
+            <button className="modal-close" onClick={() => setAlertsOpen(false)} aria-label="Fermer">✕</button>
+            <div className="alerts-kicker" aria-hidden="true">{t.alertsKicker}</div>
+            <h2 className="alerts-title" style={{ fontSize: 'clamp(18px,4vw,24px)' }}>
+              {lang === 'fr' ? 'Bientôt disponible' : 'Coming soon'}
+            </h2>
+            <p className="alerts-sub">
+              {lang === 'fr'
+                ? 'Bientôt, reçois les rappels de matchs, les résultats et les changements d\'horaire directement dans ta boîte courriel.'
+                : 'Soon, get game reminders, scores and schedule changes directly in your inbox.'}
+            </p>
+          </div>
+        </div>
+      )}
+      {alertsOpen && alertsActive && (
         <AlertsModal
           leagueId={leagueIdStr} lang={lang} t={t}
           teams={alertsTeams} categories={alertsCats}

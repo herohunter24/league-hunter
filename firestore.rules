@@ -2,34 +2,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Leagues and sub-collections (existing app behaviour — clients read/write freely)
+    // Top-level meta collection (superadmin doc, etc.) — admin reads/writes
+    match /meta/{doc} {
+      allow read, write: if true;
+    }
+
+    // Top-level users collection — server-side only, no client access
+    match /users/{userId} {
+      allow read, write: if false;
+    }
+
+    // Leagues and all sub-collections — existing open-access behaviour
     match /leagues/{leagueId} {
       allow read, write: if true;
 
-      match /teams/{doc}        { allow read, write: if true; }
-      match /players/{doc}      { allow read, write: if true; }
-      match /games/{doc}        { allow read, write: if true; }
-      match /meta/{doc}         { allow read, write: if true; }
-      match /pageViews/{doc}    { allow create: if true; allow read, update, delete: if false; }
+      match /teams/{doc}     { allow read, write: if true; }
+      match /players/{doc}   { allow read, write: if true; }
+      match /games/{doc}     { allow read, write: if true; }
+      match /meta/{doc}      { allow read, write: if true; }
 
-      // Subscribers: create is via Cloud Function (Admin SDK bypasses rules).
-      // Clients can read their own subscriber record by token (for manage page).
-      // Admin reads via Cloud Function (Admin SDK bypasses rules).
+      // pageViews: public site creates; nobody reads/edits/deletes from client
+      match /pageViews/{doc} { allow create: if true; allow read, update, delete: if false; }
+
+      // Email alert subscribers — all access via Cloud Functions (Admin SDK bypasses rules)
       match /subscribers/{subId} {
-        allow create: if false;   // Only Cloud Function
-        allow read:   if false;   // Only Cloud Function / Admin SDK
-        allow update: if false;   // Only Cloud Function
-        allow delete: if false;   // Only Cloud Function
+        allow read, write: if false;
       }
 
-      // Email log: written only by Cloud Functions
+      // Email log — Cloud Functions write; kept readable for future admin queries
       match /emailLog/{logId} {
-        allow read:  if true;   // Admin panel reads directly
-        allow write: if false;  // Only Cloud Function
+        allow read:  if true;
+        allow write: if false;
       }
     }
 
-    // Rate limits: written by Cloud Functions only
+    // Rate-limiting docs — Cloud Functions only
     match /rateLimits/{doc} {
       allow read, write: if false;
     }
