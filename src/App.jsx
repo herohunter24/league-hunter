@@ -9,6 +9,7 @@ import { buildLiveViewData } from './lib/data.js';
 import { getAnalyticsSessionId } from './lib/analytics.js';
 import { useLeagueData } from './hooks/useLeagueData.js';
 import { HeroVideo } from './components/HeroVideo.jsx';
+import { HeroSlideshow } from './components/HeroSlideshow.jsx';
 import { TeamBadge } from './components/TeamBadge.jsx';
 import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
@@ -567,6 +568,7 @@ export default function App() {
 
       {/* ── HERO ── */}
       <header className="hero">
+        <HeroSlideshow />
         <HeroVideo />
         <div className="hero-scrim"></div>
         <div className="hero-fade-top"></div>
