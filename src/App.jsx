@@ -573,7 +573,7 @@ export default function App() {
 
       {/* ── HERO ── */}
       <header className="hero">
-        <HeroVideo />
+        {!isHome && <HeroVideo />}
         <div className="hero-scrim"></div>
         <div className="hero-fade-top"></div>
         <div className="hero-fade-bottom"></div>

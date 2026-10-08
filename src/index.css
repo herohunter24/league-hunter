@@ -146,7 +146,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 
 .hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; opacity: 0.92; animation: fadeUp 0.6s ease both; }
 .hero-kicker {
-  font-family: var(--ff-display); font-size: 12px; font-weight: 500;
+  font-family: var(--ff-display); font-size: 14px; font-weight: 600;
   letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold);
   margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap;
   text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
@@ -188,8 +188,11 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   z-index: -1; pointer-events: none;
 }
 /* Text-shadow + full-opacity paragraph color when over photos */
-.home-mode .lsec-title,
+.home-mode .lsec-title {
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
 .home-mode .sec-kicker {
+  font-size: 13px; font-weight: 600;
   text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
 .home-mode .lsec-sub,
@@ -797,7 +800,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .games-grid { grid-template-columns: 1fr; }
   .standings-table .hide-m { display: none; }
 
-  .hero-kicker { font-size: 10px; letter-spacing: 0.15em; white-space: normal; text-align: center; }
+  .hero-kicker { font-size: 12px; letter-spacing: 0.15em; white-space: normal; text-align: center; }
 
   /* ── FOOTER: 2-column on mobile ── */
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
