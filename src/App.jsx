@@ -263,6 +263,7 @@ export default function App() {
   const [sortKey, setSortKey]   = useState('rank');
   const [sortDir, setSortDir]   = useState('desc');
   const [openTeam, setOpenTeam] = useState(null);
+  const [slideshowKey, setSlideshowKey] = useState(0);
   const handleSort = key => { if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setSortKey(key); setSortDir('desc'); } };
   const thA = key => sortKey === key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
   const [statSortKey, setStatSortKey] = useState('ppg');
@@ -378,8 +379,39 @@ export default function App() {
 
   const openExplorer = () => {
     setShowExplorer(true);
+    history.pushState({ nls: 'explorer' }, '', buildPageUrl(null, 'standings', null, null));
     setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
   };
+
+  // Reset all navigation state to home (call doGoHome then push history, or call goHome directly)
+  function doGoHome() {
+    setAlertsOpen(false);
+    setSelectedPlayer(null);
+    setOpenGame(null);
+    setOpenTeam(null);
+    setShowExplorer(false);
+    setSelectedCat(null);
+    setActiveTab('standings');
+    setCatSearch('');
+    setSearch('');
+    setFTier('all');
+    setFTeam('all');
+    setFArch('all');
+    setSchedFilter('all');
+    setSchedTeam('all');
+    setShowAllPlayers(false);
+    if (dimRef.current) dimRef.current.style.opacity = 0;
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.querySelectorAll('.reveal.is-visible').forEach(el => el.classList.remove('is-visible'));
+    setSlideshowKey(k => k + 1);
+  }
+
+  function goHome() {
+    doGoHome();
+    const sp = new URLSearchParams();
+    sp.set('league', String(LEAGUE_ID || ''));
+    history.pushState({ nls: 'home' }, '', window.location.pathname + '?' + sp.toString());
+  }
 
   // ── URL / navigation helpers ──────────────────────────────
   const didInitRef = useRef(false);
@@ -406,9 +438,22 @@ export default function App() {
 
   // Sync state from URL on browser back/forward
   useEffect(() => {
-    const onPop = () => {
+    const onPop = (e) => {
+      if (e.state?.nls === 'home') {
+        doGoHome();
+        return;
+      }
+      if (e.state?.nls === 'explorer') {
+        setSelectedCat(null);
+        setActiveTab('standings');
+        setShowExplorer(true);
+        setSelectedPlayer(null);
+        setOpenGame(null);
+        return;
+      }
       const s = readUrlState();
       setSelectedCat(s.cat);
+      setShowExplorer(!!s.cat);
       setActiveTab(s.tab);
       setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
       setOpenGame(s.gameId ? (GAMES.find(ga => ga.id === s.gameId) || null) : null);
@@ -578,7 +623,7 @@ export default function App() {
       {/* ── SITE HEADER ── */}
       <div className={`site-header${scrolled ? ' scrolled' : ''}`}>
         <div className="site-header-inner">
-          <button className="site-header-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Accueil">
+          <button className="site-header-logo" onClick={goHome} aria-label="Accueil">
             {logoOk
               ? <img src={NLS_LOGO_WHITE} alt="NLS Création" onError={() => setLogoOk(false)} />
               : <span className="site-header-logo-fallback">NLS</span>}
@@ -625,7 +670,7 @@ export default function App() {
       })()}
 
       {/* ── FIXED PHOTO LAYER (home only) ── */}
-      {isHome && <HeroSlideshow />}
+      {isHome && <HeroSlideshow key={slideshowKey} />}
       {isHome && <div className="hero-dim" ref={dimRef} aria-hidden="true" />}
 
       {/* ── HERO ── */}

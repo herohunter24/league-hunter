@@ -33,7 +33,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .site-header-logo {
   background: none; border: none; cursor: pointer; padding: 0;
   display: flex; align-items: center; flex-shrink: 0;
+  transition: opacity 0.2s;
 }
+.site-header-logo:hover { opacity: 0.85; }
 .site-header-logo img { height: 30px; }
 .site-header-logo-fallback { font-family: var(--ff-display); font-weight: 700; letter-spacing: 0.12em; font-size: 17px; color: var(--ink); }
 .header-tabs { display: flex; align-items: center; gap: 2px; }
