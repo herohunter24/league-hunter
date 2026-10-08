@@ -58,7 +58,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
 
 /* ── SCROLL-DRIVEN DIM LAYER (home only, above slideshow z:0, below content z:1) ── */
-.hero-dim { position: fixed; inset: 0; z-index: 0; background: #000; opacity: 0; pointer-events: none; }
+.hero-dim { position: fixed; inset: 0; z-index: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 120ms linear; }
 
 /* ── FIXED PHOTO SLIDESHOW (home only — rendered outside .hero) ── */
 .hero-slideshow {

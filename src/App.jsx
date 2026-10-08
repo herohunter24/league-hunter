@@ -181,17 +181,55 @@ export default function App() {
   useEffect(() => {
     const dim = dimRef.current;
     if (!dim) return; // dim div not mounted — not home mode
+
     let raf = null;
+
+    // Compute breakpoints from actual section positions
+    const getBreakpoints = () => {
+      const startY  = 0.15 * window.innerHeight;
+      const cardsEl = document.querySelector('.landing-sec');
+      const rawCardsY = cardsEl
+        ? cardsEl.offsetTop + cardsEl.offsetHeight / 2 - window.innerHeight / 2
+        : window.innerHeight * 0.8;
+      const cardsY = Math.max(rawCardsY, startY + 1);
+      const endY   = Math.max(document.body.scrollHeight - window.innerHeight, cardsY + 1);
+      return { startY, cardsY, endY };
+    };
+
+    let bp = getBreakpoints();
+
     const update = () => {
       raf = null;
-      const ratio = Math.min(Math.max(
-        (window.scrollY - 0.25 * window.innerHeight) / (1.5 * window.innerHeight), 0), 1);
-      dim.style.opacity = ratio * 0.70;
+      const sy = window.scrollY;
+      let opacity;
+      if (sy <= bp.startY) {
+        opacity = 0;
+      } else if (sy < bp.cardsY) {
+        opacity = 0.60 * (sy - bp.startY) / (bp.cardsY - bp.startY);
+      } else if (sy <= bp.endY) {
+        opacity = 0.60 + 0.15 * (sy - bp.cardsY) / (bp.endY - bp.cardsY);
+      } else {
+        opacity = 0.75;
+      }
+      dim.style.opacity = opacity;
     };
+
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onResize = () => { bp = getBreakpoints(); update(); };
+
     window.addEventListener('scroll', onScroll, { passive: true });
-    update();
-    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+    window.addEventListener('resize', onResize, { passive: true });
+    update(); // initial (handles back-navigation / already-scrolled state)
+
+    // Re-sample after content settles (Firebase data may shift layout)
+    const t = setTimeout(() => { bp = getBreakpoints(); update(); }, 500);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+      if (raf) cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [showExplorer, selectedCat]); // re-run when home mode changes
 
   // ── All-Star hero parallax ──────────────────────────────
