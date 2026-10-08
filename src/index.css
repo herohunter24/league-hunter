@@ -699,6 +699,69 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .cat-grid .cat-btn.cat-btn-allstar { border-color: rgba(201,162,74,0.5); }
 .cat-grid .cat-btn.cat-btn-allstar:hover { border-color: var(--gold); }
 .cat-btn-allstar-badge { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
+
+/* ── 3-STEP CATEGORY PICKER ── */
+@keyframes stepIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+.picker-step { animation: stepIn 0.22s ease-out both; }
+
+/* Breadcrumb */
+.picker-breadcrumb { display: flex; align-items: center; gap: 6px; margin-bottom: 24px; font-size: 13px; flex-wrap: wrap; }
+.picker-bc-item { background: none; border: none; color: var(--ink-soft); cursor: pointer; padding: 0; font-size: 13px; font-family: var(--ff-body); transition: color 0.15s; }
+.picker-bc-item:hover { color: var(--gold); }
+.picker-bc-sep { color: var(--ink-soft); opacity: 0.5; }
+.picker-bc-current { color: var(--ink); font-weight: 600; }
+
+/* Step tiles */
+.picker-tiles { display: grid; gap: 16px; }
+.picker-tiles-3 { grid-template-columns: repeat(3, 1fr); }
+.picker-tiles-2 { grid-template-columns: repeat(2, 1fr); }
+.picker-tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid transparent; border-radius: 4px;
+  padding: clamp(28px, 4vw, 48px) 20px clamp(24px, 3.5vw, 40px);
+  cursor: pointer; text-align: center; color: var(--ink);
+  transition: transform 0.2s, border-color 0.2s, background 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.picker-tile:hover { transform: translateY(-3px); background: rgba(201,162,74,0.06); }
+.picker-tile-name { font-family: var(--ff-display); font-size: clamp(22px, 3.5vw, 32px); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; }
+.picker-tile-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold); text-transform: uppercase; }
+.picker-tile-division-icon { font-size: 20px; opacity: 0.5; }
+
+/* Gender tiles */
+.picker-tile-m { border-top-color: var(--gold); }
+.picker-tile-m:hover { border-top-color: var(--gold); background: rgba(201,162,74,0.08); }
+.picker-tile-f { border-top-color: #b8c8d8; }
+.picker-tile-f:hover { border-top-color: #d0e4f0; background: rgba(176,208,224,0.08); }
+.picker-tile-allstar:hover { border-top-color: var(--gold); }
+
+/* Division tiles */
+.picker-tile-gold { border-top-color: var(--gold); }
+.picker-tile-gold .picker-tile-division-icon { color: var(--gold); opacity: 1; }
+.picker-tile-gold:hover { background: rgba(201,162,74,0.1); }
+.picker-tile-diamond { border-top-color: #a8d4e8; }
+.picker-tile-diamond .picker-tile-division-icon { color: #a8d4e8; opacity: 1; }
+.picker-tile-diamond:hover { border-top-color: #c0e0f0; background: rgba(160,210,232,0.08); }
+
+/* Soon state */
+.picker-tile-soon { opacity: 0.4; cursor: not-allowed; }
+.picker-tile-soon:hover { transform: none; background: var(--surface); }
+
+/* Age chips (step 3) */
+.age-chip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.age-chip {
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--gold); border-radius: 4px;
+  padding: 20px 14px 16px; cursor: pointer; text-align: center;
+  transition: transform 0.2s, background 0.2s;
+  animation: catBtnIn 0.4s ease-out both;
+}
+.age-chip:hover { transform: translateY(-3px); background: rgba(201,162,74,0.08); }
+.age-chip-diamond { border-top-color: #a8d4e8; }
+.age-chip-diamond:hover { background: rgba(160,210,232,0.08); }
+.age-chip-label { display: block; font-family: var(--ff-display); font-size: 26px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); margin-bottom: 6px; line-height: 1; }
+.age-chip-sub { display: block; font-size: 11px; color: var(--ink-soft); }
+
 .mission-pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 880px; margin: 0 auto 36px; text-align: left; }
 .pillar { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 22px; }
 .pillar-icon { font-size: 26px; margin-bottom: 10px; }
@@ -810,6 +873,13 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .cat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .cat-btn { padding: 0 14px; height: 60px; font-size: 14px; display: flex; align-items: center; gap: 10px; text-align: left; }
   .cat-btn-icon { font-size: 20px; margin-bottom: 0; flex-shrink: 0; }
+  /* picker */
+  .picker-tiles-3 { grid-template-columns: 1fr; }
+  .picker-tiles-2 { grid-template-columns: 1fr; }
+  .picker-tile { padding: 20px 16px; }
+  .picker-tile-name { font-size: 26px; }
+  .age-chip-grid { grid-template-columns: repeat(2, 1fr); }
+  .age-chip-label { font-size: 22px; }
 
   /* ── CARDS + GAMES ── */
   .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }

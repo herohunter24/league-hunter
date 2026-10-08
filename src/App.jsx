@@ -30,6 +30,8 @@ function readUrlState() {
     tab:      sp.get('tab') || 'standings',
     playerId: sp.get('player') ? Number(sp.get('player')) : null,
     gameId:   sp.get('game')   ? Number(sp.get('game'))   : null,
+    g:        sp.get('g') || null,
+    div:      sp.get('div') || null,
   };
 }
 
@@ -39,6 +41,15 @@ function buildPageUrl(cat, tab, playerId, gameId) {
   if (tab && tab !== 'standings') sp.set('tab', tab);    else sp.delete('tab');
   if (playerId)                 sp.set('player', String(playerId)); else sp.delete('player');
   if (gameId)                   sp.set('game',   String(gameId));   else sp.delete('game');
+  sp.delete('g'); sp.delete('div'); // strip picker params from cat URLs
+  return window.location.pathname + '?' + sp.toString();
+}
+
+function buildPickerUrl(g, div) {
+  const sp = new URLSearchParams(window.location.search);
+  sp.delete('cat'); sp.delete('tab'); sp.delete('player'); sp.delete('game');
+  if (g) sp.set('g', g); else sp.delete('g');
+  if (div) sp.set('div', div); else sp.delete('div');
   return window.location.pathname + '?' + sp.toString();
 }
 
@@ -156,11 +167,36 @@ export default function App() {
 
   const cats = view.categories || [];
   const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
+
+  function parseCatMeta(cat) {
+    const rawG = (cat.gender || '').toLowerCase();
+    let gender = null;
+    if (rawG === 'm' || rawG.startsWith('masc') || rawG.startsWith('boy')) gender = 'm';
+    else if (rawG === 'f' || rawG.startsWith('femin') || rawG.startsWith('girl') || rawG.startsWith('fé')) gender = 'f';
+    if (!gender) {
+      const n = (cat.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (/masculin|masculine|boys/.test(n) && !/femin/.test(n)) gender = 'm';
+      else if (/femin|feminine|girls/.test(n)) gender = 'f';
+    }
+    const division = cat.division || 'gold';
+    const ageLabel = cat.ageLabel || (() => {
+      const m = (cat.name || '').match(/U\d+|Mini|Grad|Open/i);
+      return m ? m[0].replace(/^u/i, 'U') : cat.name || null;
+    })();
+    const numMatch = (ageLabel || '').match(/\d+/);
+    const ageNum = numMatch ? parseInt(numMatch[0]) : (ageLabel === 'Mini' ? 5 : (ageLabel === 'Grad' ? 99 : 50));
+    return { gender, division, age: ageLabel, ageNum };
+  }
+
+  const enrichedCats = useMemo(() => effectiveCats.map(c => ({ ...c, ...parseCatMeta(c) })),
+    [effectiveCats]); // eslint-disable-line react-hooks/exhaustive-deps
   const initUrl = useMemo(readUrlState, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [showExplorer, setShowExplorer] = useState(!!initUrl.cat);
+  const [showExplorer, setShowExplorer] = useState(!!initUrl.cat || !!initUrl.g);
   const [selectedCat, setSelectedCat]   = useState(initUrl.cat);
   const [activeTab, setActiveTab]       = useState(initUrl.tab);
   const [catSearch, setCatSearch]       = useState('');
+  const [pickerGender, setPickerGender] = useState(initUrl.g);
+  const [pickerDiv, setPickerDiv]       = useState(initUrl.div);
   const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
 
   // ── Sliding tab indicator ─────────────────────────────────
@@ -379,9 +415,24 @@ export default function App() {
 
   const openExplorer = () => {
     setShowExplorer(true);
-    history.pushState({ nls: 'explorer' }, '', buildPageUrl(null, 'standings', null, null));
+    setPickerGender(null);
+    setPickerDiv(null);
+    history.pushState({ nls: 'explorer', g: null, div: null }, '', buildPickerUrl(null, null));
     setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
   };
+
+  function pickGender(g) {
+    setPickerGender(g);
+    setPickerDiv(null);
+    history.pushState({ nls: 'explorer', g, div: null }, '', buildPickerUrl(g, null));
+    setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 40);
+  }
+
+  function pickDiv(div) {
+    setPickerDiv(div);
+    history.pushState({ nls: 'explorer', g: pickerGender, div }, '', buildPickerUrl(pickerGender, div));
+    setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 40);
+  }
 
   // Reset all navigation state to home (call doGoHome then push history, or call goHome directly)
   function doGoHome() {
@@ -400,6 +451,8 @@ export default function App() {
     setSchedFilter('all');
     setSchedTeam('all');
     setShowAllPlayers(false);
+    setPickerGender(null);
+    setPickerDiv(null);
     if (dimRef.current) dimRef.current.style.opacity = 0;
     window.scrollTo({ top: 0, behavior: 'instant' });
     document.querySelectorAll('.reveal.is-visible').forEach(el => el.classList.remove('is-visible'));
@@ -449,11 +502,15 @@ export default function App() {
         setShowExplorer(true);
         setSelectedPlayer(null);
         setOpenGame(null);
+        setPickerGender(e.state.g || null);
+        setPickerDiv(e.state.div || null);
         return;
       }
       const s = readUrlState();
       setSelectedCat(s.cat);
-      setShowExplorer(!!s.cat);
+      setShowExplorer(!!s.cat || !!s.g);
+      setPickerGender(s.g || null);
+      setPickerDiv(s.div || null);
       setActiveTab(s.tab);
       setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
       setOpenGame(s.gameId ? (GAMES.find(ga => ga.id === s.gameId) || null) : null);
@@ -479,10 +536,10 @@ export default function App() {
     setSchedTeam('all');
     setFTeam('all');
     setSearch('');
-    history.pushState({}, '', buildPageUrl(null, 'standings', null, null));
+    history.pushState({ nls: 'explorer', g: pickerGender, div: pickerDiv }, '', buildPickerUrl(pickerGender, pickerDiv));
     setTimeout(() => {
       const el = document.getElementById('explorer');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
   }
 
@@ -750,53 +807,102 @@ export default function App() {
       )}
 
       {/* ── CATEGORY SELECTOR ── */}
-      {showExplorer && !selectedCat && (
-        <section className="cat-selector" id="explorer">
-          <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
-            <rect x="10" y="10" width="580" height="380" rx="6"/>
-            <line x1="300" y1="10" x2="300" y2="390"/>
-            <circle cx="300" cy="200" r="65"/>
-            <rect x="10" y="130" width="145" height="140"/>
-            <circle cx="155" cy="200" r="55"/>
-            <rect x="445" y="130" width="145" height="140"/>
-            <circle cx="445" cy="200" r="55"/>
-            <path d="M10,155 C90,155 210,110 210,200 C210,290 90,245 10,245"/>
-            <path d="M590,155 C510,155 390,110 390,200 C390,290 510,245 590,245"/>
-          </svg>
-          <h2>{t.selectCat}</h2>
-          <div className="cs-sub">{t.selectCatSub}</div>
-          {effectiveCats.length > 4 && (
-            <input className="search-inp" style={{ marginBottom: 20 }} placeholder={t.searchCat} value={catSearch} onChange={e => setCatSearch(e.target.value)} />
-          )}
-          <div className="cat-grid">
-            {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).map((c, idx) => {
-              const teamCount = TEAMS.filter(tm => tm.categoryId === c.id).length;
-              const playerCount = PLAYERS.filter(p => p.categoryId === c.id).length;
-              return (
-                <button key={c.id} className="cat-btn" style={{ '--i': idx }} onClick={() => selectCat(c.id)}>
-                  {displayCatName(c.name, t)}
-                  {(teamCount > 0 || playerCount > 0) && (
-                    <span className="cat-btn-count">
-                      {teamCount > 0 ? `${teamCount} ${lang === 'fr' ? (teamCount === 1 ? 'équipe' : 'équipes') : (teamCount === 1 ? 'team' : 'teams')}` : ''}
-                      {teamCount > 0 && playerCount > 0 ? ' · ' : ''}
-                      {playerCount > 0 ? `${playerCount} ${lang === 'fr' ? (playerCount === 1 ? 'joueur' : 'joueurs') : (playerCount === 1 ? 'player' : 'players')}` : ''}
-                    </span>
+      {showExplorer && !selectedCat && (() => {
+        const genderCats = enrichedCats.filter(c => c.gender === pickerGender);
+        const hasGold = genderCats.some(c => c.division === 'gold');
+        const hasDiamond = genderCats.some(c => c.division === 'diamond');
+        const ageCats = genderCats.filter(c => c.division === pickerDiv).sort((a, b) => a.ageNum - b.ageNum);
+        return (
+          <section className="cat-selector" id="explorer">
+            <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
+              <rect x="10" y="10" width="580" height="380" rx="6"/>
+              <line x1="300" y1="10" x2="300" y2="390"/>
+              <circle cx="300" cy="200" r="65"/>
+              <rect x="10" y="130" width="145" height="140"/>
+              <circle cx="155" cy="200" r="55"/>
+              <rect x="445" y="130" width="145" height="140"/>
+              <circle cx="445" cy="200" r="55"/>
+              <path d="M10,155 C90,155 210,110 210,200 C210,290 90,245 10,245"/>
+              <path d="M590,155 C510,155 390,110 390,200 C390,290 510,245 590,245"/>
+            </svg>
+
+            {/* ── STEP 1: gender ── */}
+            {!pickerGender && (
+              <div className="picker-step" key="step-gender">
+                <h2>{t.selectCat}</h2>
+                <div className="cs-sub">{t.selectCatSub}</div>
+                <div className="picker-tiles picker-tiles-3">
+                  <button className="picker-tile picker-tile-m" onClick={() => pickGender('m')}>
+                    <span className="picker-tile-name">{t.pickerMale}</span>
+                  </button>
+                  <button className="picker-tile picker-tile-f" onClick={() => pickGender('f')}>
+                    <span className="picker-tile-name">{t.pickerFemale}</span>
+                  </button>
+                  {ps.showAllStar !== false && (
+                    <button className="picker-tile picker-tile-allstar" onClick={() => selectCat('allstar')}>
+                      <span className="picker-tile-badge">{t.allstarBadge}</span>
+                      <span className="picker-tile-name">All-Star</span>
+                    </button>
                   )}
-                </button>
-              );
-            })}
-            {ps.showAllStar !== false && (
-              <button className="cat-btn cat-btn-allstar" onClick={() => selectCat('allstar')}>
-                <span className="cat-btn-allstar-badge">{t.allstarBadge}</span>
-                All-Star
-              </button>
+                </div>
+              </div>
             )}
-          </div>
-          {effectiveCats.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase())).length === 0 && (
-            <div className="empty-note">{t.noCatMatch}</div>
-          )}
-        </section>
-      )}
+
+            {/* ── STEP 2: division ── */}
+            {pickerGender && !pickerDiv && (
+              <div className="picker-step" key={`step-div-${pickerGender}`}>
+                <div className="picker-breadcrumb">
+                  <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
+                  <span className="picker-bc-sep">›</span>
+                  <span className="picker-bc-current">{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</span>
+                </div>
+                <h2>{t.selectDivision}</h2>
+                <div className="picker-tiles picker-tiles-2">
+                  <button className={`picker-tile picker-tile-gold${!hasGold ? ' picker-tile-soon' : ''}`} onClick={() => hasGold && pickDiv('gold')}>
+                    {!hasGold && <span className="picker-tile-badge">{t.comingSoon}</span>}
+                    <span className="picker-tile-division-icon">◆</span>
+                    <span className="picker-tile-name">GOLD</span>
+                  </button>
+                  <button className={`picker-tile picker-tile-diamond${!hasDiamond ? ' picker-tile-soon' : ''}`} onClick={() => hasDiamond && pickDiv('diamond')}>
+                    {!hasDiamond && <span className="picker-tile-badge">{t.comingSoon}</span>}
+                    <span className="picker-tile-division-icon">◆</span>
+                    <span className="picker-tile-name">DIAMOND</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3: age chips ── */}
+            {pickerGender && pickerDiv && (
+              <div className="picker-step" key={`step-age-${pickerGender}-${pickerDiv}`}>
+                <div className="picker-breadcrumb">
+                  <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
+                  <span className="picker-bc-sep">›</span>
+                  <button className="picker-bc-item" onClick={() => pickDiv(null)}>{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</button>
+                  <span className="picker-bc-sep">›</span>
+                  <span className="picker-bc-current">{pickerDiv.toUpperCase()}</span>
+                </div>
+                <h2>{t.selectAge}</h2>
+                {ageCats.length > 0 ? (
+                  <div className="age-chip-grid">
+                    {ageCats.map(ec => {
+                      const tc = TEAMS.filter(tm => tm.categoryId === ec.id).length;
+                      return (
+                        <button key={ec.id} className={`age-chip${pickerDiv === 'diamond' ? ' age-chip-diamond' : ''}`} onClick={() => selectCat(ec.id)}>
+                          <span className="age-chip-label">{ec.age || displayCatName(ec.name, t)}</span>
+                          <span className="age-chip-sub">{tc} {lang === 'fr' ? (tc === 1 ? 'équipe' : 'équipes') : (tc === 1 ? 'team' : 'teams')}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="empty-note">{t.comingSoon}</div>
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* ── CATEGORY HEADER + TAB NAV ── */}
       {selectedCat && (() => {
