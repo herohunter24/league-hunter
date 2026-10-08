@@ -126,7 +126,6 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-
   // ── Count-up numbers ──────────────────────────────────────
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -176,6 +175,25 @@ export default function App() {
     container.style.setProperty('--tab-left', (cr.left - pr.left) + 'px');
     container.style.setProperty('--tab-width', cr.width + 'px');
   }, [activeTab, selectedCat]);
+
+  // ── Scroll-driven photo dimming (home only) ───────────────
+  const dimRef = useRef(null);
+  useEffect(() => {
+    const dim = dimRef.current;
+    if (!dim) return; // dim div not mounted — not home mode
+    let raf = null;
+    const update = () => {
+      raf = null;
+      const ratio = Math.min(Math.max(
+        (window.scrollY - 0.25 * window.innerHeight) / (1.5 * window.innerHeight), 0), 1);
+      dim.style.opacity = ratio * 0.70;
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [showExplorer, selectedCat]); // re-run when home mode changes
+
   // ── All-Star hero parallax ──────────────────────────────
   useEffect(() => {
     if (selectedCat !== 'allstar') return;
@@ -570,6 +588,7 @@ export default function App() {
 
       {/* ── FIXED PHOTO LAYER (home only) ── */}
       {isHome && <HeroSlideshow />}
+      {isHome && <div className="hero-dim" ref={dimRef} aria-hidden="true" />}
 
       {/* ── HERO ── */}
       <header className="hero">

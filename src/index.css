@@ -57,6 +57,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .potm-chip-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
 .potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
 
+/* ── SCROLL-DRIVEN DIM LAYER (home only, above slideshow z:0, below content z:1) ── */
+.hero-dim { position: fixed; inset: 0; z-index: 0; background: #000; opacity: 0; pointer-events: none; }
+
 /* ── FIXED PHOTO SLIDESHOW (home only — rendered outside .hero) ── */
 .hero-slideshow {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -558,7 +561,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .leader-bar-fill { height: 100%; border-radius: 2px; background: var(--gold); }
 
 /* ── FOOTER ── */
-.footer { border-top: 1px solid var(--border); background: #08080a; padding: 56px clamp(18px, 4vw, 40px) 40px; }
+.footer { border-top: 1px solid var(--border); background: #08080a; padding: 56px clamp(18px, 4vw, 40px) 40px; position: relative; z-index: 1; }
 .footer-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
 .footer-col {}
 .footer-col--brand {}
