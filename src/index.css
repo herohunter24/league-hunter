@@ -97,6 +97,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 /* Home mode: hero is transparent so fixed slideshow shows through */
 .home-mode .hero {
   background: transparent;
+  overflow: visible; /* allow radial halos to bleed past hero edges without hard clip line */
   position: relative; z-index: 1;
 }
 /* Ensure site header always renders above the fixed photo layer */
@@ -137,10 +138,10 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: 40px 24px 40px;
 }
-/* Soft radial shadow centered behind hero text — no hard edges */
+/* Soft radial shadow centered behind hero text — fades to 0 at own edges, no clip line */
 .home-mode .hero-inner::before {
-  content: ''; position: absolute; inset: -50% -60%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
+  content: ''; position: absolute; inset: -15% -10%;
+  background: radial-gradient(closest-side, rgba(0,0,0,.35), rgba(0,0,0,0));
   z-index: -1; pointer-events: none;
 }
 
@@ -183,8 +184,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   position: relative; z-index: 0; /* stacking context so ::before is behind text */
 }
 .home-mode .text-halo::before {
-  content: ''; position: absolute; inset: -60% -80%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
+  content: ''; position: absolute; inset: -15% -10%;
+  background: radial-gradient(closest-side, rgba(0,0,0,.35), rgba(0,0,0,0));
   z-index: -1; pointer-events: none;
 }
 /* Text-shadow + full-opacity paragraph color when over photos */
@@ -195,9 +196,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   font-size: 13px; font-weight: 600;
   text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
-.home-mode .lsec-sub,
+.home-mode .landing-sec .lsec-sub,
 .home-mode .mission-body {
-  color: #F4F1EA;
+  color: #F4F1EA; font-weight: 500;
   text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
 
