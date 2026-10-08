@@ -705,7 +705,10 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .picker-step { animation: stepIn 0.22s ease-out both; }
 
 /* Breadcrumb */
-.picker-breadcrumb { display: flex; align-items: center; gap: 6px; margin-bottom: 24px; font-size: 13px; flex-wrap: wrap; }
+.picker-breadcrumb-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.picker-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; flex-wrap: wrap; }
+.picker-back-btn { flex-shrink: 0; padding: 0 14px; height: 36px; border: 1.5px solid var(--ACC); border-radius: 6px; background: transparent; color: var(--ACC); font-size: 13px; font-family: var(--ff-body); cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
+.picker-back-btn:hover { opacity: 0.75; }
 .picker-bc-item { background: none; border: none; color: var(--ink-soft); cursor: pointer; padding: 0; font-size: 13px; font-family: var(--ff-body); transition: color 0.15s; }
 .picker-bc-item:hover { color: var(--gold); }
 .picker-bc-sep { color: var(--ink-soft); opacity: 0.5; }
@@ -759,6 +762,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .age-chip:hover { transform: translateY(-3px); background: rgba(201,162,74,0.08); }
 .age-chip-diamond { border-top-color: #a8d4e8; }
 .age-chip-diamond:hover { background: rgba(160,210,232,0.08); }
+.age-chip-empty, .age-chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.age-chip-empty:hover, .age-chip:disabled:hover { transform: none; background: var(--surface); }
 .age-chip-label { display: block; font-family: var(--ff-display); font-size: 26px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); margin-bottom: 6px; line-height: 1; }
 .age-chip-sub { display: block; font-size: 11px; color: var(--ink-soft); }
 
@@ -880,6 +885,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .picker-tile-name { font-size: 26px; }
   .age-chip-grid { grid-template-columns: repeat(2, 1fr); }
   .age-chip-label { font-size: 22px; }
+  .picker-back-btn { height: 40px; }
 
   /* ── CARDS + GAMES ── */
   .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }

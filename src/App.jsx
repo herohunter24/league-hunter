@@ -413,25 +413,41 @@ export default function App() {
     .filter(p => catMatch(p.categoryId) || catTeamNames.has(p.team))
     .sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 5);
 
+  function scrollToPicker() {
+    const el = document.getElementById('explorer');
+    if (!el) return;
+    const header = document.querySelector('.site-header');
+    const offset = (header ? header.offsetHeight : 64) + 16;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - offset, behavior: 'smooth' });
+  }
+
+  // scroll to picker on direct URL load with ?g= or ?div=
+  useEffect(() => {
+    if (initUrl.g || initUrl.div) {
+      const t = setTimeout(scrollToPicker, 350);
+      return () => clearTimeout(t);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const openExplorer = () => {
     setShowExplorer(true);
     setPickerGender(null);
     setPickerDiv(null);
     history.pushState({ nls: 'explorer', g: null, div: null }, '', buildPickerUrl(null, null));
-    setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
+    setTimeout(scrollToPicker, 60);
   };
 
   function pickGender(g) {
     setPickerGender(g);
     setPickerDiv(null);
     history.pushState({ nls: 'explorer', g, div: null }, '', buildPickerUrl(g, null));
-    setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 40);
+    setTimeout(scrollToPicker, 40);
   }
 
   function pickDiv(div) {
     setPickerDiv(div);
     history.pushState({ nls: 'explorer', g: pickerGender, div }, '', buildPickerUrl(pickerGender, div));
-    setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 40);
+    setTimeout(scrollToPicker, 40);
   }
 
   // Reset all navigation state to home (call doGoHome then push history, or call goHome directly)
@@ -537,10 +553,7 @@ export default function App() {
     setFTeam('all');
     setSearch('');
     history.pushState({ nls: 'explorer', g: pickerGender, div: pickerDiv }, '', buildPickerUrl(pickerGender, pickerDiv));
-    setTimeout(() => {
-      const el = document.getElementById('explorer');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
+    setTimeout(scrollToPicker, 60);
   }
 
   function switchTab(tab) {
@@ -851,10 +864,13 @@ export default function App() {
             {/* ── STEP 2: division ── */}
             {pickerGender && !pickerDiv && (
               <div className="picker-step" key={`step-div-${pickerGender}`}>
-                <div className="picker-breadcrumb">
-                  <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
-                  <span className="picker-bc-sep">›</span>
-                  <span className="picker-bc-current">{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</span>
+                <div className="picker-breadcrumb-row">
+                  <div className="picker-breadcrumb">
+                    <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
+                    <span className="picker-bc-sep">›</span>
+                    <span className="picker-bc-current">{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</span>
+                  </div>
+                  <button className="picker-back-btn" onClick={() => pickGender(null)}>{t.backBtn}</button>
                 </div>
                 <h2>{t.selectDivision}</h2>
                 <div className="picker-tiles picker-tiles-2">
@@ -875,22 +891,26 @@ export default function App() {
             {/* ── STEP 3: age chips ── */}
             {pickerGender && pickerDiv && (
               <div className="picker-step" key={`step-age-${pickerGender}-${pickerDiv}`}>
-                <div className="picker-breadcrumb">
-                  <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
-                  <span className="picker-bc-sep">›</span>
-                  <button className="picker-bc-item" onClick={() => pickDiv(null)}>{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</button>
-                  <span className="picker-bc-sep">›</span>
-                  <span className="picker-bc-current">{pickerDiv.toUpperCase()}</span>
+                <div className="picker-breadcrumb-row">
+                  <div className="picker-breadcrumb">
+                    <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
+                    <span className="picker-bc-sep">›</span>
+                    <button className="picker-bc-item" onClick={() => pickDiv(null)}>{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</button>
+                    <span className="picker-bc-sep">›</span>
+                    <span className="picker-bc-current">{pickerDiv.toUpperCase()}</span>
+                  </div>
+                  <button className="picker-back-btn" onClick={() => pickDiv(null)}>{t.backBtn}</button>
                 </div>
                 <h2>{t.selectAge}</h2>
                 {ageCats.length > 0 ? (
                   <div className="age-chip-grid">
                     {ageCats.map(ec => {
                       const tc = TEAMS.filter(tm => tm.categoryId === ec.id).length;
+                      const empty = tc === 0;
                       return (
-                        <button key={ec.id} className={`age-chip${pickerDiv === 'diamond' ? ' age-chip-diamond' : ''}`} onClick={() => selectCat(ec.id)}>
+                        <button key={ec.id} className={`age-chip${pickerDiv === 'diamond' ? ' age-chip-diamond' : ''}${empty ? ' age-chip-empty' : ''}`} onClick={() => !empty && selectCat(ec.id)} disabled={empty}>
                           <span className="age-chip-label">{ec.age || displayCatName(ec.name, t)}</span>
-                          <span className="age-chip-sub">{tc} {lang === 'fr' ? (tc === 1 ? 'équipe' : 'équipes') : (tc === 1 ? 'team' : 'teams')}</span>
+                          <span className="age-chip-sub">{empty ? t.comingSoon : `${tc} ${lang === 'fr' ? (tc === 1 ? 'équipe' : 'équipes') : (tc === 1 ? 'team' : 'teams')}`}</span>
                         </button>
                       );
                     })}
