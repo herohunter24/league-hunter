@@ -1388,7 +1388,7 @@ function App() {
   const [saving, setSaving] = useState(false);
   const [activeCatId, setActiveCatId] = useState(null);
   const [showCatModal, setShowCatModal] = useState(false);
-  const [nCat, setNCat] = useState({ ageGroup: "U15", gender: "Masculine", division: "Gold", customAge: "" });
+  const [nCat, setNCat] = useState({ ageGroup: "Benjamin", gender: "Masculine", division: "Gold", customAge: "" });
   const [deleteCatId, setDeleteCatId] = useState(null);
   const [showReorderModal, setShowReorderModal] = useState(false); // category reorder modal
   const [reorderCats, setReorderCats] = useState([]);              // working order in the modal
@@ -2943,14 +2943,15 @@ function App() {
 
   async function addCategory() {
     if (!league) return;
-    if (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) { showToast("Enter a name for the custom age group."); return; }
-    const ageLabel = nCat.ageGroup === "Custom" ? nCat.customAge.trim() : nCat.ageGroup;
+    if (nCat.ageGroup === "Autre" && !nCat.customAge.trim()) { showToast("Enter a name for the custom age group."); return; }
+    const ageLabel = nCat.ageGroup === "Autre" ? nCat.customAge.trim() : nCat.ageGroup;
     const displayName = nCat.gender ? `${ageLabel} ${nCat.gender}` : ageLabel;
-    const newCat = { id: "cat_" + Date.now(), name: ageLabel, gender: nCat.gender, division: nCat.division.toLowerCase(), displayName };
+    const division = nCat.division === "Aucune" ? null : nCat.division.toLowerCase();
+    const newCat = { id: "cat_" + Date.now(), name: ageLabel, age: ageLabel, gender: nCat.gender, division, displayName };
     const updated = { ...league, categories: [...(league.categories || []), newCat] };
     await writeLeagueNow(updated);
     setDirty(false);
-    setNCat({ ageGroup: "U15", gender: "Masculine", division: "Gold", customAge: "" });
+    setNCat({ ageGroup: "Benjamin", gender: "Masculine", division: "Gold", customAge: "" });
     setShowCatModal(false);
     setActiveCatId(newCat.id);
     showToast(`Category "${displayName}" added!`);
@@ -6254,10 +6255,10 @@ service cloud.firestore {
                 <div>
                   <label style={lbl}>Age Group</label>
                   <select style={inp} value={nCat.ageGroup} onChange={e => setNCat({ ...nCat, ageGroup: e.target.value })}>
-                    {["U13","U15","U18","U20","U30","U50","Open","Custom"].map(ag => <option key={ag}>{ag}</option>)}
+                    {["Benjamin","Cadet","Juvénile","Autre"].map(ag => <option key={ag}>{ag}</option>)}
                   </select>
                 </div>
-                {nCat.ageGroup === "Custom" && (
+                {nCat.ageGroup === "Autre" && (
                   <div>
                     <label style={lbl}>Custom Name</label>
                     <input style={inp} value={nCat.customAge} onChange={e => setNCat({ ...nCat, customAge: e.target.value })} placeholder="e.g. Masters, Senior, Varsity…" />
@@ -6272,7 +6273,7 @@ service cloud.firestore {
                 <div>
                   <label style={lbl}>Division</label>
                   <select style={inp} value={nCat.division} onChange={e => setNCat({ ...nCat, division: e.target.value })}>
-                    {["Gold","Diamond"].map(d => <option key={d}>{d}</option>)}
+                    {["Gold","Diamond","Aucune"].map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
                 <div style={{ background: SURF, borderRadius: 8, padding: "12px 16px", fontSize: 14 }}>
@@ -6282,9 +6283,9 @@ service cloud.firestore {
                   </strong>
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1, opacity: (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) ? 0.45 : 1 }} onClick={() => {
-                    if (nCat.ageGroup === "Custom" && !nCat.customAge.trim()) return;
-                    const ageLabel   = nCat.ageGroup === "Custom" ? nCat.customAge.trim() : nCat.ageGroup;
+                  <button style={{ ...btn(), flex: 1, opacity: (nCat.ageGroup === "Autre" && !nCat.customAge.trim()) ? 0.45 : 1 }} onClick={() => {
+                    if (nCat.ageGroup === "Autre" && !nCat.customAge.trim()) return;
+                    const ageLabel   = nCat.ageGroup === "Autre" ? nCat.customAge.trim() : nCat.ageGroup;
                     const displayName = nCat.gender ? `${ageLabel} ${nCat.gender}` : ageLabel;
                     addConfirm.ask({
                       actionType: 'add', entityType: 'category', entityLabel: displayName,
@@ -6299,7 +6300,7 @@ service cloud.firestore {
                       onConfirm: () => addCategory(),
                     });
                   }}>Add Category</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "U15", gender: "Masculine", division: "Gold", customAge: "" }); }}>Cancel</button>
+                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "Benjamin", gender: "Masculine", division: "Gold", customAge: "" }); }}>Cancel</button>
                 </div>
               </div>
             </div>

@@ -68,7 +68,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
     };
   });
 
-  const rawCats = ((meta && meta.categories) || []).map(c => ({ id: String(c.id), name: c.displayName || c.name || 'Catégorie', ageLabel: c.name || '', gender: c.gender || null, division: c.division || null }));
+  const rawCats = ((meta && meta.categories) || []).map(c => ({ id: String(c.id), name: c.displayName || c.name || 'Catégorie', ageLabel: c.name || '', age: c.age || null, gender: c.gender || null, division: c.division || null }));
   const catOrder = ((meta && meta.categoryOrder) || []).map(String);
   const categories = catOrder.length
     ? [...rawCats].sort((a, b) => { const ia = catOrder.indexOf(a.id), ib = catOrder.indexOf(b.id); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib); })

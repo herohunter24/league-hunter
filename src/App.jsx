@@ -31,6 +31,7 @@ function readUrlState() {
     playerId: sp.get('player') ? Number(sp.get('player')) : null,
     gameId:   sp.get('game')   ? Number(sp.get('game'))   : null,
     g:        sp.get('g') || null,
+    age:      sp.get('age') || null,
     div:      sp.get('div') || null,
   };
 }
@@ -41,14 +42,15 @@ function buildPageUrl(cat, tab, playerId, gameId) {
   if (tab && tab !== 'standings') sp.set('tab', tab);    else sp.delete('tab');
   if (playerId)                 sp.set('player', String(playerId)); else sp.delete('player');
   if (gameId)                   sp.set('game',   String(gameId));   else sp.delete('game');
-  sp.delete('g'); sp.delete('div'); // strip picker params from cat URLs
+  sp.delete('g'); sp.delete('age'); sp.delete('div'); // strip picker params from cat URLs
   return window.location.pathname + '?' + sp.toString();
 }
 
-function buildPickerUrl(g, div) {
+function buildPickerUrl(g, age, div) {
   const sp = new URLSearchParams(window.location.search);
   sp.delete('cat'); sp.delete('tab'); sp.delete('player'); sp.delete('game');
   if (g) sp.set('g', g); else sp.delete('g');
+  if (age) sp.set('age', age); else sp.delete('age');
   if (div) sp.set('div', div); else sp.delete('div');
   return window.location.pathname + '?' + sp.toString();
 }
@@ -169,23 +171,45 @@ export default function App() {
   const effectiveCats = cats.length ? cats : [{ id: '__all__', name: lang === 'fr' ? 'Toute la ligue' : 'Whole league' }];
 
   function parseCatMeta(cat) {
-    const rawG = (cat.gender || '').toLowerCase();
+    const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+    // Gender — explicit field first, then name fallback
+    const rawG = norm(cat.gender || '');
     let gender = null;
     if (rawG === 'm' || rawG.startsWith('masc') || rawG.startsWith('boy')) gender = 'm';
-    else if (rawG === 'f' || rawG.startsWith('femin') || rawG.startsWith('girl') || rawG.startsWith('fé')) gender = 'f';
+    else if (rawG === 'f' || rawG.startsWith('femin') || rawG.startsWith('girl') || rawG.startsWith('fe')) gender = 'f';
     if (!gender) {
-      const n = (cat.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      if (/masculin|masculine|boys/.test(n) && !/femin/.test(n)) gender = 'm';
-      else if (/femin|feminine|girls/.test(n)) gender = 'f';
+      const n = norm(cat.name || '');
+      if (/masculin|masculine|boys|\bm\b/.test(n) && !/femin/.test(n)) gender = 'm';
+      else if (/femin|feminine|girls|\bf\b/.test(n)) gender = 'f';
     }
-    const division = cat.division || 'gold';
-    const ageLabel = cat.ageLabel || (() => {
-      const m = (cat.name || '').match(/U\d+|Mini|Grad|Open/i);
-      return m ? m[0].replace(/^u/i, 'U') : cat.name || null;
-    })();
-    const numMatch = (ageLabel || '').match(/\d+/);
-    const ageNum = numMatch ? parseInt(numMatch[0]) : (ageLabel === 'Mini' ? 5 : (ageLabel === 'Grad' ? 99 : 50));
-    return { gender, division, age: ageLabel, ageNum };
+
+    // Division — explicit field; null/none/aucune = single-division
+    let division = cat.division;
+    if (!division || division === 'none' || division === 'aucune') {
+      // check name fallback for legacy cats
+      const n = norm(cat.name || '');
+      if (/diamond/.test(n)) division = 'diamond';
+      else if (/gold/.test(n)) division = 'gold';
+      else division = null;
+    }
+
+    // Age group — explicit `age` field ("Benjamin", "Cadet", "Juvénile") or name fallback
+    const ageSource = norm(cat.age || cat.ageLabel || cat.name || '');
+    let ageName = null, ageLabel = null, ageNum = 50;
+    if (/benjamin/.test(ageSource)) { ageName = 'benjamin'; ageLabel = 'Benjamin'; ageNum = 1; }
+    else if (/cadet/.test(ageSource)) { ageName = 'cadet'; ageLabel = 'Cadet'; ageNum = 2; }
+    else if (/juven/.test(ageSource)) { ageName = 'juvenil'; ageLabel = 'Juvénile'; ageNum = 3; }
+    else {
+      const raw = cat.age || cat.ageLabel || cat.name || '';
+      const m = raw.match(/U\d+|Mini|Grad|Open/i);
+      ageLabel = m ? m[0].replace(/^u/i, 'U') : (raw || null);
+      ageName = ageLabel ? ageLabel.toLowerCase().replace(/[^a-z0-9]/g, '') : null;
+      const numMatch = (ageLabel || '').match(/\d+/);
+      ageNum = numMatch ? parseInt(numMatch[0]) : (/mini/i.test(raw) ? 5 : (/grad/i.test(raw) ? 99 : 50));
+    }
+
+    return { gender, division, ageName, ageLabel, ageNum };
   }
 
   const enrichedCats = useMemo(() => effectiveCats.map(c => ({ ...c, ...parseCatMeta(c) })),
@@ -196,6 +220,7 @@ export default function App() {
   const [activeTab, setActiveTab]       = useState(initUrl.tab);
   const [catSearch, setCatSearch]       = useState('');
   const [pickerGender, setPickerGender] = useState(initUrl.g);
+  const [pickerAge, setPickerAge]       = useState(initUrl.age);
   const [pickerDiv, setPickerDiv]       = useState(initUrl.div);
   const catMatch = (catId) => selectedCat === '__all__' || catId === selectedCat;
 
@@ -421,9 +446,9 @@ export default function App() {
     window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - offset, behavior: 'smooth' });
   }
 
-  // scroll to picker on direct URL load with ?g= or ?div=
+  // scroll to picker on direct URL load with ?g= or ?age= or ?div=
   useEffect(() => {
-    if (initUrl.g || initUrl.div) {
+    if (initUrl.g || initUrl.age || initUrl.div) {
       const t = setTimeout(scrollToPicker, 350);
       return () => clearTimeout(t);
     }
@@ -432,21 +457,35 @@ export default function App() {
   const openExplorer = () => {
     setShowExplorer(true);
     setPickerGender(null);
+    setPickerAge(null);
     setPickerDiv(null);
-    history.pushState({ nls: 'explorer', g: null, div: null }, '', buildPickerUrl(null, null));
+    history.pushState({ nls: 'explorer', g: null, age: null, div: null }, '', buildPickerUrl(null, null, null));
     setTimeout(scrollToPicker, 60);
   };
 
   function pickGender(g) {
     setPickerGender(g);
+    setPickerAge(null);
     setPickerDiv(null);
-    history.pushState({ nls: 'explorer', g, div: null }, '', buildPickerUrl(g, null));
+    history.pushState({ nls: 'explorer', g, age: null, div: null }, '', buildPickerUrl(g, null, null));
     setTimeout(scrollToPicker, 40);
+  }
+
+  function pickAge(ageN) {
+    const acs = enrichedCats.filter(c => c.gender === pickerGender && c.ageName === ageN);
+    if (acs.length === 1) {
+      selectCat(acs[0].id);
+    } else {
+      setPickerAge(ageN);
+      setPickerDiv(null);
+      history.pushState({ nls: 'explorer', g: pickerGender, age: ageN, div: null }, '', buildPickerUrl(pickerGender, ageN, null));
+      setTimeout(scrollToPicker, 40);
+    }
   }
 
   function pickDiv(div) {
     setPickerDiv(div);
-    history.pushState({ nls: 'explorer', g: pickerGender, div }, '', buildPickerUrl(pickerGender, div));
+    history.pushState({ nls: 'explorer', g: pickerGender, age: pickerAge, div }, '', buildPickerUrl(pickerGender, pickerAge, div));
     setTimeout(scrollToPicker, 40);
   }
 
@@ -468,6 +507,7 @@ export default function App() {
     setSchedTeam('all');
     setShowAllPlayers(false);
     setPickerGender(null);
+    setPickerAge(null);
     setPickerDiv(null);
     if (dimRef.current) dimRef.current.style.opacity = 0;
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -519,6 +559,7 @@ export default function App() {
         setSelectedPlayer(null);
         setOpenGame(null);
         setPickerGender(e.state.g || null);
+        setPickerAge(e.state.age || null);
         setPickerDiv(e.state.div || null);
         return;
       }
@@ -526,6 +567,7 @@ export default function App() {
       setSelectedCat(s.cat);
       setShowExplorer(!!s.cat || !!s.g);
       setPickerGender(s.g || null);
+      setPickerAge(s.age || null);
       setPickerDiv(s.div || null);
       setActiveTab(s.tab);
       setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
@@ -552,7 +594,7 @@ export default function App() {
     setSchedTeam('all');
     setFTeam('all');
     setSearch('');
-    history.pushState({ nls: 'explorer', g: pickerGender, div: pickerDiv }, '', buildPickerUrl(pickerGender, pickerDiv));
+    history.pushState({ nls: 'explorer', g: pickerGender, age: pickerAge, div: pickerDiv }, '', buildPickerUrl(pickerGender, pickerAge, pickerDiv));
     setTimeout(scrollToPicker, 60);
   }
 
@@ -822,9 +864,18 @@ export default function App() {
       {/* ── CATEGORY SELECTOR ── */}
       {showExplorer && !selectedCat && (() => {
         const genderCats = enrichedCats.filter(c => c.gender === pickerGender);
-        const hasGold = genderCats.some(c => c.division === 'gold');
-        const hasDiamond = genderCats.some(c => c.division === 'diamond');
-        const ageCats = genderCats.filter(c => c.division === pickerDiv).sort((a, b) => a.ageNum - b.ageNum);
+        // unique age groups for this gender, sorted
+        const ageGroupMap = new Map();
+        for (const c of genderCats) {
+          if (c.ageName && !ageGroupMap.has(c.ageName))
+            ageGroupMap.set(c.ageName, { ageName: c.ageName, ageLabel: c.ageLabel, ageNum: c.ageNum });
+        }
+        const ageGroups = [...ageGroupMap.values()].sort((a, b) => a.ageNum - b.ageNum);
+        // cats for the selected age group (step 3 division)
+        const ageCats = enrichedCats.filter(c => c.gender === pickerGender && c.ageName === pickerAge);
+        const hasGold = ageCats.some(c => c.division === 'gold');
+        const hasDiamond = ageCats.some(c => c.division === 'diamond');
+        const genderLabel = pickerGender === 'm' ? t.pickerMale : t.pickerFemale;
         return (
           <section className="cat-selector" id="explorer">
             <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
@@ -861,16 +912,50 @@ export default function App() {
               </div>
             )}
 
-            {/* ── STEP 2: division ── */}
-            {pickerGender && !pickerDiv && (
-              <div className="picker-step" key={`step-div-${pickerGender}`}>
+            {/* ── STEP 2: age groups ── */}
+            {pickerGender && !pickerAge && (
+              <div className="picker-step" key={`step-age-${pickerGender}`}>
                 <div className="picker-breadcrumb-row">
                   <div className="picker-breadcrumb">
                     <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
                     <span className="picker-bc-sep">›</span>
-                    <span className="picker-bc-current">{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</span>
+                    <span className="picker-bc-current">{genderLabel}</span>
                   </div>
                   <button className="picker-back-btn" onClick={() => pickGender(null)}>{t.backBtn}</button>
+                </div>
+                <h2>{t.selectAge}</h2>
+                {ageGroups.length > 0 ? (
+                  <div className="age-chip-grid">
+                    {ageGroups.map(ag => {
+                      const ageCatIds = new Set(genderCats.filter(c => c.ageName === ag.ageName).map(c => c.id));
+                      const tc = TEAMS.filter(tm => ageCatIds.has(tm.categoryId)).length;
+                      const empty = tc === 0;
+                      return (
+                        <button key={ag.ageName} className={`age-chip${empty ? ' age-chip-empty' : ''}`} onClick={() => !empty && pickAge(ag.ageName)} disabled={empty}>
+                          <span className="age-chip-label">{ag.ageLabel}</span>
+                          <span className="age-chip-sub">{empty ? t.comingSoon : `${tc} ${lang === 'fr' ? (tc === 1 ? 'équipe' : 'équipes') : (tc === 1 ? 'team' : 'teams')}`}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="empty-note">{t.comingSoon}</div>
+                )}
+              </div>
+            )}
+
+            {/* ── STEP 3: division (only if >1 division for this gender+age) ── */}
+            {pickerGender && pickerAge && !pickerDiv && (
+              <div className="picker-step" key={`step-div-${pickerGender}-${pickerAge}`}>
+                <div className="picker-breadcrumb-row">
+                  <div className="picker-breadcrumb">
+                    <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
+                    <span className="picker-bc-sep">›</span>
+                    <button className="picker-bc-item" onClick={() => { setPickerAge(null); setPickerDiv(null); history.pushState({ nls: 'explorer', g: pickerGender, age: null, div: null }, '', buildPickerUrl(pickerGender, null, null)); setTimeout(scrollToPicker, 40); }}>{genderLabel}</button>
+                    <span className="picker-bc-sep">›</span>
+                    <span className="picker-bc-current">{ageCats[0]?.ageLabel || pickerAge}</span>
+                  </div>
+                  <button className="picker-back-btn" onClick={() => { setPickerAge(null); setPickerDiv(null); history.pushState({ nls: 'explorer', g: pickerGender, age: null, div: null }, '', buildPickerUrl(pickerGender, null, null)); setTimeout(scrollToPicker, 40); }}>{t.backBtn}</button>
                 </div>
                 <h2>{t.selectDivision}</h2>
                 <div className="picker-tiles picker-tiles-2">
@@ -885,39 +970,6 @@ export default function App() {
                     <span className="picker-tile-name">DIAMOND</span>
                   </button>
                 </div>
-              </div>
-            )}
-
-            {/* ── STEP 3: age chips ── */}
-            {pickerGender && pickerDiv && (
-              <div className="picker-step" key={`step-age-${pickerGender}-${pickerDiv}`}>
-                <div className="picker-breadcrumb-row">
-                  <div className="picker-breadcrumb">
-                    <button className="picker-bc-item" onClick={() => pickGender(null)}>{t.breadcrumbCats}</button>
-                    <span className="picker-bc-sep">›</span>
-                    <button className="picker-bc-item" onClick={() => pickDiv(null)}>{pickerGender === 'm' ? t.pickerMale : t.pickerFemale}</button>
-                    <span className="picker-bc-sep">›</span>
-                    <span className="picker-bc-current">{pickerDiv.toUpperCase()}</span>
-                  </div>
-                  <button className="picker-back-btn" onClick={() => pickDiv(null)}>{t.backBtn}</button>
-                </div>
-                <h2>{t.selectAge}</h2>
-                {ageCats.length > 0 ? (
-                  <div className="age-chip-grid">
-                    {ageCats.map(ec => {
-                      const tc = TEAMS.filter(tm => tm.categoryId === ec.id).length;
-                      const empty = tc === 0;
-                      return (
-                        <button key={ec.id} className={`age-chip${pickerDiv === 'diamond' ? ' age-chip-diamond' : ''}${empty ? ' age-chip-empty' : ''}`} onClick={() => !empty && selectCat(ec.id)} disabled={empty}>
-                          <span className="age-chip-label">{ec.age || displayCatName(ec.name, t)}</span>
-                          <span className="age-chip-sub">{empty ? t.comingSoon : `${tc} ${lang === 'fr' ? (tc === 1 ? 'équipe' : 'équipes') : (tc === 1 ? 'team' : 'teams')}`}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="empty-note">{t.comingSoon}</div>
-                )}
               </div>
             )}
           </section>
