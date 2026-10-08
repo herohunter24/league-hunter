@@ -100,7 +100,12 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   position: relative; z-index: 1;
 }
 /* Ensure site header always renders above the fixed photo layer */
-.home-mode .site-header { position: sticky; z-index: 200; }
+.home-mode .site-header { position: sticky; z-index: 200; border-bottom-color: transparent !important; }
+/* POTM ticker: transparent in home mode so it floats over the photo, no dark band */
+.home-mode .potm-banner { background: transparent; border-bottom-color: transparent; }
+.home-mode .potm-chip { background: rgba(10,10,12,0.5); border-color: rgba(201,162,74,0.4); }
+.home-mode .potm-label-inline { border-right-color: rgba(201,162,74,0.3); }
+.home-mode .potm-chip-name, .home-mode .potm-label-inline { text-shadow: 0 1px 6px rgba(0,0,0,.8); }
 
 /* Swirl video: very subtle shimmer over photos */
 .hero-video {
@@ -144,18 +149,18 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   font-family: var(--ff-display); font-size: 12px; font-weight: 500;
   letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold);
   margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
 .hero-title {
   font-family: var(--ff-display); font-size: clamp(44px, 9vw, 110px); line-height: 0.95;
   font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink);
   animation: fadeUp 0.7s 0.12s ease both;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
 .hero-sub {
-  font-size: clamp(15px, 2.2vw, 21px); color: var(--ink-mid); margin-top: 22px;
+  font-size: clamp(15px, 2.2vw, 21px); color: #F4F1EA; margin-top: 22px;
   font-weight: 600; letter-spacing: 0.04em; animation: fadeUp 0.7s 0.24s ease both;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
 .hero-cta {
   margin-top: 42px; display: inline-block; padding: 16px 44px; border-radius: 4px;
@@ -182,12 +187,15 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
   z-index: -1; pointer-events: none;
 }
-/* Text-shadow on landing section text when over photos */
+/* Text-shadow + full-opacity paragraph color when over photos */
 .home-mode .lsec-title,
-.home-mode .sec-kicker,
+.home-mode .sec-kicker {
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
 .home-mode .lsec-sub,
 .home-mode .mission-body {
-  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+  color: #F4F1EA;
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
 
 .hero-topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px clamp(20px, 5vw, 56px); position: relative; z-index: 10; }
