@@ -126,7 +126,6 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-
   // ── Count-up numbers ──────────────────────────────────────
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -176,6 +175,63 @@ export default function App() {
     container.style.setProperty('--tab-left', (cr.left - pr.left) + 'px');
     container.style.setProperty('--tab-width', cr.width + 'px');
   }, [activeTab, selectedCat]);
+
+  // ── Scroll-driven photo dimming (home only) ───────────────
+  const dimRef = useRef(null);
+  useEffect(() => {
+    const dim = dimRef.current;
+    if (!dim) return; // dim div not mounted — not home mode
+
+    let raf = null;
+
+    // Compute breakpoints from actual section positions
+    const getBreakpoints = () => {
+      const startY  = 0.15 * window.innerHeight;
+      const cardsEl = document.querySelector('.landing-sec');
+      const rawCardsY = cardsEl
+        ? cardsEl.offsetTop + cardsEl.offsetHeight / 2 - window.innerHeight / 2
+        : window.innerHeight * 0.8;
+      const cardsY = Math.max(rawCardsY, startY + 1);
+      const endY   = Math.max(document.body.scrollHeight - window.innerHeight, cardsY + 1);
+      return { startY, cardsY, endY };
+    };
+
+    let bp = getBreakpoints();
+
+    const update = () => {
+      raf = null;
+      const sy = window.scrollY;
+      let opacity;
+      if (sy <= bp.startY) {
+        opacity = 0;
+      } else if (sy < bp.cardsY) {
+        opacity = 0.60 * (sy - bp.startY) / (bp.cardsY - bp.startY);
+      } else if (sy <= bp.endY) {
+        opacity = 0.60 + 0.15 * (sy - bp.cardsY) / (bp.endY - bp.cardsY);
+      } else {
+        opacity = 0.75;
+      }
+      dim.style.opacity = opacity;
+    };
+
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onResize = () => { bp = getBreakpoints(); update(); };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize, { passive: true });
+    update(); // initial (handles back-navigation / already-scrolled state)
+
+    // Re-sample after content settles (Firebase data may shift layout)
+    const t = setTimeout(() => { bp = getBreakpoints(); update(); }, 500);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+      if (raf) cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [showExplorer, selectedCat]); // re-run when home mode changes
+
   // ── All-Star hero parallax ──────────────────────────────
   useEffect(() => {
     if (selectedCat !== 'allstar') return;
@@ -207,6 +263,7 @@ export default function App() {
   const [sortKey, setSortKey]   = useState('rank');
   const [sortDir, setSortDir]   = useState('desc');
   const [openTeam, setOpenTeam] = useState(null);
+  const [slideshowKey, setSlideshowKey] = useState(0);
   const handleSort = key => { if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setSortKey(key); setSortDir('desc'); } };
   const thA = key => sortKey === key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
   const [statSortKey, setStatSortKey] = useState('ppg');
@@ -322,8 +379,39 @@ export default function App() {
 
   const openExplorer = () => {
     setShowExplorer(true);
+    history.pushState({ nls: 'explorer' }, '', buildPageUrl(null, 'standings', null, null));
     setTimeout(() => { const el = document.getElementById('explorer'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60);
   };
+
+  // Reset all navigation state to home (call doGoHome then push history, or call goHome directly)
+  function doGoHome() {
+    setAlertsOpen(false);
+    setSelectedPlayer(null);
+    setOpenGame(null);
+    setOpenTeam(null);
+    setShowExplorer(false);
+    setSelectedCat(null);
+    setActiveTab('standings');
+    setCatSearch('');
+    setSearch('');
+    setFTier('all');
+    setFTeam('all');
+    setFArch('all');
+    setSchedFilter('all');
+    setSchedTeam('all');
+    setShowAllPlayers(false);
+    if (dimRef.current) dimRef.current.style.opacity = 0;
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.querySelectorAll('.reveal.is-visible').forEach(el => el.classList.remove('is-visible'));
+    setSlideshowKey(k => k + 1);
+  }
+
+  function goHome() {
+    doGoHome();
+    const sp = new URLSearchParams();
+    sp.set('league', String(LEAGUE_ID || ''));
+    history.pushState({ nls: 'home' }, '', window.location.pathname + '?' + sp.toString());
+  }
 
   // ── URL / navigation helpers ──────────────────────────────
   const didInitRef = useRef(false);
@@ -350,9 +438,22 @@ export default function App() {
 
   // Sync state from URL on browser back/forward
   useEffect(() => {
-    const onPop = () => {
+    const onPop = (e) => {
+      if (e.state?.nls === 'home') {
+        doGoHome();
+        return;
+      }
+      if (e.state?.nls === 'explorer') {
+        setSelectedCat(null);
+        setActiveTab('standings');
+        setShowExplorer(true);
+        setSelectedPlayer(null);
+        setOpenGame(null);
+        return;
+      }
       const s = readUrlState();
       setSelectedCat(s.cat);
+      setShowExplorer(!!s.cat);
       setActiveTab(s.tab);
       setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
       setOpenGame(s.gameId ? (GAMES.find(ga => ga.id === s.gameId) || null) : null);
@@ -515,12 +616,14 @@ export default function App() {
     />
   );
 
+  const isHome = !showExplorer && !selectedCat;
+
   return (
-    <div>
+    <div className={isHome ? 'home-mode' : ''}>
       {/* ── SITE HEADER ── */}
       <div className={`site-header${scrolled ? ' scrolled' : ''}`}>
         <div className="site-header-inner">
-          <button className="site-header-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Accueil">
+          <button className="site-header-logo" onClick={goHome} aria-label="Accueil">
             {logoOk
               ? <img src={NLS_LOGO_WHITE} alt="NLS Création" onError={() => setLogoOk(false)} />
               : <span className="site-header-logo-fallback">NLS</span>}
@@ -566,10 +669,13 @@ export default function App() {
         );
       })()}
 
+      {/* ── FIXED PHOTO LAYER (home only) ── */}
+      {isHome && <HeroSlideshow key={slideshowKey} />}
+      {isHome && <div className="hero-dim" ref={dimRef} aria-hidden="true" />}
+
       {/* ── HERO ── */}
       <header className="hero">
-        <HeroSlideshow />
-        <HeroVideo />
+        {!isHome && <HeroVideo />}
         <div className="hero-scrim"></div>
         <div className="hero-fade-top"></div>
         <div className="hero-fade-bottom"></div>
@@ -614,8 +720,10 @@ export default function App() {
         <>
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
             <section className="landing-sec reveal">
-              <div className="lsec-title">{t.showcaseTitle}</div>
-              <div className="lsec-sub">{t.showcaseSub}</div>
+              <div className="text-halo">
+                <div className="lsec-title">{t.showcaseTitle}</div>
+                <div className="lsec-sub">{t.showcaseSub}</div>
+              </div>
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
@@ -628,12 +736,14 @@ export default function App() {
 
 
           <section className="landing-sec reveal">
-            <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
-            <div className="lsec-title">{lm.title || t.missionTitle}</div>
-            <div className="mission-body">
-              {lm.body
-                ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
-                : t.missionP1}
+            <div className="text-halo">
+              <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
+              <div className="lsec-title">{lm.title || t.missionTitle}</div>
+              <div className="mission-body">
+                {lm.body
+                  ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
+                  : t.missionP1}
+              </div>
             </div>
           </section>
         </>

@@ -33,7 +33,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .site-header-logo {
   background: none; border: none; cursor: pointer; padding: 0;
   display: flex; align-items: center; flex-shrink: 0;
+  transition: opacity 0.2s;
 }
+.site-header-logo:hover { opacity: 0.85; }
 .site-header-logo img { height: 30px; }
 .site-header-logo-fallback { font-family: var(--ff-display); font-weight: 700; letter-spacing: 0.12em; font-size: 17px; color: var(--ink); }
 .header-tabs { display: flex; align-items: center; gap: 2px; }
@@ -57,15 +59,13 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .potm-chip-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
 .potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
 
-/* ── HERO ── */
-.hero {
-  min-height: 80vh; position: relative; display: flex; flex-direction: column;
-  background: #0a0a0c;
-  overflow: hidden;
-}
+/* ── SCROLL-DRIVEN DIM LAYER (home only, above slideshow z:0, below content z:1) ── */
+.hero-dim { position: fixed; inset: 0; z-index: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 120ms linear; }
 
-/* Layer 1 — photo slideshow (bottom) */
-.hero-slideshow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+/* ── FIXED PHOTO SLIDESHOW (home only — rendered outside .hero) ── */
+.hero-slideshow {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+}
 .hero-slide-wrap {
   position: absolute; inset: 0;
   transition: opacity 1s ease;
@@ -75,17 +75,15 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   object-fit: cover; object-position: center center;
   user-select: none;
 }
-.hero-slide-dim { position: absolute; inset: 0; pointer-events: none; }
 .hero-slide-pan {
   animation: hero-pan 10s ease-in-out infinite alternate;
   will-change: transform;
 }
 @keyframes hero-pan {
-  0%   { transform: scale(1.08) translateX(-3%); }
-  100% { transform: scale(1.08) translateX(3%); }
+  0%   { transform: scale(1.05) translateX(-2%); }
+  100% { transform: scale(1.05) translateX(2%); }
 }
 @media (max-width: 640px) {
-  .hero-slide { object-position: center center !important; }
   .hero-slide-pan { animation-name: hero-pan-mobile; }
   @keyframes hero-pan-mobile {
     0%   { transform: scale(1.05) translateX(-1.5%); }
@@ -96,45 +94,83 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .hero-slide-pan { animation: none; transform: none; }
 }
 
-/* Layer 2 — dark scrim (above photos, below video) */
-.hero-scrim {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(10,10,12,0.25) 0%, rgba(10,10,12,0.55) 100%);
+/* ── HERO ── */
+.hero {
+  min-height: 80vh; position: relative; display: flex; flex-direction: column;
+  background: #0a0a0c; overflow: hidden;
 }
+/* Home mode: clip horizontal overflow from halos without breaking sticky (clip ≠ hidden) */
+.home-mode { overflow-x: clip; }
 
-/* Layer 3 — swirl video (semi-transparent, blends with photos through scrim) */
+/* Home mode: hero is transparent so fixed slideshow shows through */
+.home-mode .hero {
+  background: transparent;
+  overflow: visible; /* allow radial halos to bleed past hero edges without hard clip line */
+  position: relative; z-index: 1;
+}
+/* Ensure site header always renders above the fixed photo layer */
+.home-mode .site-header { position: sticky; z-index: 200; border-bottom-color: transparent !important; }
+/* POTM ticker: transparent in home mode so it floats over the photo, no dark band */
+.home-mode .potm-banner { background: transparent; border-bottom-color: transparent; }
+.home-mode .potm-chip { background: rgba(10,10,12,0.5); border-color: rgba(201,162,74,0.4); }
+.home-mode .potm-label-inline { border-right-color: rgba(201,162,74,0.3); }
+.home-mode .potm-chip-name, .home-mode .potm-label-inline { text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+
+/* Swirl video: very subtle shimmer over photos */
 .hero-video {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; z-index: 2; pointer-events: none;
-  opacity: 0.15; mix-blend-mode: screen;
+  object-fit: cover; z-index: 1; pointer-events: none;
+  opacity: 0.12; mix-blend-mode: screen;
 }
 
-/* Layer 4 — edge fades (above video) */
+/* Scrim: full dark overlay in normal mode; hidden in home mode */
+.hero-scrim {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(10,10,12,0.45) 0%, rgba(10,10,12,0.65) 100%);
+}
+.home-mode .hero-scrim { display: none; }
+
+/* Edge fades: hidden in home mode (no black edges over photos) */
 .hero-fade-top, .hero-fade-bottom {
   position: absolute; left: 0; right: 0; height: 200px;
   pointer-events: none; z-index: 3;
 }
 .hero-fade-top { top: 0; background: linear-gradient(to bottom, #0a0a0c, transparent); }
 .hero-fade-bottom { bottom: 0; background: linear-gradient(to top, #0a0a0c, transparent); }
+.home-mode .hero-fade-top,
+.home-mode .hero-fade-bottom { display: none; }
 
-/* Layer 5 — content (above everything) */
+/* Hero content */
 .hero-topbar, .hero-inner { position: relative; z-index: 10; }
-
-.hero-inner { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px 40px; position: relative; z-index: 10; }
-/* Soft radial dark spot behind text block only — does not affect photos outside this area */
-.hero-inner::before {
-  content: ''; position: absolute; inset: -20% -30%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, transparent 60%);
+.hero-inner {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 40px 24px 40px;
+}
+/* Soft radial shadow centered behind hero text — fades to 0 at own edges, no clip line */
+.home-mode .hero-inner::before {
+  content: ''; position: absolute; inset: -15% 0;
+  background: radial-gradient(closest-side, rgba(0,0,0,.35), rgba(0,0,0,0));
   z-index: -1; pointer-events: none;
 }
+
 .hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; opacity: 0.92; animation: fadeUp 0.6s ease both; }
-.hero-kicker { font-family: var(--ff-display); font-size: 12px; font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap; text-shadow: 0 2px 18px rgba(0,0,0,0.6); }
+.hero-kicker {
+  font-family: var(--ff-display); font-size: 14px; font-weight: 600;
+  letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap;
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
 .hero-title {
   font-family: var(--ff-display); font-size: clamp(44px, 9vw, 110px); line-height: 0.95;
   font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink);
-  animation: fadeUp 0.7s 0.12s ease both; text-shadow: 0 2px 18px rgba(0,0,0,0.6);
+  animation: fadeUp 0.7s 0.12s ease both;
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
 }
-.hero-sub { font-size: clamp(15px, 2.2vw, 21px); color: var(--ink-mid); margin-top: 22px; font-weight: 600; letter-spacing: 0.04em; animation: fadeUp 0.7s 0.24s ease both; text-shadow: 0 2px 18px rgba(0,0,0,0.6); }
+.hero-sub {
+  font-size: clamp(15px, 2.2vw, 21px); color: #F4F1EA; margin-top: 22px;
+  font-weight: 600; letter-spacing: 0.04em; animation: fadeUp 0.7s 0.24s ease both;
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
 .hero-cta {
   margin-top: 42px; display: inline-block; padding: 16px 44px; border-radius: 4px;
   background: var(--gold); color: #000;
@@ -145,6 +181,34 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .hero-cta:hover { background: var(--gold-soft); transform: translateY(-2px); }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Home mode: landing sections transparent so slideshow shows through */
+.home-mode .landing-sec {
+  position: relative; z-index: 1;
+  background: transparent;
+}
+/* Soft radial shadow behind landing section text — no visible box edges */
+.home-mode .text-halo {
+  position: relative; z-index: 0; /* stacking context so ::before is behind text */
+}
+.home-mode .text-halo::before {
+  content: ''; position: absolute; inset: -15% 0;
+  background: radial-gradient(closest-side, rgba(0,0,0,.35), rgba(0,0,0,0));
+  z-index: -1; pointer-events: none;
+}
+/* Text-shadow + full-opacity paragraph color when over photos */
+.home-mode .lsec-title {
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
+.home-mode .sec-kicker {
+  font-size: 13px; font-weight: 600;
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
+.home-mode .landing-sec .lsec-sub,
+.home-mode .mission-body {
+  color: #F4F1EA; font-weight: 500;
+  text-shadow: 0 2px 12px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.9);
+}
 
 .hero-topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px clamp(20px, 5vw, 56px); position: relative; z-index: 10; }
 .hero-logo { height: 46px; filter: invert(1) brightness(1.6); }
@@ -499,7 +563,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .leader-bar-fill { height: 100%; border-radius: 2px; background: var(--gold); }
 
 /* ── FOOTER ── */
-.footer { border-top: 1px solid var(--border); background: #08080a; padding: 56px clamp(18px, 4vw, 40px) 40px; }
+.footer { border-top: 1px solid var(--border); background: #08080a; padding: 56px clamp(18px, 4vw, 40px) 40px; position: relative; z-index: 1; }
 .footer-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
 .footer-col {}
 .footer-col--brand {}
@@ -709,8 +773,16 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   html, body { overflow-x: clip; }
 
   /* ── SITE HEADER: compact on mobile ── */
-  .site-header-inner { height: 56px; }
+  .site-header-inner { height: 56px; justify-content: flex-start; gap: 8px; padding: 0 16px; }
   .header-tabs { display: none; }
+
+  /* alerts button: icon-only square on mobile */
+  .alerts-trigger-btn span { display: none; }
+  .alerts-trigger-btn { width: 40px; height: 40px; padding: 0; justify-content: center; margin-left: auto; flex-shrink: 0; }
+
+  /* lang toggle: always fully visible, compact, same height as alerts button */
+  .lang-toggle { flex-shrink: 0; height: 40px; }
+  .lang-toggle button { padding: 0 10px; height: 100%; }
 
   /* ── NAV: all 4 tabs always visible, sticks below header ── */
   .nav { gap: 0; overflow-x: hidden; justify-content: stretch; display: flex; top: 56px; }
@@ -745,7 +817,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .games-grid { grid-template-columns: 1fr; }
   .standings-table .hide-m { display: none; }
 
-  .hero-kicker { font-size: 10px; letter-spacing: 0.15em; white-space: normal; text-align: center; }
+  .hero-kicker { font-size: 12px; letter-spacing: 0.15em; white-space: normal; text-align: center; }
 
   /* ── FOOTER: 2-column on mobile ── */
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
@@ -862,6 +934,8 @@ button:active { transform: scale(0.98); }
   transition: left 0.25s ease-out, width 0.2s ease-out;
   pointer-events: none;
 }
+/* hide indicator when no tabs are rendered */
+.header-tabs:empty::after { display: none; }
 /* Individual tab border hidden — indicator handles it */
 .header-tab.active { border-bottom-color: transparent; }
 
