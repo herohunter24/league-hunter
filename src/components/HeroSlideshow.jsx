@@ -53,19 +53,11 @@ export function HeroSlideshow() {
     const photo = HERO_PHOTOS[slot.idx % N];
     return (
       <div key={slot.key} className="hero-slide-wrap" style={{ opacity: slot.opacity }}>
-        {/* Blurred fill — cover, fills the sides behind the portrait photo */}
         <img
           src={photo.src}
           alt=""
-          className="hero-slide-bg"
-          draggable="false"
-        />
-        {/* Sharp full photo — contain so faces/bodies are never cropped */}
-        <img
-          src={photo.src}
-          alt=""
-          className={`hero-slide-sharp${rm ? '' : ' hero-slide-pan'}`}
-          style={{ '--focal': photo.objectPosition }}
+          className={`hero-slide${rm ? '' : ' hero-slide-pan'}`}
+          style={{ objectPosition: photo.objectPosition }}
           draggable="false"
           fetchpriority={slot.opacity === 1 ? 'high' : 'low'}
         />

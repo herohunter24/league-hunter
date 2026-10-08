@@ -578,17 +578,15 @@ export default function App() {
         <div className="hero-fade-top"></div>
         <div className="hero-fade-bottom"></div>
         <div className="hero-inner">
-          <div className="hero-glass">
-            {logoOk
-              ? <img className="hero-visual-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
-              : null}
-            <div className="hero-kicker">{t.kicker}</div>
-            <h1 className="hero-title">{t.heroTitle}</h1>
-            <p className="hero-sub">{t.heroSub}</p>
-            <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
-              {t.cta} →
-            </button>
-          </div>
+          {logoOk
+            ? <img className="hero-visual-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
+            : null}
+          <div className="hero-kicker">{t.kicker}</div>
+          <h1 className="hero-title">{t.heroTitle}</h1>
+          <p className="hero-sub">{t.heroSub}</p>
+          <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
+            {t.cta} →
+          </button>
         </div>
         <div ref={scrollCueRef} className="hero-scroll-cue" aria-hidden="true">
           <span className="chev" /><span className="chev" />
@@ -620,7 +618,7 @@ export default function App() {
         <>
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
             <section className="landing-sec reveal">
-              <div className="glass-panel">
+              <div className="text-halo">
                 <div className="lsec-title">{t.showcaseTitle}</div>
                 <div className="lsec-sub">{t.showcaseSub}</div>
               </div>
@@ -636,7 +634,7 @@ export default function App() {
 
 
           <section className="landing-sec reveal">
-            <div className="glass-panel">
+            <div className="text-halo">
               <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
               <div className="lsec-title">{lm.title || t.missionTitle}</div>
               <div className="mission-body">
