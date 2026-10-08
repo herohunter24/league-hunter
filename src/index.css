@@ -771,8 +771,16 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   html, body { overflow-x: clip; }
 
   /* ── SITE HEADER: compact on mobile ── */
-  .site-header-inner { height: 56px; }
+  .site-header-inner { height: 56px; justify-content: flex-start; gap: 8px; padding: 0 16px; }
   .header-tabs { display: none; }
+
+  /* alerts button: icon-only square on mobile */
+  .alerts-trigger-btn span { display: none; }
+  .alerts-trigger-btn { width: 40px; height: 40px; padding: 0; justify-content: center; margin-left: auto; flex-shrink: 0; }
+
+  /* lang toggle: always fully visible, compact, same height as alerts button */
+  .lang-toggle { flex-shrink: 0; height: 40px; }
+  .lang-toggle button { padding: 0 10px; height: 100%; }
 
   /* ── NAV: all 4 tabs always visible, sticks below header ── */
   .nav { gap: 0; overflow-x: hidden; justify-content: stretch; display: flex; top: 56px; }
