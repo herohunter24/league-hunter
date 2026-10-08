@@ -515,8 +515,10 @@ export default function App() {
     />
   );
 
+  const isHome = !showExplorer && !selectedCat;
+
   return (
-    <div>
+    <div className={isHome ? 'home-mode' : ''}>
       {/* ── SITE HEADER ── */}
       <div className={`site-header${scrolled ? ' scrolled' : ''}`}>
         <div className="site-header-inner">
@@ -566,23 +568,27 @@ export default function App() {
         );
       })()}
 
+      {/* ── FIXED PHOTO LAYER (home only) ── */}
+      {isHome && <HeroSlideshow />}
+
       {/* ── HERO ── */}
       <header className="hero">
-        <HeroSlideshow />
         <HeroVideo />
         <div className="hero-scrim"></div>
         <div className="hero-fade-top"></div>
         <div className="hero-fade-bottom"></div>
         <div className="hero-inner">
-          {logoOk
-            ? <img className="hero-visual-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
-            : null}
-          <div className="hero-kicker">{t.kicker}</div>
-          <h1 className="hero-title">{t.heroTitle}</h1>
-          <p className="hero-sub">{t.heroSub}</p>
-          <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
-            {t.cta} →
-          </button>
+          <div className="hero-glass">
+            {logoOk
+              ? <img className="hero-visual-logo" src={NLS_LOGO_WHITE} alt="NLS Création" />
+              : null}
+            <div className="hero-kicker">{t.kicker}</div>
+            <h1 className="hero-title">{t.heroTitle}</h1>
+            <p className="hero-sub">{t.heroSub}</p>
+            <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
+              {t.cta} →
+            </button>
+          </div>
         </div>
         <div ref={scrollCueRef} className="hero-scroll-cue" aria-hidden="true">
           <span className="chev" /><span className="chev" />
@@ -614,8 +620,10 @@ export default function App() {
         <>
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
             <section className="landing-sec reveal">
-              <div className="lsec-title">{t.showcaseTitle}</div>
-              <div className="lsec-sub">{t.showcaseSub}</div>
+              <div className="glass-panel">
+                <div className="lsec-title">{t.showcaseTitle}</div>
+                <div className="lsec-sub">{t.showcaseSub}</div>
+              </div>
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
@@ -628,12 +636,14 @@ export default function App() {
 
 
           <section className="landing-sec reveal">
-            <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
-            <div className="lsec-title">{lm.title || t.missionTitle}</div>
-            <div className="mission-body">
-              {lm.body
-                ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
-                : t.missionP1}
+            <div className="glass-panel">
+              <div className="sec-kicker">{lm.subtitle || t.missionSub}</div>
+              <div className="lsec-title">{lm.title || t.missionTitle}</div>
+              <div className="mission-body">
+                {lm.body
+                  ? lm.body.split('\n').map((para, i) => <React.Fragment key={i}>{i > 0 && <><br /><br /></>}{para}</React.Fragment>)
+                  : t.missionP1}
+              </div>
             </div>
           </section>
         </>

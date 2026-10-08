@@ -57,35 +57,43 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .potm-chip-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
 .potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
 
-/* ── HERO ── */
-.hero {
-  min-height: 80vh; position: relative; display: flex; flex-direction: column;
-  background: #0a0a0c;
-  overflow: hidden;
+/* ── FIXED PHOTO SLIDESHOW (home only — rendered outside .hero) ── */
+.hero-slideshow {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
 }
-
-/* Layer 1 — photo slideshow (bottom) */
-.hero-slideshow { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .hero-slide-wrap {
   position: absolute; inset: 0;
   transition: opacity 1s ease;
 }
-.hero-slide {
+/* Blurred fill: cover, fills the side bars behind the portrait photo */
+.hero-slide-bg {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; object-position: center center;
+  object-fit: cover; object-position: center;
+  filter: blur(30px) saturate(1.1) brightness(0.9);
+  transform: scale(1.05); /* prevent blur edge fringing */
   user-select: none;
 }
-.hero-slide-dim { position: absolute; inset: 0; pointer-events: none; }
+/* Sharp portrait: contain so faces/bodies are never cropped */
+.hero-slide-sharp {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; object-position: center;
+  user-select: none;
+}
 .hero-slide-pan {
   animation: hero-pan 10s ease-in-out infinite alternate;
   will-change: transform;
 }
 @keyframes hero-pan {
-  0%   { transform: scale(1.08) translateX(-3%); }
-  100% { transform: scale(1.08) translateX(3%); }
+  0%   { transform: scale(1.04) translateX(-2%); }
+  100% { transform: scale(1.04) translateX(2%); }
 }
+/* Mobile: single cover photo with focal points */
 @media (max-width: 640px) {
-  .hero-slide { object-position: center center !important; }
+  .hero-slide-bg { display: none; }
+  .hero-slide-sharp {
+    object-fit: cover;
+    object-position: var(--focal, center center);
+  }
   .hero-slide-pan { animation-name: hero-pan-mobile; }
   @keyframes hero-pan-mobile {
     0%   { transform: scale(1.05) translateX(-1.5%); }
@@ -96,45 +104,95 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .hero-slide-pan { animation: none; transform: none; }
 }
 
-/* Layer 2 — dark scrim (above photos, below video) */
-.hero-scrim {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(10,10,12,0.25) 0%, rgba(10,10,12,0.55) 100%);
+/* ── GLASS PANEL — text readability over photos ── */
+.glass-panel {
+  background: rgba(10,10,10,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 16px;
+  padding: 24px 32px;
+  display: inline-block;
 }
 
-/* Layer 3 — swirl video (semi-transparent, blends with photos through scrim) */
+/* ── HERO ── */
+.hero {
+  min-height: 80vh; position: relative; display: flex; flex-direction: column;
+  background: #0a0a0c; overflow: hidden;
+}
+/* Home mode: hero is transparent so fixed slideshow shows through */
+.home-mode .hero {
+  background: transparent;
+  position: relative; z-index: 1;
+}
+
+/* Swirl video: very subtle shimmer over photos */
 .hero-video {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; z-index: 2; pointer-events: none;
-  opacity: 0.15; mix-blend-mode: screen;
+  object-fit: cover; z-index: 1; pointer-events: none;
+  opacity: 0.12; mix-blend-mode: screen;
 }
 
-/* Layer 4 — edge fades (above video) */
+/* Scrim: full dark overlay in normal mode; hidden in home mode */
+.hero-scrim {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(10,10,12,0.45) 0%, rgba(10,10,12,0.65) 100%);
+}
+.home-mode .hero-scrim { display: none; }
+
+/* Edge fades */
 .hero-fade-top, .hero-fade-bottom {
   position: absolute; left: 0; right: 0; height: 200px;
   pointer-events: none; z-index: 3;
 }
 .hero-fade-top { top: 0; background: linear-gradient(to bottom, #0a0a0c, transparent); }
 .hero-fade-bottom { bottom: 0; background: linear-gradient(to top, #0a0a0c, transparent); }
+/* No bottom fade to black over photos in home mode */
+.home-mode .hero-fade-top,
+.home-mode .hero-fade-bottom { display: none; }
 
-/* Layer 5 — content (above everything) */
+/* Hero content */
 .hero-topbar, .hero-inner { position: relative; z-index: 10; }
-
-.hero-inner { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 24px 40px; position: relative; z-index: 10; }
-/* Soft radial dark spot behind text block only — does not affect photos outside this area */
-.hero-inner::before {
-  content: ''; position: absolute; inset: -20% -30%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, transparent 60%);
-  z-index: -1; pointer-events: none;
+.hero-inner {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 40px 24px 40px;
 }
+/* Glass panel wraps all hero text content */
+.hero-glass {
+  display: flex; flex-direction: column; align-items: center;
+  background: rgba(10,10,10,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 20px;
+  padding: 36px 40px;
+}
+/* In normal (non-home) mode, hero-glass is invisible */
+.hero-glass { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0; padding: 0; }
+.home-mode .hero-glass {
+  background: rgba(10,10,10,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 20px;
+  padding: 36px 40px;
+}
+
 .hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; opacity: 0.92; animation: fadeUp 0.6s ease both; }
-.hero-kicker { font-family: var(--ff-display); font-size: 12px; font-weight: 500; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap; text-shadow: 0 2px 18px rgba(0,0,0,0.6); }
+.hero-kicker {
+  font-family: var(--ff-display); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 16px; animation: fadeUp 0.7s ease both; white-space: nowrap;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+}
 .hero-title {
   font-family: var(--ff-display); font-size: clamp(44px, 9vw, 110px); line-height: 0.95;
   font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink);
-  animation: fadeUp 0.7s 0.12s ease both; text-shadow: 0 2px 18px rgba(0,0,0,0.6);
+  animation: fadeUp 0.7s 0.12s ease both;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
 }
-.hero-sub { font-size: clamp(15px, 2.2vw, 21px); color: var(--ink-mid); margin-top: 22px; font-weight: 600; letter-spacing: 0.04em; animation: fadeUp 0.7s 0.24s ease both; text-shadow: 0 2px 18px rgba(0,0,0,0.6); }
+.hero-sub {
+  font-size: clamp(15px, 2.2vw, 21px); color: var(--ink-mid); margin-top: 22px;
+  font-weight: 600; letter-spacing: 0.04em; animation: fadeUp 0.7s 0.24s ease both;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+}
 .hero-cta {
   margin-top: 42px; display: inline-block; padding: 16px 44px; border-radius: 4px;
   background: var(--gold); color: #000;
@@ -145,6 +203,31 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .hero-cta:hover { background: var(--gold-soft); transform: translateY(-2px); }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Home mode: landing sections transparent so slideshow shows through */
+.home-mode .landing-sec {
+  position: relative; z-index: 1;
+  background: transparent;
+}
+/* Glass panel in landing sections */
+.home-mode .glass-panel {
+  display: block;
+  background: rgba(10,10,10,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 16px;
+  padding: 28px 36px;
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto 36px;
+}
+/* Text-shadow on landing section text when over photos */
+.home-mode .lsec-title,
+.home-mode .sec-kicker,
+.home-mode .lsec-sub,
+.home-mode .mission-body {
+  text-shadow: 0 2px 4px rgba(0,0,0,0.7), 0 4px 24px rgba(0,0,0,0.5);
+}
 
 .hero-topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px clamp(20px, 5vw, 56px); position: relative; z-index: 10; }
 .hero-logo { height: 46px; filter: invert(1) brightness(1.6); }

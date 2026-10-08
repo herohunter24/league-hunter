@@ -4,13 +4,11 @@ import { HERO_PHOTOS } from '../config/heroPhotos.js';
 const N = HERO_PHOTOS.length;
 
 export function HeroSlideshow() {
-  // Two slots: each slot has a photo index and a key (increments on new photo load → remounts img → resets pan)
   const [slotA, setSlotA] = useState({ idx: 0, key: 0, opacity: 1 });
   const [slotB, setSlotB] = useState({ idx: 1, key: 1, opacity: 0 });
 
-  // Use refs for mutable state read inside setInterval without stale closure
-  const fgRef   = useRef('a');   // which slot is currently foreground
-  const nextRef = useRef(2);     // index of next photo to preload after each swap
+  const fgRef   = useRef('a');
+  const nextRef = useRef(2);
 
   const reduced = useRef(
     typeof window !== 'undefined' &&
@@ -18,13 +16,12 @@ export function HeroSlideshow() {
   );
 
   useEffect(() => {
-    const SHOW = 4000;   // ms each photo is fully visible
-    const FADE = 1000;   // ms crossfade duration (must match CSS transition)
+    const SHOW = 4000;
+    const FADE = 1000;
 
     const iv = setInterval(() => {
       const fg = fgRef.current;
 
-      // Step 1: start crossfade — incoming (bg) fades to 1, outgoing (fg) fades to 0
       if (fg === 'a') {
         setSlotA(s => ({ ...s, opacity: 0 }));
         setSlotB(s => ({ ...s, opacity: 1 }));
@@ -33,21 +30,19 @@ export function HeroSlideshow() {
         setSlotA(s => ({ ...s, opacity: 1 }));
       }
 
-      // Step 2: after crossfade completes, swap fg and reload old fg slot with next photo
       setTimeout(() => {
         const newFg  = fg === 'a' ? 'b' : 'a';
         const nextPh = nextRef.current % N;
         nextRef.current++;
         fgRef.current = newFg;
 
-        // Reset the OLD fg slot: new photo + incremented key (triggers remount → pan reset)
         if (fg === 'a') {
           setSlotA(s => ({ idx: nextPh, key: s.key + 2, opacity: 0 }));
         } else {
           setSlotB(s => ({ idx: nextPh, key: s.key + 2, opacity: 0 }));
         }
       }, FADE);
-    }, SHOW + FADE); // 5000 ms total per photo
+    }, SHOW + FADE);
 
     return () => clearInterval(iv);
   }, []);
@@ -58,17 +53,22 @@ export function HeroSlideshow() {
     const photo = HERO_PHOTOS[slot.idx % N];
     return (
       <div key={slot.key} className="hero-slide-wrap" style={{ opacity: slot.opacity }}>
+        {/* Blurred fill — cover, fills the sides behind the portrait photo */}
         <img
           src={photo.src}
           alt=""
-          className={`hero-slide${rm ? '' : ' hero-slide-pan'}`}
-          style={{ objectPosition: photo.objectPosition }}
-          fetchpriority="low"
+          className="hero-slide-bg"
           draggable="false"
         />
-        {photo.dim > 0 && (
-          <div className="hero-slide-dim" style={{ background: `rgba(0,0,0,${photo.dim})` }} />
-        )}
+        {/* Sharp full photo — contain so faces/bodies are never cropped */}
+        <img
+          src={photo.src}
+          alt=""
+          className={`hero-slide-sharp${rm ? '' : ' hero-slide-pan'}`}
+          style={{ '--focal': photo.objectPosition }}
+          draggable="false"
+          fetchpriority={slot.opacity === 1 ? 'high' : 'low'}
+        />
       </div>
     );
   }
