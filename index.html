@@ -79,12 +79,25 @@
 </script>
 
 <style>
+  :root {
+    --bg:          #0B1220;
+    --surface:     #111A2E;
+    --surface-2:   #17223A;
+    --border:      #22304D;
+    --text:        #F2F5FA;
+    --text-muted:  #A9B4C6;
+    --primary:     #2F7BFF;
+    --primary-fill:#1F6BFF;
+    --success:     #22C55E;
+    --warning:     #F59E0B;
+    --danger:      #EF4444;
+  }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #08080f; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+  body { background: var(--bg); font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: var(--text); }
   input, select, button { font-family: inherit; }
   ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #111120; }
-  ::-webkit-scrollbar-thumb { background: #23233a; border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   .cat-tabs-row { display: flex; align-items: center; overflow-x: auto; }
   .cat-select-row { display: none; padding: 8px 16px; }
   @media (max-width: 640px) {
@@ -107,11 +120,11 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes wxPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
   .spinner { width: 20px; height: 20px; border: 2.5px solid #ffffff30; border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
-  .spinner-dark { border-color: #6366f130; border-top-color: #6366f1; }
+  .spinner-dark { border-color: #2F7BFF30; border-top-color: #2F7BFF; }
 
   /* Modal: full-screen on mobile */
   .modal-overlay { position: fixed; inset: 0; background: #00000095; display: flex; align-items: center; justify-content: center; z-index: 200; }
-  .modal-box { background: #13132b; border: 1px solid #23233a; border-radius: 12px; padding: 32px; }
+  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 32px; }
   @media (max-width: 640px) {
     .modal-overlay { align-items: flex-end; }
     .modal-box { width: 100% !important; max-width: 100% !important; border-radius: 16px 16px 0 0 !important; padding: 24px 20px 36px !important; max-height: 92vh; overflow-y: auto; }
@@ -137,7 +150,7 @@
   .toast-success { background: #14302a; border: 1px solid #22c55e50; color: #4ade80; }
   .toast-error   { background: #2e1313; border: 1px solid #ef444450; color: #f87171; }
   .toast-warning { background: #2c1e08; border: 1px solid #f59e0b50; color: #fbbf24; }
-  .toast-info    { background: #13172e; border: 1px solid #6366f150; color: #818cf8; }
+  .toast-info    { background: #0F1E3A; border: 1px solid #2F7BFF50; color: #7AADFF; }
   .toast-close   { margin-left: auto; background: none; border: none; color: inherit; opacity: 0.6; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; flex-shrink: 0; }
   .toast-close:hover { opacity: 1; }
   @media (max-width: 640px) {
@@ -163,7 +176,7 @@
     0%, 100% { transform: scaleX(1);   opacity: 0.18; }
     50%       { transform: scaleX(1.5); opacity: 0.4; }
   }
-  #wx-loader { position:fixed;inset:0;z-index:99999;background:#08080f;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;transition:opacity 0.5s ease; }
+  #wx-loader { position:fixed;inset:0;z-index:99999;background:#0B1220;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter','Segoe UI',system-ui,sans-serif;transition:opacity 0.5s ease; }
 </style>
 </head>
 <body>
@@ -172,8 +185,8 @@
 <div id="wx-loader">
   <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;">
     <!-- Wordmark -->
-    <div style="font-size:11px;font-weight:700;letter-spacing:0.22em;color:#6366f160;text-transform:uppercase;margin-bottom:8px;">League Hunter</div>
-    <div style="font-size:28px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;margin-bottom:36px;">Website X</div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:0.16em;color:#A9B4C640;text-transform:uppercase;margin-bottom:8px;">League Hunter</div>
+    <div style="font-size:24px;font-weight:600;color:#F2F5FA;letter-spacing:-0.3px;margin-bottom:36px;">Website X</div>
     <!-- Basketball SVG -->
     <div style="position:relative;height:80px;display:flex;flex-direction:column;align-items:center;margin-bottom:28px;">
       <svg width="56" height="56" viewBox="0 0 60 60" style="animation:wx-bounce 0.72s ease-in-out infinite;transform-origin:50% 100%;display:block;flex-shrink:0;">
@@ -185,11 +198,11 @@
         <circle cx="30" cy="30" r="28" fill="none" stroke="#b84d18" stroke-width="1.5" opacity="0.6"/>
       </svg>
       <!-- Ground shadow -->
-      <div style="width:40px;height:8px;border-radius:50%;background:#6366f1;margin-top:4px;animation:wx-shadow 0.72s ease-in-out infinite;"></div>
+      <div style="width:40px;height:8px;border-radius:50%;background:#2F7BFF40;margin-top:4px;animation:wx-shadow 0.72s ease-in-out infinite;"></div>
     </div>
     <!-- Progress bar -->
-    <div style="width:200px;height:3px;background:#1a1a2e;border-radius:2px;overflow:hidden;margin-bottom:20px;">
-      <div id="wx-prog" style="height:100%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:2px;width:0;transition:width 0.1s linear;"></div>
+    <div style="width:200px;height:2px;background:#22304D;border-radius:2px;overflow:hidden;margin-bottom:20px;">
+      <div id="wx-prog" style="height:100%;background:#1F6BFF;border-radius:2px;width:0;transition:width 0.1s linear;"></div>
     </div>
     <!-- Message -->
     <div id="wx-msg" style="font-size:13px;color:#4b5563;transition:opacity 0.3s ease;min-height:20px;"></div>
@@ -249,7 +262,7 @@
     if(!wrap) return;
     var btn=document.createElement('button');
     btn.textContent='Retry';
-    btn.style.cssText='margin:14px auto 0;display:block;padding:9px 24px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;';
+    btn.style.cssText='margin:14px auto 0;display:block;padding:9px 24px;background:#1F6BFF;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;';
     btn.onclick=function(){ location.reload(); };
     wrap.firstElementChild.appendChild(btn);
   };
@@ -726,18 +739,21 @@ const DEMO_LEAGUES = [
   },
   {
     id: 2, name: "Basketball Winter League", sport: "Basketball",
-    domain: "bballwinter.com", color: "#f97316",
+    domain: "bballwinter.com", color: "#2F7BFF",
     teams: [], players: [], schedule: [],
   },
 ];
 
-const BG = "#08080f", SURF = "#111120", CARD = "#16162a", BORDER = "#23233a";
-const ACC = "#f97316", T1 = "#e8e8f5", T2 = "#A9B4C6";
+const BG = "#0B1220", SURF = "#111A2E", CARD = "#17223A", BORDER = "#22304D";
+const ACC = "#2F7BFF", T1 = "#F2F5FA", T2 = "#A9B4C6";
+const PRIMARY_FILL = "#1F6BFF";
 
 const inp = { background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "10px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box" };
-const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 8, color: "#fff", padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" });
-const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px" };
-const lbl = { fontSize: 12, color: T2, fontWeight: 600, display: "block", marginBottom: 6 };
+const btn = (bg = PRIMARY_FILL) => ({ background: bg, border: "none", borderRadius: 8, color: "#fff", padding: "8px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", height: 36, display: "inline-flex", alignItems: "center", gap: 6 });
+const btnOutline = (color = T2) => ({ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color, padding: "7px 16px", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", height: 36, display: "inline-flex", alignItems: "center", gap: 6 });
+const btnDanger = () => ({ background: "none", border: "1px solid #EF444470", borderRadius: 8, color: "#EF4444", padding: "7px 16px", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", height: 36, display: "inline-flex", alignItems: "center", gap: 6 });
+const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "20px 24px" };
+const lbl = { fontSize: 13, color: T2, fontWeight: 500, display: "block", marginBottom: 6 };
 
 // ── HELPERS ──
 // ── MIGRATION: Ensure league has categories array ──
@@ -885,7 +901,7 @@ function getToggles(league) {
 // desc=settings description | color=accent | defaultOn=default toggle | locked=cannot disable | isPct=display with %
 const SPORT_STATS = {
   Basketball: [
-    { key: "points",    label: "PTS", avg: "PPG",  full: "Points",      desc: "Track scoring and points leaders (required for score validation)", color: "#f97316", defaultOn: true,  locked: true  },
+    { key: "points",    label: "PTS", avg: "PPG",  full: "Points",      desc: "Track scoring and points leaders (required for score validation)", color: "#2F7BFF", defaultOn: true,  locked: true  },
     { key: "rebounds",  label: "REB", avg: "RPG",  full: "Rebounds",    desc: "Track rebounds and rebounding leaders",                            color: "#22c55e", defaultOn: true  },
     { key: "assists",   label: "AST", avg: "APG",  full: "Assists",     desc: "Track assists and assist leaders",                                 color: "#38bdf8", defaultOn: true  },
     { key: "steals",    label: "STL", avg: "SPG",  full: "Steals",      desc: "Track steals and steal leaders",                                   color: "#f472b6", defaultOn: true  },
@@ -1119,12 +1135,12 @@ function ConfirmModal({ icon, title, body, confirmLabel, onConfirm, onCancel }) 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}>
       <div style={{ width: 400, ...card, padding: 32, textAlign: "center" }}>
-        <div style={{ fontSize: 36, marginBottom: 14 }}>{icon}</div>
+        {icon && <div style={{ fontSize: 36, marginBottom: 14 }}>{icon}</div>}
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{title}</div>
         <div style={{ fontSize: 14, color: T2, marginBottom: 24 }}>{body}</div>
         <div style={{ display: "flex", gap: 12 }}>
           <button style={{ ...btn("#ef4444"), flex: 1 }} onClick={onConfirm}>{confirmLabel || "Confirm"}</button>
-          <button style={{ ...btn("#252540"), flex: 1 }} onClick={onCancel}>Cancel</button>
+          <button style={{ ...btnOutline(), flex: 1 }} onClick={onCancel}>Cancel</button>
         </div>
       </div>
     </div>
@@ -1185,10 +1201,10 @@ function ActionConfirmModal({
 
   // Icon + title derived from actionType
   const ACTION_META = {
-    add:    { icon: '➕', verb: 'Add'    },
-    edit:   { icon: '✏️',  verb: 'Edit'   },
-    delete: { icon: '🗑️', verb: 'Delete' },
-    modify: { icon: '⚙️', verb: 'Modify' },
+    add:    { icon: '+', verb: 'Add'    },
+    edit:   { icon: '~', verb: 'Edit'   },
+    delete: { icon: '×', verb: 'Delete' },
+    modify: { icon: '·', verb: 'Modify' },
   };
   const meta       = ACTION_META[actionType] || ACTION_META.modify;
   const entityCap  = entityType ? entityType.charAt(0).toUpperCase() + entityType.slice(1) : '';
@@ -1253,7 +1269,7 @@ function ActionConfirmModal({
             onClick={() => { if (canConfirm) onConfirm(); }}
             disabled={!canConfirm}
           >{confirmLabel}</button>
-          <button style={{ ...btn('#252540'), flex: 1 }} onClick={onCancel}>Cancel</button>
+          <button style={{ ...btnOutline(), flex: 1 }} onClick={onCancel}>Cancel</button>
         </div>
 
       </div>
@@ -1399,11 +1415,11 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return React.createElement("div", {
-        style: { minHeight: "100vh", background: "#08080f", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }
+        style: { minHeight: "100vh", background: "#0B1220", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }
       }, React.createElement("div", {
-        style: { maxWidth: 480, width: "100%", background: "#12121f", border: "1px solid #ef444440", borderRadius: 12, padding: 32, textAlign: "center" }
+        style: { maxWidth: 480, width: "100%", background: "#111A2E", border: "1px solid #EF444440", borderRadius: 10, padding: 32, textAlign: "center" }
       }, [
-        React.createElement("div", { key: "icon", style: { fontSize: 40, marginBottom: 12 } }, "⚠️"),
+        React.createElement("div", { key: "icon", style: { marginBottom: 12 } }),
         React.createElement("div", { key: "title", style: { fontSize: 18, fontWeight: 700, color: "#f1f1f8", marginBottom: 8 } }, "Une erreur est survenue"),
         React.createElement("div", { key: "msg", style: { fontSize: 13, color: "#8888aa", marginBottom: 20, wordBreak: "break-word" } },
           this.state.error?.message || "Erreur inconnue"
@@ -1411,7 +1427,7 @@ class ErrorBoundary extends React.Component {
         React.createElement("button", {
           key: "btn",
           onClick: () => { this.setState({ hasError: false, error: null }); window.location.reload(); },
-          style: { background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }
+          style: { background: "#1F6BFF", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }
         }, "Recharger la page")
       ]));
     }
@@ -1438,7 +1454,7 @@ function App() {
   const [err, setErr] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [nL, setNL] = useState({ name: "", sport: "Basketball", domain: "", color: "#6366f1" });
+  const [nL, setNL] = useState({ name: "", sport: "Basketball", domain: "", color: "#2F7BFF" });
   const [nT, setNT] = useState({ name: "", emoji: "⭐" });
   const [nP, setNP] = useState({ name: "", team: "", number: "", position: "", email: "", heightFt: "", heightIn: "", heightCm: "", weight: "" });
   const [nG, setNG] = useState({ date: "", home: "", away: "", time: "", venue: "" });
@@ -2296,7 +2312,7 @@ function App() {
         id:               updated.id,
         name:             updated.name             || "",
         sport:            updated.sport            || "",
-        color:            updated.color            || "#6366f1",
+        color:            updated.color            || "#2F7BFF",
         domain:           updated.domain           || "",
         categories:       updated.categories       || [],
         categoryOrder:    updated.categoryOrder    || [],
@@ -2577,7 +2593,7 @@ function App() {
     const updated = [...leagues, newLeague];
     setLeagues(updated);
     localStorage.setItem("wxLeagues", JSON.stringify(updated));
-    setNL({ name: "", sport: "Basketball", domain: "", color: "#6366f1" }); setShowAdd(false);
+    setNL({ name: "", sport: "Basketball", domain: "", color: "#2F7BFF" }); setShowAdd(false);
     showToast(`League created — access code: ${code}`);
   }
   // ── System migration: move email from players/* → playersPrivate/* ──────────
@@ -3249,7 +3265,7 @@ function App() {
           <span className="spinner spinner-dark" style={{ width: 18, height: 18 }} />
           <span style={{ fontSize: 14, color: T2 }}>{__fbReady ? "Connecting to Firebase…" : "Loading…"}</span>
         </div>
-        <div style={{ marginTop: 24, width: 180, height: 3, background: "#23233a", borderRadius: 4, overflow: "hidden", margin: "24px auto 0" }}>
+        <div style={{ marginTop: 24, width: 180, height: 2, background: BORDER, borderRadius: 4, overflow: "hidden", margin: "24px auto 0" }}>
           <div style={{ height: "100%", background: ACC, borderRadius: 4, animation: "progress-bar 1.6s ease-in-out infinite" }} />
         </div>
       </div>
@@ -3267,7 +3283,7 @@ function App() {
   if (page === "loading" || !authChecked) return (
     <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: ACC, letterSpacing: "-0.5px", marginBottom: 16 }}>Website X</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: T1, marginBottom: 16 }}>Website X</div>
         <div className="spinner" style={{ margin: "0 auto" }} />
       </div>
     </div>
@@ -3275,24 +3291,24 @@ function App() {
 
   // ── LOGIN ──
   if (page === "login") return (
-    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 380, padding: 40, ...card }}>
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>Website X</div>
-          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin — connecte-toi pour continuer</div>
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}>
+      <div style={{ width: "100%", maxWidth: 380, padding: 40, ...card }}>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ fontSize: 22, fontWeight: 600, color: T1, letterSpacing: "-0.3px" }}>Website X</div>
+          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Connecte-toi pour accéder au tableau de bord</div>
         </div>
         {__fbUncfg && (
-          <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
-            🔴 <strong>Firebase non configuré.</strong>
+          <div style={{ background: "#EF444415", border: "1px solid #EF444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#EF4444", lineHeight: 1.6 }}>
+            <strong>Firebase non configuré.</strong>
           </div>
         )}
         {fbError && (
-          <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#f59e0b", lineHeight: 1.6 }}>
-            ⚠️ {fbError}
+          <div style={{ background: "#F59E0B15", border: "1px solid #F59E0B40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#F59E0B", lineHeight: 1.6 }}>
+            {fbError}
           </div>
         )}
-        {err && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#ef4444", textAlign: "center" }}>{err}</div>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ background: "#EF444415", border: "1px solid #EF444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#EF4444" }}>{err}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label style={lbl}>Nom d'utilisateur</label>
             <input style={inp} value={email} onChange={e => setEmail(e.target.value)}
@@ -3305,12 +3321,12 @@ function App() {
               onKeyDown={e => e.key === "Enter" && signIn()}
               placeholder="••••••••" autoComplete="current-password" />
           </div>
-          <button onClick={signIn} disabled={signingIn} style={{ ...btn(), width: "100%", padding: "13px 20px", fontSize: 15, opacity: signingIn ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <button onClick={signIn} disabled={signingIn} style={{ ...btn(), width: "100%", justifyContent: "center", height: 44, fontSize: 15, opacity: signingIn ? 0.7 : 1 }}>
             {signingIn && <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />}
             {signingIn ? "Connexion…" : "Se connecter"}
           </button>
         </div>
-        <div style={{ marginTop: 20, padding: "10px 14px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
+        <div style={{ marginTop: 20, padding: "10px 14px", background: BG, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6, border: `1px solid ${BORDER}` }}>
           Accès admin uniquement
         </div>
       </div>
@@ -3320,16 +3336,16 @@ function App() {
   // ── FORCE PASSWORD CHANGE (mustChangePassword) ──
   if (page === "changepw") {
     return (
-      <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 380, padding: 40, ...card }}>
-          <div style={{ textAlign: "center", marginBottom: 28 }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: ACC }}>Website X</div>
+      <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}>
+        <div style={{ width: "100%", maxWidth: 380, padding: 40, ...card }}>
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontSize: 22, fontWeight: 600, color: T1 }}>Website X</div>
             <div style={{ fontSize: 14, color: T2, marginTop: 8, lineHeight: 1.5 }}>
               Choisis ton mot de passe pour continuer.
             </div>
           </div>
-          {err && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#ef4444", textAlign: "center" }}>{err}</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {err && <div style={{ background: "#EF444415", border: "1px solid #EF444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#EF4444" }}>{err}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label style={lbl}>Nouveau mot de passe</label>
               <input type="password" style={inp} value={newPw} onChange={e => setNewPw(e.target.value)}
@@ -3342,10 +3358,10 @@ function App() {
                 onKeyDown={e => e.key === "Enter" && changePassword(newPw, confirmPw)}
                 placeholder="••••••••" autoComplete="new-password" />
             </div>
-            <button onClick={() => changePassword(newPw, confirmPw)} style={{ ...btn(), width: "100%", padding: "13px 20px", fontSize: 15 }}>
-              Confirmer →
+            <button onClick={() => changePassword(newPw, confirmPw)} style={{ ...btn(), width: "100%", justifyContent: "center", height: 44, fontSize: 15 }}>
+              Confirmer
             </button>
-            <button style={{ background: "none", border: "none", color: T2, fontSize: 13, cursor: "pointer", textAlign: "center", padding: "4px 0" }} onClick={logout}>
+            <button style={{ background: "none", border: "none", color: T2, fontSize: 13, cursor: "pointer", textAlign: "center", padding: "4px 0", minHeight: 36 }} onClick={logout}>
               Se déconnecter
             </button>
           </div>
@@ -3358,21 +3374,25 @@ function App() {
   if (page === "dashboard") return (
     <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
       {/* Dashboard Header */}
-      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ fontSize: 20, fontWeight: 900, color: ACC }}>WEBSITE X</div>
+      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: T1 }}>Website X</div>
           {user?.role === "superadmin" && (
-            <span style={{ fontSize: 11, padding: "3px 9px", background: ACC+"22", borderRadius: 6, color: ACC, fontWeight: 700, letterSpacing: "0.06em" }}>SUPER ADMIN</span>
+            <span style={{ fontSize: 11, padding: "2px 8px", background: SURF, borderRadius: 6, color: T2, fontWeight: 500, border: `1px solid ${BORDER}` }}>Superadmin</span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {user?.role === "superadmin" && (
             <button onClick={() => setShowManageUsers(v => !v)}
-              style={{ background: showManageUsers ? ACC+"22" : "none", border: `1px solid ${showManageUsers ? ACC : BORDER}`, borderRadius: 8, color: showManageUsers ? ACC : T2, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: showManageUsers ? 700 : 400 }}>
-              👥 Manage Users
+              style={{ ...btnOutline(showManageUsers ? ACC : T2), borderColor: showManageUsers ? ACC : BORDER }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Utilisateurs
             </button>
           )}
-          <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
+          <button onClick={logout} style={btnOutline()}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Déconnexion
+          </button>
         </div>
       </div>
 
@@ -3385,10 +3405,10 @@ function App() {
             <div style={{ marginBottom: 36 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>👥 All Users</div>
-                  <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{allUsers.length} user{allUsers.length !== 1 ? "s" : ""} across all leagues</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: T1 }}>Utilisateurs</div>
+                  <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{allUsers.length} utilisateur{allUsers.length !== 1 ? "s" : ""}</div>
                 </div>
-                <button onClick={() => setShowManageUsers(false)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>✕ Close</button>
+                <button onClick={() => setShowManageUsers(false)} style={btnOutline()}>Fermer</button>
               </div>
               {userRoleError && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#ef4444" }}>{userRoleError}</div>}
               <div style={{ ...card, overflow: "hidden", padding: 0 }}>
@@ -3440,7 +3460,7 @@ function App() {
                                   }
                                   setEditUserRole(null); showToast(`Role updated to ${newRole}`);
                                 }} style={{ ...btn(), padding: "5px 14px", fontSize: 12 }}>Save</button>
-                                <button onClick={() => { setEditUserRole(null); setUserRoleError(""); }} style={{ ...btn("#252540"), padding: "5px 12px", fontSize: 12 }}>Cancel</button>
+                                <button onClick={() => { setEditUserRole(null); setUserRoleError(""); }} style={{ ...btnOutline(), height: 30, padding: "0 10px", fontSize: 12 }}>Annuler</button>
                               </div>
                             ) : (
                               <div style={{ display: "flex", gap: 8 }}>
@@ -3465,14 +3485,13 @@ function App() {
           );
         })()}
 
-        {/* ── STAT CARDS ── */}
+        {/* ── STAT ROW ── */}
         {!showManageUsers && (
-          <div style={{ display: "flex", gap: 16, marginBottom: 36, flexWrap: "wrap" }}>
-            {[["Total Leagues",leagues.length,"🏆"],["Total Teams",leagues.reduce((a,l)=>a+l.teams.length,0),"👕"],["Total Players",leagues.reduce((a,l)=>a+l.players.length,0),"👤"],["Games Scheduled",leagues.reduce((a,l)=>a+l.schedule.length,0),"📅"]].map(([label,val,icon]) => (
-              <div key={label} style={{ flex: "1 1 180px", ...card, textAlign: "center" }}>
-                <div style={{ fontSize: 24, marginBottom: 4 }}>{icon}</div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: ACC }}>{val}</div>
-                <div style={{ fontSize: 12, color: T2, marginTop: 4 }}>{label}</div>
+          <div className="dash-stats-row" style={{ display: "flex", gap: 1, marginBottom: 32, background: BORDER, borderRadius: 10, overflow: "hidden", border: `1px solid ${BORDER}` }}>
+            {[["Ligues",leagues.length],["Équipes",leagues.reduce((a,l)=>a+l.teams.length,0)],["Joueurs",leagues.reduce((a,l)=>a+l.players.length,0)],["Matchs",leagues.reduce((a,l)=>a+l.schedule.length,0)]].map(([label,val]) => (
+              <div key={label} style={{ flex: "1 1 0", background: CARD, padding: "16px 20px" }}>
+                <div style={{ fontSize: 12, color: T2, fontWeight: 500, marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 22, fontWeight: 600, color: T1, fontVariantNumeric: "tabular-nums" }}>{val}</div>
               </div>
             ))}
           </div>
@@ -3487,26 +3506,23 @@ function App() {
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>All Leagues</div>
-                  <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{visibleLeagues.length} league{visibleLeagues.length !== 1 ? "s" : ""} in your network</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: T1 }}>Ligues</div>
+                  <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{visibleLeagues.length} ligue{visibleLeagues.length !== 1 ? "s" : ""}</div>
                 </div>
-                {user?.role !== "owner" && <button style={btn()} onClick={() => setShowAdd(true)}>+ Create league</button>}
+                {user?.role !== "owner" && <button style={btn()} onClick={() => setShowAdd(true)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Créer une ligue
+                </button>}
               </div>
 
               {/* Table */}
               <div style={{ ...card, overflow: "auto", padding: 0 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
-                  <thead>
+                  <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
                     <tr style={{ background: SURF }}>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>League</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Sport</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Owner(s)</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Teams</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Players</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Games</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Status</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>⚠️ Alerts</th>
-                      <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}` }}></th>
+                      {["Ligue","Sport","Propriétaire(s)","Équipes","Joueurs","Matchs","Statut","Alertes",""].map((h,i) => (
+                        <th key={i} style={{ textAlign: i === 8 ? "right" : "left", padding: "11px 16px", fontSize: 12, fontWeight: 500, color: T2, borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -3530,12 +3546,20 @@ function App() {
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                           <td style={{ padding: "14px 16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div style={{ width: 36, height: 36, borderRadius: 8, background: l.color+"25", border: `2px solid ${l.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-                                {l.sport==="Hockey"?"🏒":l.sport==="Basketball"?"🏀":"🏆"}
+                              <div style={{ width: 34, height: 34, borderRadius: 8, background: l.color+"20", border: `1px solid ${l.color}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {l.logo
+                                  ? <img src={l.logo} alt="" style={{ width: 26, height: 26, borderRadius: 5, objectFit: "cover" }} />
+                                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={l.color||T2} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                                }
                               </div>
                               <div>
-                                <div style={{ fontWeight: 700, fontSize: 14 }}>{l.name}</div>
-                                {lPublicUrl && <a href={lPublicUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: ACC, marginTop: 1, display: "block", textDecoration: "none" }}>↗ Public site</a>}
+                                <div style={{ fontWeight: 600, fontSize: 14 }}>{l.name}</div>
+                                {lPublicUrl && (
+                                  <a href={lPublicUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: T2, marginTop: 2, display: "inline-flex", alignItems: "center", gap: 3, textDecoration: "none" }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                    Site public
+                                  </a>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -3556,12 +3580,13 @@ function App() {
                             {(() => {
                               const awaitingCount = (l.schedule || []).filter(g => isGameAwaiting(g)).length;
                               const urgentCount   = (l.schedule || []).filter(g => isGameAwaiting(g) && daysAgo(g) >= 2).length;
-                              if (!awaitingCount) return <span style={{ fontSize: 12, color: "#22c55e" }}>✓ All clear</span>;
+                              if (!awaitingCount) return <span style={{ fontSize: 12, color: "#22C55E", display: "flex", alignItems: "center", gap: 4 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>OK</span>;
                               return (
                                 <button onClick={() => { setSelId(l.id); setPage("league"); setTab("schedule"); }}
-                                  style={{ background: urgentCount ? "#ef444420" : "#f59e0b20", border: `1px solid ${urgentCount ? "#ef444450" : "#f59e0b50"}`, borderRadius: 6, color: urgentCount ? "#ef4444" : "#f59e0b", padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-                                  ⚠️ {awaitingCount} missing
-                                  {urgentCount > 0 && <span style={{ marginLeft: 4, color: "#ef4444" }}>· {urgentCount} urgent</span>}
+                                  style={{ background: urgentCount ? "#EF444415" : "#F59E0B15", border: `1px solid ${urgentCount ? "#EF444450" : "#F59E0B50"}`, borderRadius: 6, color: urgentCount ? "#EF4444" : "#F59E0B", padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                  {awaitingCount} manquant{awaitingCount > 1 ? "s" : ""}
+                                  {urgentCount > 0 && <span style={{ color: "#EF4444" }}>· {urgentCount} urgents</span>}
                                 </button>
                               );
                             })()}
@@ -3570,13 +3595,14 @@ function App() {
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "nowrap" }}>
                               {user?.role === "superadmin" && (
                                 <button onClick={() => { setManageOwnerId(l.id); }}
-                                  style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
-                                  👤 Owners {lOwners.length > 0 ? `(${lOwners.length})` : ""}
+                                  style={{ ...btnOutline(), fontSize: 12, height: 32, padding: "0 10px" }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                  Propriétaires{lOwners.length > 0 ? ` (${lOwners.length})` : ""}
                                 </button>
                               )}
                               <button onClick={() => { setSelId(l.id); setPage("league"); setTab("teams"); }}
-                                style={{ ...btn(), padding: "5px 14px", fontSize: 12, whiteSpace: "nowrap" }}>
-                                Enter League →
+                                style={{ ...btn(), fontSize: 12, height: 32, padding: "0 12px" }}>
+                                Ouvrir
                               </button>
                             </div>
                           </td>
@@ -3594,9 +3620,13 @@ function App() {
       {/* ── SYSTEM SECTION (superadmin only) ── */}
       {user?.role === "superadmin" && (
         <div style={{ maxWidth: 1100, margin: "0 auto 40px", padding: "0 24px" }}>
-          <div style={{ ...card, padding: 28 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>⚙️ System</div>
-            <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>One-time migrations and maintenance tools. Superadmin only.</div>
+          <div style={{ ...card, padding: 24, background: SURF }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T2} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+              <span style={{ fontSize: 14, fontWeight: 600, color: T1 }}>Système</span>
+              <span style={{ fontSize: 11, padding: "1px 7px", background: BG, borderRadius: 5, color: T2, fontWeight: 500, border: `1px solid ${BORDER}` }}>Superadmin</span>
+            </div>
+            <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Migrations et outils de maintenance. Réservé au superadmin.</div>
 
             {/* Migration: move player emails to playersPrivate */}
             <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 20 }}>
@@ -3630,14 +3660,13 @@ function App() {
                             </button>
                           : (
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: 13, color: "#f59e0b" }}>⚠️ This will write to Firestore. Proceed?</span>
+                              <span style={{ fontSize: 13, color: "#f59e0b" }}>This will write to Firestore. Proceed?</span>
                               <button onClick={migrationRun} disabled={migRunning}
                                 style={{ ...btn(), background: "#ef444430", border: "1px solid #ef444460", color: "#ef4444", opacity: migRunning ? 0.5 : 1 }}>
                                 {migRunning ? "Running…" : "Yes, run it"}
                               </button>
-                              <button onClick={() => setMigConfirm(false)}
-                                style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>
-                                Cancel
+                              <button onClick={() => setMigConfirm(false)} style={btnOutline()}>
+                                Annuler
                               </button>
                             </div>
                           )
@@ -3659,7 +3688,7 @@ function App() {
               )}
 
               <button onClick={migrationDryRun} disabled={migRunning}
-                style={{ ...btn("#252540"), opacity: migRunning ? 0.5 : 1 }}>
+                style={{ ...btnOutline(), opacity: migRunning ? 0.5 : 1 }}>
                 {migRunning ? "Scanning…" : migDryRun ? "Re-scan" : "Dry-run scan"}
               </button>
             </div>
@@ -3675,7 +3704,10 @@ function App() {
         return (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
             <div style={{ width: 500, ...card, padding: 32, maxHeight: "88vh", overflowY: "auto" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>👤 Propriétaires — {lg?.name}</div>
+              <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Propriétaires — {lg?.name}
+              </div>
               <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Les propriétaires se connectent avec nom d'utilisateur + mot de passe.</div>
 
               {/* Create owner form */}
@@ -3733,7 +3765,7 @@ function App() {
                           Réinitialiser →
                         </button>
                         <button onClick={() => { setResetAccessForm({ ownerId: null, newUsername: "", tempPassword: "" }); setOwnerError(""); }}
-                          style={{ ...btn("#252540"), padding: "9px 16px", fontSize: 13 }}>
+                          style={{ ...btnOutline(), padding: "9px 16px", fontSize: 13 }}>
                           Annuler
                         </button>
                       </div>
@@ -3750,7 +3782,7 @@ function App() {
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.username || owner.email || owner.id}</div>
                       <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
-                        {owner.mustChangePassword ? "⚠️ Doit changer son MDP" : "✓ Actif"} · Créé {owner.createdAt || "—"}
+                        {owner.mustChangePassword ? "! Doit changer son MDP" : "Actif"} · Créé {owner.createdAt || "—"}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
@@ -3768,7 +3800,7 @@ function App() {
                   </div>
                 ))
               }
-              <button style={{ ...btn("#252540"), width: "100%", marginTop: 12 }} onClick={() => { setManageOwnerId(null); setNewOwner({ username: "", password: "" }); setOwnerError(""); setResetAccessForm({ ownerId: null, newUsername: "", tempPassword: "" }); }}>Fermer</button>
+              <button style={{ ...btnOutline(), width: "100%", marginTop: 12 }} onClick={() => { setManageOwnerId(null); setNewOwner({ username: "", password: "" }); setOwnerError(""); setResetAccessForm({ ownerId: null, newUsername: "", tempPassword: "" }); }}>Fermer</button>
             </div>
           </div>
         );
@@ -3776,7 +3808,7 @@ function App() {
 
       {/* ── REMOVE OWNER CONFIRM ── */}
       {deleteOwnerId && (
-        <ConfirmModal icon="👤" title="Supprimer ce propriétaire ?" body={`Supprimer ${users.find(u=>u.id===deleteOwnerId)?.username || deleteOwnerId} ? Leur compte Firestore sera supprimé. Les données de la ligue ne sont pas affectées.`} confirmLabel="Oui, supprimer" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); deleteOwner(uid); }} onCancel={() => setDeleteOwnerId(null)} />
+        <ConfirmModal title="Supprimer ce propriétaire ?" body={`Supprimer ${users.find(u=>u.id===deleteOwnerId)?.username || deleteOwnerId} ? Leur compte Firestore sera supprimé. Les données de la ligue ne sont pas affectées.`} confirmLabel="Oui, supprimer" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); deleteOwner(uid); }} onCancel={() => setDeleteOwnerId(null)} />
       )}
 
       {/* ── CREATED CREDENTIALS MODAL ── */}
@@ -3801,7 +3833,7 @@ function App() {
             </div>
             <button onClick={() => {
               navigator.clipboard.writeText(`Nom d'utilisateur: ${createdCreds.username}\nMot de passe: ${createdCreds.password}`).then(() => showToast("Identifiants copiés!")).catch(() => {});
-            }} style={{ ...btn("#252540"), width: "100%", marginBottom: 10 }}>📋 Copier les identifiants</button>
+            }} style={{ ...btnOutline(), width: "100%", marginBottom: 10 }}>📋 Copier les identifiants</button>
             <button onClick={() => setCreatedCreds(null)} style={{ ...btn(), width: "100%" }}>Fermer</button>
           </div>
         </div>
@@ -3810,21 +3842,21 @@ function App() {
       {showAdd && (
         <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
           <div style={{ width: 460, ...card, padding: 32 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>Create league</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label style={lbl}>League Name</label><input style={inp} value={nL.name} onChange={e => setNL({...nL,name:e.target.value})} placeholder="e.g. Hockey Summer League" /></div>
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, color: T1 }}>Créer une ligue</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div><label style={lbl}>Nom de la ligue</label><input style={inp} value={nL.name} onChange={e => setNL({...nL,name:e.target.value})} placeholder="ex: Ligue de Basketball" /></div>
               <div><label style={lbl}>Sport</label>
                 <select style={inp} value={nL.sport} onChange={e => setNL({...nL,sport:e.target.value})}>
                   {["Basketball","Hockey","Soccer","Baseball","Other"].map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
-              <div><label style={lbl}>Public Domain</label><input style={inp} value={nL.domain} onChange={e => setNL({...nL,domain:e.target.value})} placeholder="e.g. hockeyleague.com" /></div>
-              <div><label style={lbl}>League Color</label>
-                <input type="color" value={nL.color} onChange={e => setNL({...nL,color:e.target.value})} style={{ height: 44, width: "100%", borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 4 }} />
+              <div><label style={lbl}>Domaine public</label><input style={inp} value={nL.domain} onChange={e => setNL({...nL,domain:e.target.value})} placeholder="ex: liguesport.com" /></div>
+              <div><label style={lbl}>Couleur de la ligue</label>
+                <input type="color" value={nL.color} onChange={e => setNL({...nL,color:e.target.value})} style={{ height: 40, width: "100%", borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 4 }} />
               </div>
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                <button style={{ ...btn(), flex: 1 }} onClick={addLeague}>Create league</button>
-                <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setShowAdd(false)}>Cancel</button>
+                <button style={{ ...btn(), flex: 1 }} onClick={addLeague}>Créer la ligue</button>
+                <button style={{ ...btnOutline(), flex: 1 }} onClick={() => setShowAdd(false)}>Annuler</button>
               </div>
             </div>
           </div>
@@ -3863,7 +3895,16 @@ function App() {
   if (page === "league" && league) {
     const toggles = getToggles(league);
     const sport = league.sport;
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["public","🌐 Public"],["settings","⚙️ Settings"],["alertes","Alertes"]];
+    const TABS = [
+      ["teams",   "Équipes"],
+      ["players", "Joueurs"],
+      ["schedule","Calendrier"],
+      ["scores",  "Scores"],
+      ["stats",   "Statistiques"],
+      ["public",  "Site public"],
+      ["settings","Paramètres"],
+      ["alertes", "Alertes"],
+    ];
 
     // ── CATEGORY FILTERING ──
     const activeCat = (league.categories || []).find(c => c.id === activeCatId);
@@ -3948,32 +3989,37 @@ function App() {
       <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
 
         {/* HEADER */}
-        <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {user?.role==="superadmin" && <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← Dashboard</button>}
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: T1, lineHeight: 1.1 }}>{league.name}</div>
-              <div style={{ fontSize: 10, color: T2, letterSpacing: "0.1em", textTransform: "uppercase" }}>Website X</div>
+        <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {user?.role==="superadmin" && (
+              <button onClick={handleBack} style={btnOutline()}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Tableau de bord
+              </button>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {league.logo && <img src={league.logo} alt="" style={{ width: 26, height: 26, borderRadius: 6, objectFit: "cover", border: `1px solid ${BORDER}` }} />}
+              <div style={{ fontSize: 15, fontWeight: 600, color: T1 }}>{league.name}</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {lastSaved && !dirty && (
-              <span style={{ fontSize: 11, color: "#22c55e", display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-                Saved {lastSaved}
+              <span style={{ fontSize: 11, color: "#22C55E", display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22C55E", display: "inline-block" }} />
+                Enregistré {lastSaved}
               </span>
             )}
             {user?.role === "superadmin" && leagues.length > 1 && (
               <div style={{ position: "relative" }}>
-                <button onClick={() => setShowLeagueSwitcher(v => !v)}
-                  style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>
-                  Switch league ▾
+                <button onClick={() => setShowLeagueSwitcher(v => !v)} style={btnOutline()}>
+                  Changer de ligue
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 {showLeagueSwitcher && (
-                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, boxShadow: "0 6px 24px #00000070", zIndex: 200, minWidth: 220, maxHeight: 300, overflowY: "auto" }}>
+                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, boxShadow: "0 8px 32px #00000080", zIndex: 200, minWidth: 220, maxHeight: 300, overflowY: "auto" }}>
                     {leagues.map(l => (
                       <button key={l.id} onClick={() => { setSelId(l.id); setTab("teams"); setShowLeagueSwitcher(false); }}
-                        style={{ display: "block", width: "100%", background: l.id === selId ? ACC+"20" : "none", border: "none", padding: "10px 16px", fontSize: 13, color: l.id === selId ? ACC : T1, cursor: "pointer", textAlign: "left", fontWeight: l.id === selId ? 700 : 400 }}>
+                        style={{ display: "block", width: "100%", background: l.id === selId ? ACC+"20" : "none", border: "none", padding: "10px 16px", fontSize: 13, color: l.id === selId ? ACC : T1, cursor: "pointer", textAlign: "left", fontWeight: l.id === selId ? 600 : 400 }}>
                         {l.name}
                       </button>
                     ))}
@@ -3981,22 +4027,26 @@ function App() {
                 )}
               </div>
             )}
-            <span style={{ fontSize: 12, padding: "4px 10px", background: user?.role==="superadmin"?ACC+"20":"#6366f120", borderRadius: 6, fontWeight: 600, color: user?.role==="superadmin"?ACC:"#818cf8" }}>
-              {user?.role==="superadmin"?"Super Admin":"League Owner"}
+            <span style={{ fontSize: 11, padding: "2px 8px", background: SURF, borderRadius: 6, color: T2, fontWeight: 500, border: `1px solid ${BORDER}` }}>
+              {user?.role==="superadmin"?"Superadmin":"Propriétaire"}
             </span>
-            <button onClick={handleLogout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Logout</button>
+            <button onClick={handleLogout} style={btnOutline()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Déconnexion
+            </button>
           </div>
         </div>
 
-        {/* 👁 SUPERADMIN VIEWING BANNER */}
+        {/* SUPERADMIN VIEWING BANNER */}
         {user?.role === "superadmin" && (
-          <div style={{ background: ACC+"18", borderBottom: `1px solid ${ACC}40`, padding: "8px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: ACC, fontWeight: 600 }}>
-              👁 Viewing: <strong>{league.name}</strong>
+          <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}`, padding: "7px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, color: T2, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Vue Superadmin — <strong style={{ color: T1 }}>{league.name}</strong>
             </span>
-            <button onClick={handleBack}
-              style={{ background: "none", border: `1px solid ${ACC}50`, borderRadius: 6, color: ACC, padding: "4px 14px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
-              ← Back to Dashboard
+            <button onClick={handleBack} style={{ ...btnOutline(), height: 28, fontSize: 12, padding: "0 10px" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              Retour
             </button>
           </div>
         )}
@@ -4007,14 +4057,14 @@ function App() {
           if (!awaiting.length) return null;
           const urgent = awaiting.filter(g => daysAgo(g) >= 2);
           return (
-            <div style={{ background: urgent.length ? "#ef444418" : "#f59e0b18", borderBottom: `1px solid ${urgent.length ? "#ef444440" : "#f59e0b40"}`, padding: "10px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: urgent.length ? "#ef4444" : "#f59e0b", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ animation: "livepulse-admin 1.4s ease-in-out infinite", display: "inline-block" }}>⚠️</span>
-                {awaiting.length} game{awaiting.length !== 1 ? "s" : ""} missing score{urgent.length ? ` — ${urgent.length} overdue 48h+` : ""}
+            <div style={{ background: urgent.length ? "#EF444412" : "#F59E0B12", borderBottom: `1px solid ${urgent.length ? "#EF444435" : "#F59E0B35"}`, padding: "9px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: urgent.length ? "#EF4444" : "#F59E0B", display: "flex", alignItems: "center", gap: 7 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score{urgent.length ? ` — ${urgent.length} en retard +48h` : ""}
               </span>
               <button onClick={() => { handleTabSwitch("schedule"); setShowMissingModal(false); }}
-                style={{ background: urgent.length ? "#ef4444" : "#f59e0b", border: "none", borderRadius: 7, color: "#fff", padding: "6px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                Enter Scores →
+                style={{ ...btn(urgent.length ? "#EF4444" : "#F59E0B"), height: 32, fontSize: 12, padding: "0 14px" }}>
+                Saisir les scores
               </button>
             </div>
           );
@@ -4035,18 +4085,18 @@ function App() {
               <div className="cat-tabs-row" style={{ paddingLeft: 24 }}>
                 {cats.map(c => (
                   <button key={c.id} onClick={() => setActiveCatId(c.id)}
-                    style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: activeCatId===c.id ? ACC : T2, borderBottom: activeCatId===c.id ? `2px solid ${ACC}` : "2px solid transparent", transition: "all 0.15s" }}>
+                    style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, fontWeight: activeCatId===c.id ? 600 : 400, cursor: "pointer", whiteSpace: "nowrap", color: activeCatId===c.id ? T1 : T2, borderBottom: activeCatId===c.id ? `2px solid ${ACC}` : "2px solid transparent", transition: "color 0.12s" }}>
                     {c.name}
                   </button>
                 ))}
                 <button onClick={() => setShowCatModal(true)}
-                  style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
-                  + Add Category
+                  style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.5, whiteSpace: "nowrap" }}>
+                  + Catégorie
                 </button>
                 {cats.length > 1 && (
                   <button onClick={() => { setReorderCats(cats.slice()); setEditCatId(null); setShowReorderModal(true); }}
-                    style={{ background: "none", border: "none", padding: "11px 14px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
-                    ↕️ Reorder &amp; Rename
+                    style={{ background: "none", border: "none", padding: "11px 14px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.5, whiteSpace: "nowrap" }}>
+                    Réorganiser
                   </button>
                 )}
                 <div style={{ flex: 1 }} />
@@ -4056,9 +4106,9 @@ function App() {
         })()}
 
         {/* TAB BAR */}
-        <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
+        <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}`, paddingLeft: 24, display: "flex", overflowX: "auto" }}>
           {TABS.map(([t,label]) => (
-            <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "16px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: tab===t?ACC:T2, borderBottom: tab===t?`2px solid ${ACC}`:"2px solid transparent" }}>{label}</button>
+            <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "14px 18px", fontSize: 13, fontWeight: tab===t ? 600 : 400, cursor: "pointer", whiteSpace: "nowrap", color: tab===t ? T1 : T2, borderBottom: tab===t ? `2px solid ${ACC}` : "2px solid transparent", transition: "color 0.12s" }}>{label}</button>
           ))}
         </div>
 
@@ -4074,11 +4124,11 @@ function App() {
           {/* ── TEAMS ── */}
           {tab==="teams" && (
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Teams {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
+              <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, color: T1 }}>
+                Équipes {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
               </div>
               <div style={{ ...card, marginBottom: 24 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add New Team</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: T2, marginBottom: 14 }}>Ajouter une équipe</div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <input style={{ ...inp, flex: 2, minWidth: 160 }} value={nT.name} onChange={e=>setNT({...nT,name:e.target.value})} placeholder="Team name" />
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 80 }}>
@@ -4432,7 +4482,7 @@ function App() {
                       </div>
                     )}
                     {nG.date && nG.time && (
-                      <div style={{ marginTop: 10, fontSize: 12, color: nGIsInPast ? "#f97316" : T2, display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ marginTop: 10, fontSize: 12, color: nGIsInPast ? "#F59E0B" : T2, display: "flex", alignItems: "center", gap: 6 }}>
                         {nGIsInPast
                           ? "ⓘ This game is in the past — it will go to Past Games. You can enter the score after."
                           : "ⓘ This game will be scheduled as upcoming."}
@@ -4457,7 +4507,7 @@ function App() {
                         const status = getGameStatus(g, sport);
                         const isToday = isGameToday(g);
                         return (
-                          <div key={g.id} style={{ ...card, marginBottom: 8, borderColor: isToday ? "#f97316aa" : BORDER }}>
+                          <div key={g.id} style={{ ...card, marginBottom: 8, borderColor: isToday ? "#2F7BFF99" : BORDER }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                               <div>
                                 <div style={{ fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
@@ -4465,7 +4515,7 @@ function App() {
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 {status === "TODAY"
-                                  ? <span style={{ fontSize: 12, color: "#f97316", padding: "4px 12px", background: "#f9731620", borderRadius: 6, fontWeight: 700, border: "1px solid #f9731640" }}>📅 Today</span>
+                                  ? <span style={{ fontSize: 12, color: "#2F7BFF", padding: "4px 12px", background: "#2F7BFF20", borderRadius: 6, fontWeight: 700, border: "1px solid #2F7BFF40" }}>Aujourd'hui</span>
                                   : <span style={{ fontSize: 12, color: "#6b7280", padding: "4px 12px", background: "#6b728015", borderRadius: 6, fontWeight: 600 }}>Upcoming</span>
                                 }
                                 <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
@@ -4533,8 +4583,8 @@ function App() {
                                 )}
                                 {status === "FINAL"         && <span style={{ fontSize: 12, color: "#22c55e", padding: "4px 12px", background: "#22c55e15", borderRadius: 6, fontWeight: 600 }}>Final</span>}
                                 {status === "LIVE"          && null /* LIVE badge already shown inline */}
-                                {status === "SCORE NEEDED"  && <span style={{ fontSize: 12, color: "#ef4444", padding: "4px 12px", background: "#ef444420", borderRadius: 6, fontWeight: 700, border: "1px solid #ef444440", animation: "livepulse-admin 1.8s ease-in-out infinite" }}>⚠️ Score Needed</span>}
-                                {status === "AWAITING SCORE"&& <span style={{ fontSize: 12, color: "#f97316", padding: "4px 12px", background: "#f9731615", borderRadius: 6, fontWeight: 600 }}>Awaiting Score</span>}
+                                {status === "SCORE NEEDED"  && <span style={{ fontSize: 12, color: "#ef4444", padding: "4px 12px", background: "#ef444420", borderRadius: 6, fontWeight: 700, border: "1px solid #ef444440", animation: "livepulse-admin 1.8s ease-in-out infinite" }}>Score requis</span>}
+                                {status === "AWAITING SCORE"&& <span style={{ fontSize: 12, color: "#F59E0B", padding: "4px 12px", background: "#F59E0B15", borderRadius: 6, fontWeight: 600 }}>En attente</span>}
                                 {!hasScore
                                   ? <button onClick={() => setEditScore({id: g.id, homeScore: "", awayScore: ""})} style={{ background: awaiting ? "#ef4444" : "none", border: awaiting ? "none" : `1px solid ${ACC}55`, borderRadius: 6, color: awaiting ? "#fff" : ACC, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>Enter Score</button>
                                   : <button onClick={() => setEditScore({id: g.id, homeScore: g.homeScore, awayScore: g.awayScore})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit Score</button>
@@ -5198,7 +5248,7 @@ function App() {
                   <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                     <div style={{ flex: 1, minWidth: 140 }}>
                       <label style={lbl}>Accent Color</label>
-                      <input type="color" value={league.color || "#6366f1"} onChange={e => upd({ ...league, color: e.target.value })} style={{ height: 44, width: "100%", borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 4 }} />
+                      <input type="color" value={league.color || "#2F7BFF"} onChange={e => upd({ ...league, color: e.target.value })} style={{ height: 44, width: "100%", borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 4 }} />
                     </div>
                     <div style={{ flex: 2, minWidth: 180 }}>
                       <label style={lbl}>Public Domain</label>
@@ -5317,7 +5367,7 @@ function App() {
                           if (!win) showToast('Popup blocked — allow popups for this site or copy the URL below.', 'warning');
                         }}
                         disabled={!isConnected}
-                        style={{ ...btn(isConnected ? "#16a34a" : "#252540"), fontSize: 13, padding: "9px 20px", display: "inline-flex", alignItems: "center", gap: 6, opacity: isConnected ? 1 : 0.5, cursor: isConnected ? "pointer" : "not-allowed" }}
+                        style={{ ...(isConnected ? btn("#22C55E") : btnOutline()), fontSize: 13, padding: "9px 20px", display: "inline-flex", alignItems: "center", gap: 6, opacity: isConnected ? 1 : 0.5, cursor: isConnected ? "pointer" : "not-allowed" }}
                         title={isConnected ? 'Open public site in a new tab' : 'Run Test Connection first'}
                       >↗ Open Public Site</button>
                     </div>
@@ -5344,7 +5394,7 @@ function App() {
                         <span style={{ fontFamily: "monospace", color: ACC, wordBreak: "break-all" }}>{effectiveUrl}</span>
                       </div>
                       <button
-                        style={{ ...btn("#252540"), fontSize: 12, padding: "8px 16px", whiteSpace: "nowrap" }}
+                        style={{ ...btnOutline(), fontSize: 12, padding: "8px 16px", whiteSpace: "nowrap" }}
                         onClick={() => { navigator.clipboard.writeText(effectiveUrl).then(() => showToast('Copied to clipboard')).catch(() => showToast('Copy failed', 'error')); }}
                       >📋 Copy to Clipboard</button>
                     </div>
@@ -5404,7 +5454,7 @@ function App() {
                       );
                     })}
                     <div>
-                      <button style={{ ...btn("#252540"), fontSize: 12.5, padding: "8px 16px" }}
+                      <button style={{ ...btnOutline(), fontSize: 12.5, padding: "8px 16px" }}
                         onClick={() => { saveSpotlight(league, 'playOfTheMonth', {}); saveSpotlight(league, 'playerOfTheWeek', {}); }}>
                         ↻ Reset all to Auto-calculate
                       </button>
@@ -5506,7 +5556,7 @@ function App() {
                     <div style={{ fontSize: 12, color: T2, marginBottom: 14, lineHeight: 1.6 }}>
                       Scan this code to open the live league page. Works on any phone camera.
                     </div>
-                    <button style={{ ...btn("#252540"), fontSize: 13, padding: "8px 18px" }}
+                    <button style={{ ...btnOutline(), fontSize: 13, padding: "8px 18px" }}
                       onClick={() => {
                         const qrEl = document.getElementById('admin-qr-code');
                         const canvas = qrEl && qrEl.querySelector('canvas');
@@ -5565,7 +5615,7 @@ function App() {
                       }}>
                       {emailConfigSaving ? "Saving…" : "💾 Save Email Settings"}
                     </button>
-                    <button style={{ ...btn("#252540"), padding: "9px 20px", fontSize: 13 }}
+                    <button style={{ ...btnOutline(), padding: "9px 20px", fontSize: 13 }}
                       onClick={async () => {
                         if (!emailConfig || !emailConfig.serviceId) { showToast("Save email settings first.", "warning"); return; }
                         const owner = users.find(u => u.leagueId === selId);
@@ -5698,7 +5748,7 @@ function App() {
                               return pl ? <span key={pid} style={{background:ACC+'22',color:ACC,padding:'4px 12px',borderRadius:100,fontSize:13,fontWeight:700}}>{pl.name}</span> : null;
                             })}
                           </div>
-                          <button style={{ ...btn('#252540'), padding:'7px 14px', fontSize:12 }}
+                          <button style={{ ...btnOutline(), padding:'7px 14px', fontSize:12 }}
                             onClick={() => { upd({...league,allStar:{...as,status:'closed'}}); showToast('All-Star reset.','info'); }}>
                             Reset All-Star
                           </button>
@@ -5773,7 +5823,7 @@ function App() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button style={{ ...btn("#252540"), padding: "6px 14px", fontSize: 12 }}
+                    <button style={{ ...btnOutline(), padding: "6px 14px", fontSize: 12 }}
                       onClick={() => {
                         const active = subscribers.filter(s => s.active);
                         if (!active.length) { showToast("No active subscribers.", "warning"); return; }
@@ -6166,8 +6216,8 @@ service cloud.firestore {
 
                     {/* Action buttons */}
                     <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-                      <button onClick={copyPublicSnippet} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>📋 Copy Public Site Snippet</button>
-                      <button onClick={forceSync} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>⚡ Force Sync</button>
+                      <button onClick={copyPublicSnippet} style={{ ...btnOutline(), fontSize: 13, padding: "9px 16px" }}>📋 Copy Public Site Snippet</button>
+                      <button onClick={forceSync} style={{ ...btnOutline(), fontSize: 13, padding: "9px 16px" }}>⚡ Force Sync</button>
                     </div>
                     {lastUpdated && <div style={{ fontSize: 11, color: T2, marginTop: -14, marginBottom: 16 }}>Last sync: {new Date(parseInt(lastUpdated)).toLocaleTimeString()}</div>}
 
@@ -6201,12 +6251,12 @@ service cloud.firestore {
                       <div style={{ marginBottom: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: "#f59e0b", marginBottom: 6 }}>Dev rules (open access — for testing only):</div>
                         <pre style={{ background: "#0a0a18", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "#a0a0c8", fontFamily: "monospace", whiteSpace: "pre-wrap", margin: 0, overflowX: "auto" }}>{devRules}</pre>
-                        <button onClick={() => navigator.clipboard.writeText(devRules).then(()=>showToast("Dev rules copied!")).catch(()=>{})} style={{ ...btn("#252540"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Dev Rules</button>
+                        <button onClick={() => navigator.clipboard.writeText(devRules).then(()=>showToast("Dev rules copied!")).catch(()=>{})} style={{ ...btnOutline(), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Dev Rules</button>
                       </div>
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: "#22c55e", marginBottom: 6 }}>Production rules (read-only for public, no user data exposed):</div>
                         <pre style={{ background: "#0a0a18", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "12px 14px", fontSize: 11, color: "#a0a0c8", fontFamily: "monospace", whiteSpace: "pre-wrap", margin: 0, overflowX: "auto" }}>{prodRules}</pre>
-                        <button onClick={() => navigator.clipboard.writeText(prodRules).then(()=>showToast("Prod rules copied!")).catch(()=>{})} style={{ ...btn("#252540"), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Prod Rules</button>
+                        <button onClick={() => navigator.clipboard.writeText(prodRules).then(()=>showToast("Prod rules copied!")).catch(()=>{})} style={{ ...btnOutline(), fontSize: 11, padding: "5px 12px", marginTop: 6 }}>Copy Prod Rules</button>
                       </div>
                     </div>
                   </div>
@@ -6249,8 +6299,8 @@ service cloud.firestore {
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsLoadSubs}>↻ Charger</button>
-                    <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsExportCsv}>⬇ CSV</button>
+                    <button style={{ ...btnOutline(), padding:"6px 14px", fontSize:12 }} onClick={nlsLoadSubs}>↻ Charger</button>
+                    <button style={{ ...btnOutline(), padding:"6px 14px", fontSize:12 }} onClick={nlsExportCsv}>⬇ CSV</button>
                   </div>
                 </div>
                 {nlsSubs.length === 0 && !nlsSubsLoading && (
@@ -6309,7 +6359,7 @@ service cloud.firestore {
                     <input style={inp} value={nlsAnnTargetEmail} onChange={e=>setNlsAnnTargetEmail(e.target.value)} placeholder="ton@courriel.com" type="email" />
                   </div>
                   <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                    <button style={{ ...btn("#252540"), fontSize:13, padding:"9px 18px" }} disabled={nlsSending}
+                    <button style={{ ...btnOutline(), fontSize:13, padding:"9px 18px" }} disabled={nlsSending}
                       onClick={()=>nlsSendAnnouncement(true)}>
                       {nlsSending ? "Envoi…" : "🧪 Envoyer test"}
                     </button>
@@ -6405,7 +6455,7 @@ service cloud.firestore {
                       onConfirm: () => saveEditGame(),
                     });
                   }}>Save Changes</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditGame(null)}>Cancel</button>
+                  <button style={{ ...btnOutline(), flex: 1 }} onClick={() => setEditGame(null)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -6445,7 +6495,7 @@ service cloud.firestore {
                       onConfirm: () => saveEditScore(),
                     });
                   }}>Save Score</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditScore(null)}>Cancel</button>
+                  <button style={{ ...btnOutline(), flex: 1 }} onClick={() => setEditScore(null)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -6619,8 +6669,8 @@ service cloud.firestore {
                     }}>
                       {saving ? <><span className="spinner" style={{ width: 14, height: 14 }} /> Saving…</> : "Save Stats"}
                     </button>
-                    <button style={{ ...btn("#f97316"), flex: 1 }} disabled={saving} onClick={saveStatsForce}>Save Anyway</button>
-                    <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setEditStats(null); setStatsValidationError(null); }}>Cancel</button>
+                    <button style={{ ...btnDanger(), flex: 1 }} disabled={saving} onClick={saveStatsForce}>Enregistrer quand même</button>
+                    <button style={{ ...btnOutline(), flex: 1 }} onClick={() => { setEditStats(null); setStatsValidationError(null); }}>Cancel</button>
                   </div>
                 </div>
               </div>
@@ -6637,7 +6687,7 @@ service cloud.firestore {
               <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>Are you sure you want to apply these changes?<br/>This will update the live league data.</div>
               <div style={{ display: "flex", gap: 12 }}>
                 <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={confirmSave}>Confirm Save</button>
-                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingSave(false)}>Cancel</button>
+                <button style={{ ...btnOutline(), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingSave(false)}>Cancel</button>
               </div>
             </div>
           </div>
@@ -6700,7 +6750,7 @@ service cloud.firestore {
               </div>
               <div style={{ display: "flex", gap: 12 }}>
                 <button style={{ ...btn("#22c55e"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => { setEditCatId(null); saveCategoryOrder(reorderCats); }}>Save Order</button>
-                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => { setEditCatId(null); setShowReorderModal(false); }}>Cancel</button>
+                <button style={{ ...btnOutline(), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => { setEditCatId(null); setShowReorderModal(false); }}>Cancel</button>
               </div>
             </div>
           </div>
@@ -6760,7 +6810,7 @@ service cloud.firestore {
                       onConfirm: () => addCategory(),
                     });
                   }}>Add Category</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "U15", gender: "Masculine", division: "Gold", customAge: "" }); }}>Cancel</button>
+                  <button style={{ ...btnOutline(), flex: 1 }} onClick={() => { setShowCatModal(false); setNCat({ ageGroup: "U15", gender: "Masculine", division: "Gold", customAge: "" }); }}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -6817,7 +6867,7 @@ service cloud.firestore {
                       onConfirm: () => saveEditTeam(),
                     });
                   }}>Save Changes</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setEditTeam(null); setEditEmojiErr(""); }}>Cancel</button>
+                  <button style={{ ...btnOutline(), flex: 1 }} onClick={() => { setEditTeam(null); setEditEmojiErr(""); }}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -6891,7 +6941,7 @@ service cloud.firestore {
                       onConfirm: () => saveEditPlayer(),
                     });
                   }}>Save Changes</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditPlayer(null)}>Cancel</button>
+                  <button style={{ ...btnOutline(), flex: 1 }} onClick={() => setEditPlayer(null)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -6942,7 +6992,7 @@ service cloud.firestore {
                   <button style={{ ...btn("#ef4444"), flex: 2 }} onClick={() => { setShowMissingModal(false); handleTabSwitch("schedule"); }}>
                     Enter Scores Now →
                   </button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setShowMissingModal(false)}>
+                  <button style={{ ...btnOutline(), flex: 1 }} onClick={() => setShowMissingModal(false)}>
                     Remind Me Later
                   </button>
                 </div>
@@ -6959,7 +7009,7 @@ service cloud.firestore {
               <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 10 }}>Unsaved Changes</div>
               <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>You have unsaved changes. Leaving without saving will discard all edits made on this tab.</div>
               <div style={{ display: "flex", gap: 12 }}>
-                <button style={{ ...btn("#252540"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingNavTab(null)}>Stay</button>
+                <button style={{ ...btnOutline(), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={() => setPendingNavTab(null)}>Stay</button>
                 <button style={{ ...btn("#ef4444"), flex: 1, padding: "12px 20px", fontSize: 15 }} onClick={leaveWithoutSaving}>Leave Without Saving</button>
               </div>
             </div>
