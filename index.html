@@ -1469,6 +1469,12 @@ function App() {
   const [subsLoading, setSubsLoading] = useState(false);
   const [sendingNotif, setSendingNotif] = useState(false);
 
+  // ── System migration state ──
+  const [migDryRun, setMigDryRun]   = useState(null);  // null | { results: [{leagueId, name, count}], total }
+  const [migRunning, setMigRunning] = useState(false);
+  const [migDone, setMigDone]       = useState(null);  // null | { moved, errors }
+  const [migConfirm, setMigConfirm] = useState(false);
+
   // ── Alertes tab state ──
   const NLS_FN = 'https://us-east1-league-hunter.cloudfunctions.net';
   const [nlsSubs, setNlsSubs] = useState([]);
@@ -2515,6 +2521,52 @@ function App() {
     setNL({ name: "", sport: "Basketball", domain: "", color: "#6366f1" }); setShowAdd(false);
     showToast(`League created — access code: ${code}`);
   }
+  // ── System migration: move email from players/* → playersPrivate/* ──────────
+  // Dry-run: counts players with email field in each league (no writes).
+  async function migrationDryRun() {
+    if (!__fbReady) return;
+    setMigRunning(true); setMigDryRun(null); setMigDone(null); setMigConfirm(false);
+    const { collection, getDocs } = _FS;
+    const results = [];
+    for (const lg of leagues) {
+      try {
+        const snap = await getDocs(collection(_db, "leagues", String(lg.id), "players"));
+        const count = snap.docs.filter(d => d.data().email).length;
+        if (count > 0) results.push({ leagueId: lg.id, name: lg.name, count });
+      } catch(e) { /* skip inaccessible leagues */ }
+    }
+    const total = results.reduce((s, r) => s + r.count, 0);
+    setMigDryRun({ results, total });
+    setMigRunning(false);
+  }
+
+  // Live run: for each player with email, write to playersPrivate then remove from public doc.
+  async function migrationRun() {
+    if (!__fbReady) return;
+    setMigRunning(true); setMigConfirm(false);
+    const { collection, doc, getDocs, setDoc, updateDoc, deleteField } = _FS;
+    let moved = 0, errors = 0;
+    for (const lg of leagues) {
+      try {
+        const snap = await getDocs(collection(_db, "leagues", String(lg.id), "players"));
+        for (const d of snap.docs) {
+          const data = d.data();
+          if (!data.email) continue;
+          try {
+            await setDoc(doc(_db, "leagues", String(lg.id), "playersPrivate", d.id), { email: data.email }, { merge: true });
+            await updateDoc(doc(_db, "leagues", String(lg.id), "players", d.id), { email: deleteField() });
+            moved++;
+          } catch(e) { errors++; console.error("[Migration] player", d.id, e); }
+        }
+      } catch(e) { console.error("[Migration] league", lg.id, e); }
+    }
+    setMigDone({ moved, errors });
+    setMigDryRun(null);
+    setMigRunning(false);
+    showToast(errors === 0 ? `Migration done — ${moved} email(s) moved` : `Migration done — ${moved} moved, ${errors} errors`, errors > 0 ? "error" : "success");
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const isValidEmoji = (str) => str && /\p{Emoji_Presentation}/u.test(str);
   async function addTeam() {
     if (!nT.name || !league) return;
@@ -3476,6 +3528,82 @@ function App() {
           );
         })()}
       </div>
+
+      {/* ── SYSTEM SECTION (superadmin only) ── */}
+      {user?.role === "superadmin" && (
+        <div style={{ maxWidth: 1100, margin: "0 auto 40px", padding: "0 24px" }}>
+          <div style={{ ...card, padding: 28 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>⚙️ System</div>
+            <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>One-time migrations and maintenance tools. Superadmin only.</div>
+
+            {/* Migration: move player emails to playersPrivate */}
+            <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Player Email Migration</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 14 }}>
+                Moves the <code style={{ background: "#ffffff10", padding: "1px 5px", borderRadius: 4 }}>email</code> field
+                from public <code style={{ background: "#ffffff10", padding: "1px 5px", borderRadius: 4 }}>players/*</code> docs
+                to private <code style={{ background: "#ffffff10", padding: "1px 5px", borderRadius: 4 }}>playersPrivate/*</code> docs.
+                Run the dry-run first to see the count, then confirm.
+              </div>
+
+              {/* Results of dry-run */}
+              {migDryRun && !migDone && (
+                <div style={{ marginBottom: 14 }}>
+                  {migDryRun.total === 0
+                    ? <div style={{ fontSize: 13, color: "#22c55e" }}>✓ No player docs with an email field found. Nothing to migrate.</div>
+                    : (
+                      <div>
+                        <div style={{ fontSize: 13, marginBottom: 8 }}>
+                          Found <strong>{migDryRun.total}</strong> player doc{migDryRun.total !== 1 ? "s" : ""} with an email field across {migDryRun.results.length} league{migDryRun.results.length !== 1 ? "s" : ""}:
+                        </div>
+                        <ul style={{ margin: "0 0 10px 16px", padding: 0, fontSize: 13, color: T2 }}>
+                          {migDryRun.results.map(r => (
+                            <li key={r.leagueId}><strong style={{ color: T1 }}>{r.name}</strong>: {r.count} player{r.count !== 1 ? "s" : ""}</li>
+                          ))}
+                        </ul>
+                        {!migConfirm
+                          ? <button onClick={() => setMigConfirm(true)}
+                              style={{ ...btn(), background: "#ef444430", border: "1px solid #ef444460", color: "#ef4444" }}>
+                              Run Migration →
+                            </button>
+                          : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, color: "#f59e0b" }}>⚠️ This will write to Firestore. Proceed?</span>
+                              <button onClick={migrationRun} disabled={migRunning}
+                                style={{ ...btn(), background: "#ef444430", border: "1px solid #ef444460", color: "#ef4444", opacity: migRunning ? 0.5 : 1 }}>
+                                {migRunning ? "Running…" : "Yes, run it"}
+                              </button>
+                              <button onClick={() => setMigConfirm(false)}
+                                style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>
+                                Cancel
+                              </button>
+                            </div>
+                          )
+                        }
+                      </div>
+                    )
+                  }
+                </div>
+              )}
+
+              {/* Migration completed */}
+              {migDone && (
+                <div style={{ fontSize: 13, marginBottom: 14, color: migDone.errors > 0 ? "#f59e0b" : "#22c55e" }}>
+                  {migDone.errors > 0
+                    ? `⚠️ Done with errors — ${migDone.moved} moved, ${migDone.errors} failed. Check console.`
+                    : `✓ Migration complete — ${migDone.moved} email${migDone.moved !== 1 ? "s" : ""} moved to playersPrivate.`
+                  }
+                </div>
+              )}
+
+              <button onClick={migrationDryRun} disabled={migRunning}
+                style={{ ...btn("#252540"), opacity: migRunning ? 0.5 : 1 }}>
+                {migRunning ? "Scanning…" : migDryRun ? "Re-scan" : "Dry-run scan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MANAGE OWNERS MODAL ── */}
       {manageOwnerId && (() => {

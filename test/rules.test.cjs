@@ -17,6 +17,7 @@ const {
   assertSucceeds,
 } = require('@firebase/rules-unit-testing');
 
+
 const RULES_PATH = resolve(__dirname, '../firestore.rules');
 const PROJECT_ID = 'league-hunter-test';
 const FIRESTORE_PORT = 8080;
@@ -485,5 +486,65 @@ describe('isSuperAdmin — email_verified required', () => {
       email: SUPERADMIN_EMAIL, email_verified: false,
     });
     await assertFails(ctx.firestore().doc('meta/superadmin').get());
+  });
+});
+
+describe('player email migration — end-to-end (item 2)', () => {
+  it('owner can write playersPrivate and remove email from players', async () => {
+    const db = ownerCtx().firestore();
+
+    // Setup: player doc with email field still present (pre-migration state)
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`leagues/${LEAGUE_ID}/players/player_pre`).set({
+        id: 'player_pre', name: 'Pre-Migration Player', team: 'TeamA', email: 'premig@test.com',
+      });
+    });
+
+    // Step 1: write email to playersPrivate (migration creates/merges private doc)
+    await assertSucceeds(
+      db.doc(`leagues/${LEAGUE_ID}/playersPrivate/player_pre`).set({ email: 'premig@test.com' }, { merge: true })
+    );
+
+    // Step 2: owner can update public player doc (to remove email — any write is allowed by rules)
+    await assertSucceeds(
+      db.doc(`leagues/${LEAGUE_ID}/players/player_pre`).update({ name: 'Pre-Migration Player' })
+    );
+
+    // Verify: private doc has the email (using bypass context)
+    let privEmail;
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      const snap = await ctx.firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_pre`).get();
+      privEmail = snap.data().email;
+    });
+    assert.strictEqual(privEmail, 'premig@test.com', 'email must be in playersPrivate');
+  });
+
+  it('superadmin can run migration across any league', async () => {
+    const db = superadminCtx().firestore();
+
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`leagues/${OTHER_LEAGUE_ID}/players/player_sa`).set({
+        id: 'player_sa', name: 'SA Player', email: 'sa@test.com',
+      });
+    });
+
+    await assertSucceeds(
+      db.doc(`leagues/${OTHER_LEAGUE_ID}/playersPrivate/player_sa`).set({ email: 'sa@test.com' }, { merge: true })
+    );
+    await assertSucceeds(
+      db.doc(`leagues/${OTHER_LEAGUE_ID}/players/player_sa`).update({ name: 'SA Player Updated' })
+    );
+  });
+
+  it('stranger cannot write playersPrivate during migration', async () => {
+    await assertFails(
+      strangerCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).set({ email: 'x@x.com' })
+    );
+  });
+
+  it('unauthenticated cannot write playersPrivate during migration', async () => {
+    await assertFails(
+      unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).set({ email: 'x@x.com' })
+    );
   });
 });
