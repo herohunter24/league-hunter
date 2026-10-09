@@ -164,35 +164,151 @@
     50%       { transform: scaleX(1.5); opacity: 0.4; }
   }
   #wx-loader { position:fixed;inset:0;z-index:99999;background:#08080f;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;transition:opacity 0.5s ease; }
+
+  /* ── SPORT BALL LOADER ── */
+  @keyframes wx-sport-bounce {
+    0%   { transform: translateY(0)    scaleX(1)    scaleY(1);    animation-timing-function: ease-in; }
+    44%  { transform: translateY(38px) scaleX(1)    scaleY(1);    animation-timing-function: ease-in; }
+    50%  { transform: translateY(44px) scaleX(1.22) scaleY(0.74); animation-timing-function: ease-out; }
+    56%  { transform: translateY(38px) scaleX(1)    scaleY(1);    animation-timing-function: ease-out; }
+    100% { transform: translateY(0)    scaleX(1)    scaleY(1); }
+  }
+  @keyframes wx-sport-shadow {
+    0%, 100% { transform: scaleX(1);   opacity: 0.15; }
+    50%       { transform: scaleX(1.6); opacity: 0.35; }
+  }
+  @keyframes wx-ball-fade { 0%,100%{opacity:1} 45%,55%{opacity:0} }
+  .wx-ball { position:absolute; animation: wx-sport-bounce 0.6s ease-in-out infinite, wx-ball-fade 3s step-end infinite; transform-origin:50% 100%; }
+  .wx-ball:nth-child(1) { animation-delay:0s,0s; }
+  .wx-ball:nth-child(2) { animation-delay:0s,0.6s; }
+  .wx-ball:nth-child(3) { animation-delay:0s,1.2s; }
+  .wx-ball:nth-child(4) { animation-delay:0s,1.8s; }
+  .wx-ball:nth-child(5) { animation-delay:0s,2.4s; }
+  @media (prefers-reduced-motion: reduce) {
+    .wx-ball { animation: wx-ball-fade 3s step-end infinite !important; }
+    #wx-sport-shadow { display:none; }
+  }
+
+  /* ── NAVIGATION SHELL ── */
+  .wx-app-root { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+  .wx-shell { display:flex; flex:1; min-height:0; }
+  .wx-sidebar {
+    width:240px; flex-shrink:0;
+    background:#111120; border-right:1px solid #23233a;
+    overflow-y:auto; display:flex; flex-direction:column;
+    padding:8px 0;
+  }
+  .wx-sidebar-section { font-size:10px; font-weight:700; letter-spacing:0.1em; color:#23233a; padding:16px 20px 6px; text-transform:uppercase; }
+  .wx-sidebar-item {
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px; margin:1px 8px; border-radius:6px;
+    font-size:13px; font-weight:500; cursor:pointer;
+    border:none; background:none; color:#A9B4C6; text-align:left; width:calc(100% - 16px);
+    transition:background 0.12s, color 0.12s;
+  }
+  .wx-sidebar-item:hover { background:#16162a; color:#e8e8f5; }
+  .wx-sidebar-item.active { background:#f9731622; color:#f97316; font-weight:600; }
+  .wx-sidebar-divider { height:1px; background:#23233a; margin:8px 16px; }
+  .wx-sidebar-bottom { margin-top:auto; padding:8px 0; border-top:1px solid #23233a; }
+  .wx-main { flex:1; overflow-y:auto; min-width:0; display:flex; flex-direction:column; }
+  .wx-topbar { display:flex; align-items:center; gap:12px; padding:10px 24px; border-bottom:1px solid #23233a; flex-wrap:wrap; }
+  .wx-breadcrumb { font-size:12px; color:#A9B4C6; flex:1; }
+  .wx-breadcrumb span { color:#e8e8f5; }
+
+  /* ── CATEGORY PICKER ── */
+  .wx-cat-btn { display:flex; align-items:center; gap:7px; background:#16162a; border:1px solid #23233a; border-radius:8px; color:#e8e8f5; padding:7px 13px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .wx-cat-btn:hover { border-color:#f97316; }
+  .wx-cat-dropdown { position:absolute; top:calc(100% + 4px); left:0; z-index:120; background:#111120; border:1px solid #23233a; border-radius:10px; box-shadow:0 8px 32px #00000070; min-width:260px; max-height:400px; overflow-y:auto; padding:6px; }
+  .wx-cat-group-hdr { font-size:10px; font-weight:700; letter-spacing:0.1em; color:#A9B4C6; padding:8px 10px 4px; text-transform:uppercase; }
+  .wx-cat-option { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:6px; cursor:pointer; font-size:13px; color:#e8e8f5; border:none; background:none; width:100%; text-align:left; gap:8px; }
+  .wx-cat-option:hover { background:#16162a; }
+  .wx-cat-option.active { background:#f9731620; color:#f97316; font-weight:600; }
+  .wx-cat-option-count { font-size:11px; color:#A9B4C6; white-space:nowrap; }
+
+  /* ── GLOBAL SEARCH ── */
+  .wx-search-overlay { position:fixed; inset:0; background:#00000080; z-index:500; display:flex; align-items:flex-start; justify-content:center; padding-top:72px; }
+  .wx-search-box { width:560px; max-width:calc(100vw - 32px); background:#111120; border:1px solid #23233a; border-radius:12px; overflow:hidden; box-shadow:0 16px 48px #000000a0; }
+  .wx-search-input { display:block; width:100%; background:transparent; border:none; padding:16px 20px; font-size:16px; color:#e8e8f5; outline:none; }
+  .wx-search-result { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; font-size:13px; color:#e8e8f5; border:none; background:none; width:100%; text-align:left; }
+  .wx-search-result:hover, .wx-search-result.focused { background:#16162a; }
+  .wx-search-tag { font-size:10px; padding:2px 7px; border-radius:4px; font-weight:700; }
+
+  /* ── MOBILE BOTTOM NAV ── */
+  .wx-bottom-nav { display:none; position:fixed; bottom:0; left:0; right:0; background:#111120; border-top:1px solid #23233a; z-index:100; height:56px; }
+  .wx-bottom-nav-items { display:flex; height:100%; }
+  .wx-bottom-nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:10px; color:#A9B4C6; cursor:pointer; border:none; background:none; padding:4px 2px; }
+  .wx-bottom-nav-btn.active { color:#f97316; }
+  .wx-bottom-sheet-overlay { position:fixed; inset:0; background:#00000070; z-index:200; display:flex; align-items:flex-end; }
+  .wx-bottom-sheet { width:100%; background:#111120; border-radius:20px 20px 0 0; border-top:1px solid #23233a; padding:16px 0 40px; max-height:72vh; overflow-y:auto; }
+  .wx-bottom-sheet-item { display:flex; align-items:center; gap:12px; padding:14px 24px; font-size:15px; color:#e8e8f5; cursor:pointer; border:none; background:none; width:100%; text-align:left; }
+  .wx-bottom-sheet-item:hover { background:#16162a; }
+  .wx-bottom-sheet-item.active { color:#f97316; }
+
+  @media (max-width:1023px) { .wx-sidebar { display:none; } }
+  @media (max-width:767px) {
+    .wx-bottom-nav { display:flex; }
+    .wx-main { padding-bottom:56px; }
+  }
 </style>
 </head>
 <body>
 
 <!-- ══ LOADING OVERLAY — shown immediately, dismissed after React + Firestore ready ══ -->
 <div id="wx-loader">
-  <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;">
+  <div style="text-align:center;display:flex;flex-direction:column;align-items:center;">
     <!-- Wordmark -->
-    <div style="font-size:11px;font-weight:700;letter-spacing:0.22em;color:#6366f160;text-transform:uppercase;margin-bottom:8px;">League Hunter</div>
-    <div style="font-size:28px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;margin-bottom:36px;">Website X</div>
-    <!-- Basketball SVG -->
-    <div style="position:relative;height:80px;display:flex;flex-direction:column;align-items:center;margin-bottom:28px;">
-      <svg width="56" height="56" viewBox="0 0 60 60" style="animation:wx-bounce 0.72s ease-in-out infinite;transform-origin:50% 100%;display:block;flex-shrink:0;">
-        <circle cx="30" cy="30" r="28" fill="#e8632a"/>
-        <path d="M30,2 Q9,30 30,58"  stroke="#b84d18" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <path d="M30,2 Q51,30 30,58" stroke="#b84d18" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <path d="M2,30 Q30,9 58,30"  stroke="#b84d18" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <path d="M2,30 Q30,51 58,30" stroke="#b84d18" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <circle cx="30" cy="30" r="28" fill="none" stroke="#b84d18" stroke-width="1.5" opacity="0.6"/>
+    <div style="font-size:22px;font-weight:900;color:#e8e8f5;letter-spacing:-0.5px;margin-bottom:32px;">Website X</div>
+    <!-- Multi-sport bouncing ball -->
+    <div style="position:relative;width:56px;height:100px;margin-bottom:24px;">
+      <!-- Basketball -->
+      <svg class="wx-ball" width="56" height="56" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="28" fill="#d95e1f"/>
+        <path d="M30,2 Q9,30 30,58" stroke="#a8420f" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M30,2 Q51,30 30,58" stroke="#a8420f" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M2,30 Q30,9 58,30" stroke="#a8420f" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M2,30 Q30,51 58,30" stroke="#a8420f" stroke-width="2.5" fill="none" stroke-linecap="round"/>
       </svg>
-      <!-- Ground shadow -->
-      <div style="width:40px;height:8px;border-radius:50%;background:#6366f1;margin-top:4px;animation:wx-shadow 0.72s ease-in-out infinite;"></div>
+      <!-- Soccer ball -->
+      <svg class="wx-ball" width="56" height="56" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="28" fill="#e8e8f5"/>
+        <polygon points="30,8 38,15 35,25 25,25 22,15" fill="#1a1a2e"/>
+        <polygon points="6,22 13,17 20,23 17,33 7,33" fill="#1a1a2e"/>
+        <polygon points="54,22 47,17 40,23 43,33 53,33" fill="#1a1a2e"/>
+        <polygon points="10,42 16,36 25,38 26,48 16,51" fill="#1a1a2e"/>
+        <polygon points="50,42 44,36 35,38 34,48 44,51" fill="#1a1a2e"/>
+        <circle cx="30" cy="30" r="28" fill="none" stroke="#23233a" stroke-width="1.5" opacity="0.4"/>
+      </svg>
+      <!-- Volleyball -->
+      <svg class="wx-ball" width="56" height="56" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="28" fill="#f5c842"/>
+        <path d="M30,2 C14,2 2,14 2,30" stroke="#c49a10" stroke-width="2.5" fill="none"/>
+        <path d="M30,2 C46,2 58,14 58,30" stroke="#c49a10" stroke-width="2.5" fill="none"/>
+        <path d="M2,30 C2,46 14,58 30,58 C46,58 58,46 58,30" stroke="#c49a10" stroke-width="2.5" fill="none"/>
+        <path d="M10,15 C20,25 20,35 10,45" stroke="#c49a10" stroke-width="2" fill="none"/>
+        <path d="M50,15 C40,25 40,35 50,45" stroke="#c49a10" stroke-width="2" fill="none"/>
+      </svg>
+      <!-- Tennis ball -->
+      <svg class="wx-ball" width="56" height="56" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="28" fill="#8ccf3e"/>
+        <path d="M8,14 C18,22 18,38 8,46" stroke="#e8f5a0" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M52,14 C42,22 42,38 52,46" stroke="#e8f5a0" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      <!-- Hockey puck -->
+      <svg class="wx-ball" width="56" height="56" viewBox="0 0 60 60">
+        <ellipse cx="30" cy="34" rx="26" ry="10" fill="#1a1a2e"/>
+        <rect x="4" y="24" width="52" height="10" rx="3" fill="#23233a"/>
+        <ellipse cx="30" cy="24" rx="26" ry="10" fill="#2d2d42"/>
+        <ellipse cx="30" cy="24" rx="22" ry="7" fill="none" stroke="#3d3d58" stroke-width="1.5"/>
+      </svg>
+      <!-- Shadow -->
+      <div id="wx-sport-shadow" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:38px;height:7px;border-radius:50%;background:#f97316;opacity:0.2;animation:wx-sport-shadow 0.6s ease-in-out infinite;"></div>
     </div>
     <!-- Progress bar -->
-    <div style="width:200px;height:3px;background:#1a1a2e;border-radius:2px;overflow:hidden;margin-bottom:20px;">
-      <div id="wx-prog" style="height:100%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:2px;width:0;transition:width 0.1s linear;"></div>
+    <div style="width:180px;height:3px;background:#1a1a2e;border-radius:2px;overflow:hidden;margin-bottom:18px;">
+      <div id="wx-prog" style="height:100%;background:#f97316;border-radius:2px;width:0;transition:width 0.1s linear;"></div>
     </div>
     <!-- Message -->
-    <div id="wx-msg" style="font-size:13px;color:#4b5563;transition:opacity 0.3s ease;min-height:20px;"></div>
+    <div id="wx-msg" style="font-size:13px;color:#A9B4C6;transition:opacity 0.3s ease;min-height:20px;"></div>
   </div>
 </div>
 
@@ -1527,6 +1643,16 @@ function App() {
   const [migDone, setMigDone]       = useState(null);  // null | { moved, errors }
   const [migConfirm, setMigConfirm] = useState(false);
 
+  // ── Navigation state ──
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocusIdx, setSearchFocusIdx] = useState(0);
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+  // Calendrier filters
+  const [calFilter, setCalFilter] = useState({ team: "", venue: "", status: "" });
+  const [calSearch, setCalSearch] = useState("");
+
   // ── Alertes tab state ──
   const NLS_FN = 'https://us-east1-league-hunter.cloudfunctions.net';
   const [nlsSubs, setNlsSubs] = useState([]);
@@ -1621,6 +1747,36 @@ function App() {
       window.__wxLoadingError('Could not connect to server. Retrying...');
     }
   }, [fbError]);
+
+  // Persist last-used category per league in localStorage
+  useEffect(() => {
+    if (!selId || !activeCatId) return;
+    try { localStorage.setItem(`wx_cat_${selId}`, activeCatId); } catch(_) {}
+  }, [activeCatId, selId]);
+
+  // Restore category when switching leagues
+  useEffect(() => {
+    if (!selId || !league) return;
+    const cats = league.categories || [];
+    if (!cats.length) return;
+    try {
+      const saved = localStorage.getItem(`wx_cat_${selId}`);
+      if (saved && cats.find(c => c.id === saved)) setActiveCatId(saved);
+      else if (!activeCatId || !cats.find(c => c.id === activeCatId)) setActiveCatId(cats[0].id);
+    } catch(_) {
+      if (!activeCatId || !(league.categories||[]).find(c => c.id === activeCatId)) setActiveCatId(cats[0]?.id || null);
+    }
+  }, [selId, league?.id]);
+
+  // Ctrl+K global search shortcut
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(v => !v); setSearchQuery(""); }
+      if (e.key === 'Escape') { setSearchOpen(false); setCatDropdownOpen(false); setMoreSheetOpen(false); }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Keep ref in sync so async functions always write the latest state
   useEffect(() => { leaguesRef.current = leagues; }, [leagues]);
@@ -3863,7 +4019,28 @@ function App() {
   if (page === "league" && league) {
     const toggles = getToggles(league);
     const sport = league.sport;
-    const TABS = [["teams","🏟 Teams"],["players","👤 Players"],["schedule","📅 Schedule"],["scores","🏆 Scores"],["stats","📊 Stats"],["public","🌐 Public"],["settings","⚙️ Settings"],["alertes","Alertes"]];
+    const TABS = [
+      ["today",    "Aujourd'hui"],
+      ["teams",    "Équipes"],
+      ["players",  "Joueurs"],
+      ["schedule", "Calendrier"],
+      ["scores",   "Scores"],
+      ["stats",    "Classement & stats"],
+      ["public",   "Site public"],
+      ["settings", "Paramètres"],
+      ["alertes",  "Alertes"],
+    ];
+    const TAB_ICONS = {
+      today:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+      teams:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/></svg>,
+      players:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20v-2a8 8 0 0116 0v2"/></svg>,
+      schedule: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/></svg>,
+      scores:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+      stats:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+      public:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
+      settings: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+      alertes:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+    };
 
     // ── CATEGORY FILTERING ──
     const activeCat = (league.categories || []).find(c => c.id === activeCatId);
@@ -3944,8 +4121,10 @@ function App() {
     // player stat entry helpers
     function getGamePlayers(g) { return catPlayers.filter(p => p.team===g.home||p.team===g.away); }
 
+    const tabLabel = TABS.find(([t]) => t === tab)?.[1] || "";
+
     return (
-      <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: BG, color: T1, overflow: "hidden" }}>
 
         {/* HEADER */}
         <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
@@ -4020,49 +4199,121 @@ function App() {
           );
         })()}
 
-        {/* ── CATEGORY BAR ── */}
-        {(league.categories || []).length > 0 && (() => {
-          const cats = league.categories;
-          return (
-            <div style={{ background: BG, borderBottom: `1px solid ${BORDER}` }}>
-              {/* Mobile: dropdown */}
-              <div className="cat-select-row">
-                <select style={{ ...inp, width: "100%" }} value={activeCatId || ""} onChange={e => setActiveCatId(e.target.value)}>
-                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              {/* Desktop: tab row */}
-              <div className="cat-tabs-row" style={{ paddingLeft: 24 }}>
-                {cats.map(c => (
-                  <button key={c.id} onClick={() => setActiveCatId(c.id)}
-                    style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: activeCatId===c.id ? ACC : T2, borderBottom: activeCatId===c.id ? `2px solid ${ACC}` : "2px solid transparent", transition: "all 0.15s" }}>
-                    {c.name}
-                  </button>
-                ))}
-                <button onClick={() => setShowCatModal(true)}
-                  style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
-                  + Add Category
+        {/* ── SHELL: SIDEBAR + MAIN ── */}
+        <div className="wx-shell">
+
+          {/* SIDEBAR */}
+          <nav className="wx-sidebar">
+            {/* League switcher (superadmin only) */}
+            {user?.role === "superadmin" && (
+              <div style={{ padding: "8px 8px 4px" }}>
+                <button onClick={handleBack} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "8px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  Toutes les ligues
                 </button>
-                {cats.length > 1 && (
-                  <button onClick={() => { setReorderCats(cats.slice()); setEditCatId(null); setShowReorderModal(true); }}
-                    style={{ background: "none", border: "none", padding: "11px 14px", fontSize: 13, cursor: "pointer", color: T2, opacity: 0.55, whiteSpace: "nowrap" }}>
-                    ↕️ Reorder &amp; Rename
-                  </button>
+                {leagues.length > 1 && (
+                  <div style={{ position: "relative", marginTop: 6 }}>
+                    <button onClick={() => setShowLeagueSwitcher(v => !v)}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "8px 12px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "left" }}>{league.name}</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    {showLeagueSwitcher && (
+                      <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 4px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, boxShadow: "0 6px 24px #00000070", zIndex: 200, maxHeight: 240, overflowY: "auto" }}>
+                        {leagues.map(l => (
+                          <button key={l.id} onClick={() => { setSelId(l.id); setTab("today"); setShowLeagueSwitcher(false); }}
+                            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: l.id === selId ? ACC+"20" : "none", border: "none", padding: "9px 14px", fontSize: 13, color: l.id === selId ? ACC : T1, cursor: "pointer", textAlign: "left", fontWeight: l.id === selId ? 700 : 400 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: l.color || ACC, flexShrink: 0 }} />
+                            {l.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
-                <div style={{ flex: 1 }} />
               </div>
+            )}
+
+            {/* Nav sections */}
+            <div style={{ flex: 1, padding: "8px 0" }}>
+              {TABS.map(([t, label]) => (
+                <button key={t} className={`wx-sidebar-item${tab === t ? " active" : ""}`}
+                  onClick={() => { handleTabSwitch(t); setMoreSheetOpen(false); }}>
+                  {TAB_ICONS[t]}
+                  {label}
+                </button>
+              ))}
             </div>
-          );
-        })()}
 
-        {/* TAB BAR */}
-        <div style={{ background: SURF, borderBottom: `1px solid ${BORDER}`, paddingLeft: 32, display: "flex", overflowX: "auto" }}>
-          {TABS.map(([t,label]) => (
-            <button key={t} onClick={() => handleTabSwitch(t)} style={{ background: "none", border: "none", padding: "16px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: tab===t?ACC:T2, borderBottom: tab===t?`2px solid ${ACC}`:"2px solid transparent" }}>{label}</button>
-          ))}
-        </div>
+            {/* Bottom: user + logout */}
+            <div className="wx-sidebar-bottom">
+              <div style={{ padding: "8px 16px 4px", fontSize: 12, color: T2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user?.username || user?.email || ""}
+              </div>
+              <button className="wx-sidebar-item" onClick={handleLogout}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Déconnexion
+              </button>
+            </div>
+          </nav>
 
-        <div style={{ maxWidth: 860, margin: "0 auto", padding: "36px 24px" }}>
+          {/* MAIN AREA */}
+          <div className="wx-main">
+            {/* TOP BAR: category picker + Ctrl+K search */}
+            <div className="wx-topbar" style={{ borderBottom: `1px solid ${BORDER}`, background: SURF }}>
+              {/* Category picker */}
+              {(league.categories || []).length > 0 && (() => {
+                const cats = league.categories || [];
+                const activeCat = cats.find(c => c.id === activeCatId);
+                return (
+                  <div style={{ position: "relative" }}>
+                    <button className="wx-cat-btn" onClick={() => setCatDropdownOpen(v => !v)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                      {activeCat?.name || "Toutes"}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    {catDropdownOpen && (
+                      <div className="wx-cat-dropdown">
+                        {cats.map(c => {
+                          const tCount = league.teams.filter(t => t.categoryId === c.id).length;
+                          const gCount = (league.schedule || []).filter(g => g.categoryId === c.id).length;
+                          return (
+                            <button key={c.id} className={`wx-cat-option${activeCatId === c.id ? " active" : ""}`}
+                              onClick={() => { setActiveCatId(c.id); setCatDropdownOpen(false); }}>
+                              <span>{c.name}</span>
+                              <span className="wx-cat-option-count">{tCount} éq · {gCount} matchs</span>
+                            </button>
+                          );
+                        })}
+                        <div style={{ borderTop: `1px solid ${BORDER}`, margin: "6px 0 2px" }} />
+                        <button className="wx-cat-option" style={{ color: T2, fontSize: 12 }} onClick={() => { setShowCatModal(true); setCatDropdownOpen(false); }}>+ Ajouter catégorie</button>
+                        {cats.length > 1 && (
+                          <button className="wx-cat-option" style={{ color: T2, fontSize: 12 }} onClick={() => { setReorderCats(cats.slice()); setEditCatId(null); setShowReorderModal(true); setCatDropdownOpen(false); }}>Réordonner / Renommer</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Breadcrumb */}
+              <div className="wx-breadcrumb">
+                <span style={{ color: T2 }}>{league.name}</span>
+                {" › "}
+                <span>{tabLabel}</span>
+              </div>
+
+              {/* Search button (Ctrl+K) */}
+              <button onClick={() => { setSearchOpen(true); setSearchQuery(""); }}
+                style={{ display: "flex", alignItems: "center", gap: 7, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "7px 12px", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Rechercher
+                <kbd style={{ fontSize: 10, background: SURF, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 5px", fontFamily: "inherit" }}>⌘K</kbd>
+              </button>
+            </div>
+
+            {/* CONTENT */}
+            <div style={{ maxWidth: 860, margin: "0 auto", padding: "36px 24px", width: "100%" }}>
 
           {/* ── MIGRATION WARNING ── */}
           {league._migrated && (
@@ -4070,6 +4321,91 @@ function App() {
               ⚠️ <strong>Categories auto-assigned.</strong> Teams, players, and games have been placed in a <strong>General</strong> category. Click <strong>Save Changes</strong> to persist this to Firestore.
             </div>
           )}
+
+          {/* ── AUJOURD'HUI ── */}
+          {tab==="today" && (() => {
+            const todayGames = catSchedule.filter(g => isGameToday(g))
+              .sort((a, b) => {
+                const da = getGameDateTime(a) || new Date((a.date||"9999")+"T00:00");
+                const db = getGameDateTime(b) || new Date((b.date||"9999")+"T00:00");
+                return da - db;
+              });
+            const todayMissing = catSchedule.filter(g => isGamePast(g) && (g.homeScore === undefined || g.awayScore === undefined));
+            // Group by gym
+            const gymMap = {};
+            todayGames.forEach(g => {
+              const gym = g.venue || g.gym || "Gymnase non précisé";
+              if (!gymMap[gym]) gymMap[gym] = [];
+              gymMap[gym].push(g);
+            });
+            return (
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Aujourd'hui</div>
+
+                {/* Quick actions */}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
+                  <button onClick={() => handleTabSwitch("schedule")} style={{ display: "flex", alignItems: "center", gap: 7, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "9px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                    + Ajouter un match
+                  </button>
+                  <button onClick={() => handleTabSwitch("players")} style={{ display: "flex", alignItems: "center", gap: 7, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "9px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                    + Ajouter un joueur
+                  </button>
+                  <button onClick={() => handleTabSwitch("public")} style={{ display: "flex", alignItems: "center", gap: 7, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "9px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                    Ouvrir le site public
+                  </button>
+                </div>
+
+                {/* Today's games by gym */}
+                {todayGames.length === 0 ? (
+                  <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "32px 24px", textAlign: "center", marginBottom: 24 }}>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>📅</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>Aucun match aujourd'hui</div>
+                    <div style={{ fontSize: 13, color: T2 }}>Les prochains matchs apparaîtront ici le jour même.</div>
+                  </div>
+                ) : (
+                  Object.entries(gymMap).map(([gym, games]) => (
+                    <div key={gym} style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T2, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{gym}</div>
+                      {games.map(g => {
+                        const isLive = isGameLive(g, sport);
+                        const isPast = isGamePast(g);
+                        const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
+                        return (
+                          <div key={g.id} style={{ background: CARD, border: `1px solid ${isLive ? ACC+"60" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ fontWeight: 700, fontSize: 14 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
+                              <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}{g.categoryId ? ` · ${(league.categories||[]).find(c=>c.id===g.categoryId)?.name||""}` : ""}</div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              {isLive && <span style={{ background: ACC+"25", color: ACC, borderRadius: 6, padding: "3px 9px", fontSize: 11, fontWeight: 700 }}>EN DIRECT</span>}
+                              {hasScore && <span style={{ fontWeight: 700, fontSize: 15 }}>{g.homeScore} – {g.awayScore}</span>}
+                              {isPast && !hasScore && (
+                                <button onClick={() => setEditScore(g)} style={{ background: ACC, border: "none", borderRadius: 7, color: "#fff", padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Entrer le score</button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+
+                {/* Scores manquants */}
+                {todayMissing.length > 0 && (
+                  <div style={{ background: "#f59e0b10", border: "1px solid #f59e0b40", borderRadius: 12, padding: "16px 20px" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", marginBottom: 10 }}>Scores manquants ({todayMissing.length})</div>
+                    {todayMissing.slice(0, 5).map(g => (
+                      <div key={g.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid #f59e0b20`, gap: 10 }}>
+                        <div style={{ fontSize: 13 }}>{g.home} vs {g.away} <span style={{ color: T2, fontSize: 11 }}>({g.date})</span></div>
+                        <button onClick={() => setEditScore(g)} style={{ background: "#f59e0b", border: "none", borderRadius: 7, color: "#000", padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Entrer</button>
+                      </div>
+                    ))}
+                    {todayMissing.length > 5 && <div style={{ fontSize: 12, color: T2, marginTop: 8 }}>+{todayMissing.length - 5} autres — voir Calendrier</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── TEAMS ── */}
           {tab==="teams" && (
@@ -4441,15 +4777,164 @@ function App() {
                   </div>
                 );
               })()}
-              {catSchedule.length===0 ? (
-                <div style={{ textAlign: "center", padding: "56px 24px" }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>📅</div>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: T1, marginBottom: 6 }}>No games scheduled yet</div>
-                  <div style={{ fontSize: 13, color: T2 }}>Add a game above ☝️</div>
+              {/* ── CALENDAR FILTERS & SEARCH ── */}
+              {catSchedule.length > 0 && (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+                  <input style={{ ...inp, flex: 2, minWidth: 160 }} placeholder="Rechercher équipe, gymnase…" value={calSearch} onChange={e => setCalSearch(e.target.value)} />
+                  <select style={{ ...inp, flex: 1, minWidth: 120 }} value={calFilter.team} onChange={e => setCalFilter(f => ({...f, team: e.target.value}))}>
+                    <option value="">Toutes les équipes</option>
+                    {catTeams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                  <select style={{ ...inp, flex: 1, minWidth: 120 }} value={calFilter.venue} onChange={e => setCalFilter(f => ({...f, venue: e.target.value}))}>
+                    <option value="">Tous les gymnases</option>
+                    {[...new Set((catSchedule).map(g => g.venue).filter(Boolean))].sort().map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                  <select style={{ ...inp, flex: 1, minWidth: 120 }} value={calFilter.status} onChange={e => setCalFilter(f => ({...f, status: e.target.value}))}>
+                    <option value="">Tous les statuts</option>
+                    <option value="upcoming">À venir</option>
+                    <option value="today">Aujourd'hui</option>
+                    <option value="awaiting">Score manquant</option>
+                    <option value="final">Terminé</option>
+                  </select>
+                  {(calSearch || calFilter.team || calFilter.venue || calFilter.status) && (
+                    <button onClick={() => { setCalSearch(""); setCalFilter({ team: "", venue: "", status: "" }); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "8px 14px", fontSize: 12, cursor: "pointer" }}>Réinitialiser</button>
+                  )}
                 </div>
-              ) : (
+              )}
+              {(() => {
+                const q = calSearch.toLowerCase();
+                const allSorted = [...catSchedule].sort((a, b) => {
+                  const da = getGameDateTime(a) || new Date((a.date||"9999")+"T00:00");
+                  const db = getGameDateTime(b) || new Date((b.date||"9999")+"T00:00");
+                  return da - db;
+                });
+                const filtered = allSorted.filter(g => {
+                  if (calFilter.team && g.home !== calFilter.team && g.away !== calFilter.team) return false;
+                  if (calFilter.venue && g.venue !== calFilter.venue) return false;
+                  if (calFilter.status) {
+                    const past = isGamePast(g);
+                    const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
+                    if (calFilter.status === "upcoming" && past) return false;
+                    if (calFilter.status === "today" && !isGameToday(g)) return false;
+                    if (calFilter.status === "awaiting" && (!past || hasScore)) return false;
+                    if (calFilter.status === "final" && !hasScore) return false;
+                  }
+                  if (q && !g.home?.toLowerCase().includes(q) && !g.away?.toLowerCase().includes(q) && !g.venue?.toLowerCase().includes(q)) return false;
+                  return true;
+                });
+                // Group by date
+                const dateMap = {};
+                filtered.forEach(g => {
+                  const d = g.date || "0000-00-00";
+                  if (!dateMap[d]) dateMap[d] = [];
+                  dateMap[d].push(g);
+                });
+                const dates = Object.keys(dateMap).sort();
+                if (catSchedule.length === 0) return (
+                  <div style={{ textAlign: "center", padding: "56px 24px" }}>
+                    <div style={{ fontSize: 36, marginBottom: 12 }}>📅</div>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: T1, marginBottom: 6 }}>Aucun match planifié</div>
+                    <div style={{ fontSize: 13, color: T2 }}>Ajouter un match ci-dessus ☝️</div>
+                  </div>
+                );
+                if (filtered.length === 0) return (
+                  <div style={{ textAlign: "center", padding: "40px 24px", color: T2, fontSize: 14 }}>Aucun résultat pour ces filtres.</div>
+                );
+                return (
+                  <div>
+                    {dates.map(date => (
+                      <div key={date} style={{ marginBottom: 24 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T2, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                          <span>{date}</span>
+                          {isGameToday({ date }) && <span style={{ background: ACC+"22", color: ACC, borderRadius: 5, padding: "1px 8px", fontSize: 11 }}>Aujourd'hui</span>}
+                        </div>
+                        {dateMap[date].map(g => {
+                          const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
+                          const live = isGameLive(g, sport);
+                          const awaiting = isGameAwaiting(g);
+                          const past = isGamePast(g);
+                          const isToday = isGameToday(g);
+                          const status = getGameStatus(g, sport);
+                          const ago = daysAgo(g);
+                          const cardBorder = live ? `1px solid #22c55e50` : awaiting ? `1px solid #ef444455` : isToday ? `1px solid ${ACC}aa` : `1px solid ${BORDER}`;
+                          return (
+                            <div key={g.id} style={{ ...card, marginBottom: 8, border: cardBorder }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                                <div>
+                                  <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                                    {g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}
+                                    {live && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#22c55e", padding: "2px 8px", background: "#22c55e18", borderRadius: 20, border: "1px solid #22c55e40" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "livepulse-admin 1.4s ease-in-out infinite" }} />LIVE</span>}
+                                  </div>
+                                  <div style={{ fontSize: 12, color: awaiting ? "#f59e0b" : T2, marginTop: 3 }}>
+                                    {g.time ? formatTime12h(g.time) : "Heure à confirmer"}{g.venue ? " · " + g.venue : ""}
+                                    {awaiting && ago > 0 && <span style={{ color: ago >= 2 ? "#ef4444" : "#f59e0b", fontWeight: 600, marginLeft: 8 }}>— {ago === 1 ? "hier" : `${ago} jours`} — score manquant</span>}
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  {hasScore && <span style={{ fontWeight: 800, fontSize: 17, color: "#22c55e" }}>{g.homeScore} – {g.awayScore}</span>}
+                                  {status === "FINAL"          && <span style={{ fontSize: 12, color: "#22c55e", padding: "4px 10px", background: "#22c55e15", borderRadius: 6, fontWeight: 600 }}>Final</span>}
+                                  {status === "SCORE NEEDED"   && <span style={{ fontSize: 12, color: "#ef4444", padding: "4px 10px", background: "#ef444420", borderRadius: 6, fontWeight: 700, border: "1px solid #ef444440" }}>Score requis</span>}
+                                  {status === "AWAITING SCORE" && <span style={{ fontSize: 12, color: "#f97316", padding: "4px 10px", background: "#f9731615", borderRadius: 6, fontWeight: 600 }}>En attente</span>}
+                                  {status === "TODAY"          && !past && <span style={{ fontSize: 12, color: ACC, padding: "4px 10px", background: ACC+"20", borderRadius: 6, fontWeight: 700 }}>Aujourd'hui</span>}
+                                  {past && !hasScore && (
+                                    <button onClick={() => setEditScore(g)} style={{ background: awaiting ? "#ef4444" : "none", border: awaiting ? "none" : `1px solid ${ACC}55`, borderRadius: 6, color: awaiting ? "#fff" : ACC, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>Entrer le score</button>
+                                  )}
+                                  {hasScore && <button onClick={() => setEditScore(g)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Modifier score</button>}
+                                  {(() => {
+                                    const hasStats = Object.keys(g.playerStats || {}).length > 0;
+                                    const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+                                    if (!gamePlayers.length) return null;
+                                    return (
+                                      <button onClick={() => {
+                                        const stats = {};
+                                        gamePlayers.forEach(p => {
+                                          const existing = (g.playerStats || {})[p.id] || {};
+                                          const def = getSportStats(sport, p);
+                                          const defaults = {};
+                                          def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
+                                          stats[p.id] = { ...defaults, ...existing };
+                                        });
+                                        setEditStats({ game: g, stats });
+                                        setStatsValidationError(null);
+                                      }} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 6, color: hasStats ? T2 : "#a78bfa", padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: hasStats ? 400 : 600 }}>
+                                        {hasStats ? "Stats" : "Entrer stats"}
+                                      </button>
+                                    );
+                                  })()}
+                                  <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Modifier</button>
+                                  <div style={{ position: "relative" }}>
+                                    <button onClick={e => { e.stopPropagation(); setOpenGameMenuId(openGameMenuId === g.id ? null : g.id); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 14, cursor: "pointer", lineHeight: 1 }}>⋯</button>
+                                    {openGameMenuId === g.id && (
+                                      <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, boxShadow: "0 4px 16px #00000060", zIndex: 50, minWidth: 130 }}>
+                                        <button onClick={() => { setOpenGameMenuId(null); deleteConfirm.ask({
+                                            actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
+                                            summary: `You are about to permanently delete this game. This cannot be undone.`,
+                                            details: [
+                                              { label: 'Matchup', value: `${g.home} vs ${g.away}` },
+                                              { label: 'Date',    value: g.date || '—' },
+                                              { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
+                                            ],
+                                            requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                            confirmLabel: 'Yes, Delete Game', dangerStyle: true,
+                                            onConfirm: () => deleteGame(g.id),
+                                          }); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>🗑 Supprimer</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              {hasScore && <BoxScore game={g} players={league.players} sport={sport} toggles={toggles} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              {false && (
                 <div>
-                  {/* ── UPCOMING ── sorted ascending */}
+                  {/* dead code — replaced by date-grouped view above */}
                   {upcomingGames.length > 0 && (
                     <>
                       <div style={{ fontSize: 13, fontWeight: 700, color: T2, marginBottom: 10 }}>Upcoming</div>
@@ -6326,6 +6811,8 @@ service cloud.firestore {
           )}
 
         </div>{/* end content */}
+          </div>{/* end wx-main */}
+        </div>{/* end wx-shell */}
 
         {/* ── STICKY SAVE BAR ── */}
         {dirty && (
@@ -6340,6 +6827,80 @@ service cloud.firestore {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={discardDirty} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "9px 18px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>Discard</button>
               <button onClick={handleSave} style={{ ...btn("#22c55e"), padding: "9px 20px", fontSize: 14 }}>💾 Save Changes</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── GLOBAL SEARCH OVERLAY (Ctrl+K) ── */}
+        {searchOpen && (() => {
+          const q = searchQuery.toLowerCase().trim();
+          const teamResults = q ? catTeams.filter(t => t.name?.toLowerCase().includes(q)).map(t => ({ type: "team", label: t.name, sub: "Équipe", action: () => { handleTabSwitch("teams"); setSearchOpen(false); } })) : [];
+          const playerResults = q ? catPlayers.filter(p => p.name?.toLowerCase().includes(q) || p.number?.toString().includes(q)).map(p => ({ type: "player", label: p.name, sub: `#${p.number || "?"} · ${p.team || ""}`, action: () => { handleTabSwitch("players"); setSearchOpen(false); } })) : [];
+          const results = [...teamResults, ...playerResults].slice(0, 12);
+          return (
+            <div onClick={() => setSearchOpen(false)} style={{ position: "fixed", inset: 0, background: "#00000085", zIndex: 900, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 80 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, width: "100%", maxWidth: 520, boxShadow: "0 24px 60px #00000090", overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: `1px solid ${BORDER}` }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T2} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input autoFocus value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setSearchFocusIdx(0); }}
+                    onKeyDown={e => {
+                      if (e.key === "ArrowDown") { e.preventDefault(); setSearchFocusIdx(i => Math.min(i+1, results.length-1)); }
+                      if (e.key === "ArrowUp")   { e.preventDefault(); setSearchFocusIdx(i => Math.max(i-1, 0)); }
+                      if (e.key === "Enter" && results[searchFocusIdx]) results[searchFocusIdx].action();
+                    }}
+                    placeholder="Rechercher équipes ou joueurs…"
+                    style={{ flex: 1, background: "none", border: "none", outline: "none", color: T1, fontSize: 16 }} />
+                  <kbd style={{ fontSize: 10, background: SURF, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "2px 7px", color: T2 }}>Échap</kbd>
+                </div>
+                {q && results.length === 0 && (
+                  <div style={{ padding: "24px", textAlign: "center", color: T2, fontSize: 14 }}>Aucun résultat pour "{searchQuery}"</div>
+                )}
+                {results.map((r, i) => (
+                  <button key={i} onClick={r.action}
+                    style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: i === searchFocusIdx ? ACC+"18" : "none", border: "none", padding: "12px 18px", cursor: "pointer", textAlign: "left", borderBottom: i < results.length-1 ? `1px solid ${BORDER}` : "none" }}
+                    onMouseEnter={() => setSearchFocusIdx(i)}>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: T2, letterSpacing: 1, width: 44, flexShrink: 0 }}>{r.type === "team" ? "Équipe" : "Joueur"}</span>
+                    <span style={{ flex: 1 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: T1 }}>{r.label}</span>
+                      <span style={{ fontSize: 12, color: T2, marginLeft: 8 }}>{r.sub}</span>
+                    </span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T2} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                ))}
+                {!q && (
+                  <div style={{ padding: "20px 18px", color: T2, fontSize: 13 }}>Tape pour chercher des équipes ou joueurs dans cette catégorie.</div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── MOBILE BOTTOM NAV (<768px) ── */}
+        <div className="wx-bottom-nav">
+          {[["today","Aujourd'hui"],["schedule","Calendrier"],["teams","Équipes"]].map(([t, label]) => (
+            <button key={t} onClick={() => { handleTabSwitch(t); setMoreSheetOpen(false); }}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", color: tab === t ? ACC : T2, cursor: "pointer", fontSize: 10, fontWeight: tab === t ? 700 : 400, minHeight: 44, padding: "6px 0" }}>
+              {TAB_ICONS[t] || null}
+              {label}
+            </button>
+          ))}
+          <button onClick={() => setMoreSheetOpen(v => !v)}
+            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", color: ["players","scores","stats","public","settings","alertes"].includes(tab) ? ACC : T2, cursor: "pointer", fontSize: 10, fontWeight: ["players","scores","stats","public","settings","alertes"].includes(tab) ? 700 : 400, minHeight: 44, padding: "6px 0" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            Plus
+          </button>
+        </div>
+        {/* More sheet */}
+        {moreSheetOpen && (
+          <div onClick={() => setMoreSheetOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 500, background: "#00000060" }}>
+            <div onClick={e => e.stopPropagation()} style={{ position: "absolute", bottom: 56, left: 0, right: 0, background: SURF, borderTop: `1px solid ${BORDER}`, borderRadius: "16px 16px 0 0", padding: "16px 8px" }}>
+              {[["players","Joueurs"],["scores","Scores"],["stats","Classement & stats"],["public","Site public"],["settings","Paramètres"],["alertes","Alertes"]].map(([t, label]) => (
+                <button key={t} onClick={() => { handleTabSwitch(t); setMoreSheetOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: tab === t ? ACC+"22" : "none", border: "none", borderRadius: 8, padding: "13px 16px", fontSize: 15, color: tab === t ? ACC : T1, cursor: "pointer", fontWeight: tab === t ? 700 : 400 }}>
+                  {TAB_ICONS[t] || null}
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         )}
