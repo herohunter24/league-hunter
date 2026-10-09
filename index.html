@@ -21,7 +21,8 @@
            deleteField, query, where, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes,
            getDownloadURL }                                         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-  import { getAuth, signInWithPopup, GoogleAuthProvider,
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+           updatePassword, deleteUser,
            onAuthStateChanged, signOut,
            browserLocalPersistence, setPersistence }               from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -55,7 +56,14 @@
       window.__wxStorage = storage;
       window.__wxFS      = { collection, doc, getDocs, getDoc, setDoc, onSnapshot, deleteDoc, writeBatch, updateDoc, deleteField, query, where, orderBy, arrayUnion, arrayRemove };
       window.__wxST      = { storageRef, uploadBytes, getDownloadURL };
-      window.__wxAuthFns = { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut };
+      window.__wxAuthFns = { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, onAuthStateChanged, signOut };
+      // Secondary app instance for creating owner accounts without signing out the superadmin
+      try {
+        const { initializeApp: initApp2 } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+        const { getAuth: getAuth2 } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+        const secondaryApp = initApp2(firebaseConfig, "secondary");
+        window.__wxSecondaryAuth = getAuth2(secondaryApp);
+      } catch(e2) { console.warn("[Auth] secondary app init:", e2); }
       window.__wxFirebaseReady = true;
       // Local persistence: best-effort, fire-and-forget — auth works without it
       setPersistence(auth, browserLocalPersistence).catch(e => console.warn("[Auth] setPersistence:", e));
@@ -1378,11 +1386,7 @@ function App() {
   const [page, setPage] = useState("loading");
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
-  const [accessCode, setAccessCode] = useState("");
-  const [accessCodeErr, setAccessCodeErr] = useState("");
   const [showLeagueSwitcher, setShowLeagueSwitcher] = useState(false);
-  const [leagueCodes, setLeagueCodes] = useState({}); // { leagueId: code } — superadmin only
   const [leagues, setLeagues] = useState(DEMO_LEAGUES);
   const [loading, setLoading]   = useState(true);
   const [fbError, setFbError]   = useState(null);
@@ -1410,12 +1414,12 @@ function App() {
   const [users, setUsers] = useState(loadUsers);
   const [lastSaved, setLastSaved] = useState(null);
   const [ownerModal, setOwnerModal] = useState(null);
-  const [newOwner, setNewOwner] = useState({ email: "", password: "", confirm: "" });
+  const [newOwner, setNewOwner] = useState({ username: "", password: "" });
   const [ownerError, setOwnerError] = useState("");
   const [createdCreds, setCreatedCreds] = useState(null);
   const [manageOwnerId, setManageOwnerId] = useState(null);
   const [deleteOwnerId, setDeleteOwnerId] = useState(null);
-  const [resetPwForm, setResetPwForm] = useState({ userId: null, password: "", confirm: "" });
+  const [resetAccessForm, setResetAccessForm] = useState({ ownerId: null, newUsername: "", tempPassword: "" });
   const [saving, setSaving] = useState(false);
   const [activeCatId, setActiveCatId] = useState(null);
   const [showCatModal, setShowCatModal] = useState(false);
@@ -1851,22 +1855,6 @@ function App() {
       .catch(e => console.error("Users load:", e));
   }, []);
 
-  // ── LEAGUE CODES — superadmin only, read from private subcollection ──
-  useEffect(() => {
-    if (!__fbReady || user?.role !== "superadmin" || !leagues.length) return;
-    const { getDoc, doc } = _FS;
-    Promise.all(
-      leagues.map(l =>
-        getDoc(doc(_db, "leagues", String(l.id), "private", "admin"))
-          .then(snap => snap.exists() ? [l.id, snap.data().code] : null)
-          .catch(() => null)
-      )
-    ).then(results => {
-      const map = {};
-      results.filter(Boolean).forEach(([id, code]) => { map[id] = code; });
-      setLeagueCodes(map);
-    });
-  }, [user?.role, leagues.length]);
 
   // ── FIREBASE AUTH — restore session across reloads ──
   useEffect(() => {
@@ -1909,144 +1897,98 @@ function App() {
 
   const league = leagues.find(l => l.id === selId);
 
-  function genAccessCode() {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1, L
+  function _genAccessCode_unused() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     return 'NLS-' + Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   }
 
-  async function sha256hex(str) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
+  // ── EMAIL/PASSWORD AUTH ──
 
-  async function hashPassword(pw) {
-    const enc = new TextEncoder().encode(pw);
-    const buf = await crypto.subtle.digest("SHA-256", enc);
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
-  }
-  const isHashed = s => typeof s === "string" && /^[0-9a-f]{64}$/.test(s);
-
-  // ── GOOGLE AUTH ──
-  async function signInWithGoogle() {
-    // Check live window value in case module script finished after Babel ran
+  async function signIn() {
     const authReady = __fbReady || window.__wxFirebaseReady;
     const auth = _auth || window.__wxAuth;
-    const authFns = (_AuthFns?.signInWithPopup ? _AuthFns : null) || (window.__wxAuthFns?.signInWithPopup ? window.__wxAuthFns : null);
-    if (!authReady || !auth || !authFns) { setErr("Firebase not configured."); return; }
+    const authFns = window.__wxAuthFns || _AuthFns;
+    if (!authReady || !auth || !authFns) { setErr("Firebase non configuré."); return; }
+    const u = (email || "").trim().toLowerCase();
+    const p = pass || "";
+    if (!u) { setErr("Nom d'utilisateur requis."); return; }
+    if (!p) { setErr("Mot de passe requis."); return; }
     setErr("");
     try {
-      await authFns.signInWithPopup(auth, new authFns.GoogleAuthProvider());
+      await authFns.signInWithEmailAndPassword(auth, `${u}@websitex.app`, p);
       // onAuthStateChanged handles the rest
     } catch(e) {
-      if (e.code !== 'auth/popup-closed-by-user') setErr(e.message || "Sign-in failed.");
+      if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
+        setErr("Nom d'utilisateur ou mot de passe invalide.");
+      } else {
+        setErr(e.message || "Connexion échouée.");
+      }
     }
   }
 
   async function resolveFirebaseUser(firebaseUser) {
     if (!firebaseUser || (!__fbReady && !window.__wxFirebaseReady)) return;
-    const { getDoc, getDocs, doc, collection, query, where, setDoc } = _FS?.getDoc ? _FS : window.__wxFS;
+    const { getDoc, getDocs, collection, doc } = _FS?.getDoc ? _FS : window.__wxFS;
     try {
-      // 1. Is this the superadmin?
-      const saSnap = await getDoc(doc(_db, "meta", "superadmin"));
-      if (saSnap.exists()) {
-        const sa = saSnap.data();
-        if (firebaseUser.email === sa.email) {
-          // Persist superadmin UID for Firestore rules
-          if (!sa.uid || sa.uid !== firebaseUser.uid) {
-            await setDoc(doc(_db, "meta", "superadmin"), { ...sa, uid: firebaseUser.uid }, { merge: true }).catch(() => {});
-          }
-          const saUser = { email: firebaseUser.email, role: "superadmin", uid: firebaseUser.uid };
-          setUser(saUser); setPage("dashboard"); setAuthChecked(true); return;
-        }
+      const userSnap = await getDoc(doc(_db, "users", firebaseUser.uid));
+      if (!userSnap.exists()) {
+        setErr("Compte non trouvé. Contacte ton administrateur.");
+        setPage("login"); setAuthChecked(true); return;
       }
-    } catch(e) { console.error("[Auth] superadmin check:", e); }
+      const userData = userSnap.data();
+      const u = { ...userData, uid: firebaseUser.uid, id: firebaseUser.uid };
 
-    // 2. Existing owner — match by googleUid or email
-    try {
-      const { getDoc, getDocs, collection, query, where, updateDoc, doc: d } = _FS;
-      let ownerDoc = null;
-      let ownerDocId = null;
-      // New scheme: doc ID == uid
-      const byUid = await getDoc(d(_db, "users", firebaseUser.uid));
-      if (byUid.exists()) {
-        ownerDoc = byUid.data(); ownerDocId = firebaseUser.uid;
-      } else {
-        // Backward compat: old docs used "user_XXXXX" ids with googleUid/email fields
-        const q1 = await getDocs(query(collection(_db, "users"), where("googleUid", "==", firebaseUser.uid)));
-        if (!q1.empty) {
-          ownerDoc = q1.docs[0].data(); ownerDocId = q1.docs[0].id;
-        } else {
-          const q2 = await getDocs(query(collection(_db, "users"), where("email", "==", firebaseUser.email)));
-          if (!q2.empty) {
-            ownerDoc = q2.docs[0].data(); ownerDocId = q2.docs[0].id;
-            await updateDoc(d(_db, "users", ownerDocId), { googleUid: firebaseUser.uid }).catch(() => {});
-            ownerDoc = { ...ownerDoc, googleUid: firebaseUser.uid };
-          }
-        }
-      }
-      if (ownerDoc) {
+      if (u.role === "superadmin") {
         const allSnap = await getDocs(collection(_db, "users")).catch(() => null);
-        if (allSnap) setUsers(allSnap.docs.map(doc => doc.data()));
-        setUser({ ...ownerDoc, role: "owner", uid: firebaseUser.uid });
-        setSelId(ownerDoc.leagueId); setTab("teams"); setPage("league"); setAuthChecked(true); return;
+        if (allSnap) setUsers(allSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+        setUser(u); setPage("dashboard"); setAuthChecked(true); return;
       }
-    } catch(e) { console.error("[Auth] owner lookup:", e); }
 
-    // 3. Not linked — ask for access code
-    setPendingGoogleUser(firebaseUser);
-    setPage("linkcode");
-    setAuthChecked(true);
+      if (u.role === "owner") {
+        const allSnap = await getDocs(collection(_db, "users")).catch(() => null);
+        if (allSnap) setUsers(allSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+        setUser(u);
+        if (u.mustChangePassword) {
+          setPage("changepw"); setAuthChecked(true); return;
+        }
+        setSelId(u.leagueId); setTab("teams"); setPage("league"); setAuthChecked(true); return;
+      }
+
+      setErr("Rôle non reconnu. Contacte ton administrateur.");
+      setPage("login"); setAuthChecked(true);
+    } catch(e) {
+      console.error("[Auth] resolveFirebaseUser:", e);
+      setErr("Erreur de connexion: " + e.message);
+      setPage("login"); setAuthChecked(true);
+    }
   }
 
-  async function submitAccessCode() {
-    if (!pendingGoogleUser || !__fbReady) return;
-    const code = accessCode.trim().toUpperCase();
-    if (!code) { setAccessCodeErr("Enter your access code."); return; }
-    setAccessCodeErr("");
+  async function changePassword(newPw, confirmPw) {
+    if (!newPw || newPw.length < 6) { setErr("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    if (newPw !== confirmPw) { setErr("Les mots de passe ne correspondent pas."); return; }
+    setErr("");
+    const auth = _auth || window.__wxAuth;
+    const authFns = window.__wxAuthFns || _AuthFns;
     try {
-      const { getDoc, getDocs, collection, setDoc, doc } = _FS;
-      // Hash the entered code and look up the single doc (no bulk list needed)
-      const hash = await sha256hex(code);
-      const codeSnap = await getDoc(doc(_db, "leagueCodes", hash));
-      if (!codeSnap.exists()) { setAccessCodeErr("Code invalide. Vérifies avec ton administrateur."); return; }
-      const leagueId = codeSnap.data().leagueId;
-      // Create users/{uid} — Firestore rule validates hash + leagueId match
-      const newUser = {
-        email: pendingGoogleUser.email, googleUid: pendingGoogleUser.uid,
-        role: "owner", leagueId, codeHash: hash,
-        createdAt: new Date().toISOString().slice(0, 10),
-      };
-      await setDoc(doc(_db, "users", pendingGoogleUser.uid), newUser);
-      const usersSnap = await getDocs(collection(_db, "users")).catch(() => null);
-      if (usersSnap) setUsers(usersSnap.docs.map(d => d.data()));
-      setPendingGoogleUser(null); setAccessCode("");
-      setUser({ ...newUser, id: pendingGoogleUser.uid, uid: pendingGoogleUser.uid });
-      setSelId(leagueId); setTab("teams"); setPage("league");
-    } catch(e) { setAccessCodeErr("Erreur: " + e.message); }
+      await authFns.updatePassword(auth.currentUser, newPw);
+      // Mark mustChangePassword as false in Firestore
+      const { updateDoc, doc } = _FS;
+      await updateDoc(doc(_db, "users", user.uid), { mustChangePassword: false });
+      setUser(u => ({ ...u, mustChangePassword: false }));
+      setSelId(user.leagueId); setTab("teams"); setPage("league");
+    } catch(e) {
+      setErr("Erreur: " + (e.message || "Impossible de changer le mot de passe."));
+    }
   }
 
   function logout() {
     setPage("login"); setUser(null); setSelId(null); setDirty(false); setLastSaved(null);
-    setPendingGoogleUser(null); setAccessCode(""); setAccessCodeErr("");
-    if (_auth && _AuthFns.signOut) _AuthFns.signOut(_auth).catch(() => {});
+    setEmail(""); setPass(""); setErr("");
+    const auth = _auth || window.__wxAuth;
+    const authFns = window.__wxAuthFns || _AuthFns;
+    if (auth && authFns?.signOut) authFns.signOut(auth).catch(() => {});
   }
 
-  async function regenerateAccessCode(leagueId) {
-    if (!__fbReady) return;
-    const { setDoc, deleteDoc, getDoc, doc } = _FS;
-    // Read current plain code from private subcollection to compute old hash
-    const privateSnap = await getDoc(doc(_db, "leagues", String(leagueId), "private", "admin")).catch(() => null);
-    if (privateSnap?.exists()) {
-      const oldHash = await sha256hex(privateSnap.data().code);
-      await deleteDoc(doc(_db, "leagueCodes", oldHash)).catch(() => {});
-    }
-    const newCode = genAccessCode();
-    const newHash = await sha256hex(newCode);
-    await setDoc(doc(_db, "leagueCodes", newHash), { leagueId, createdAt: Date.now() });
-    await setDoc(doc(_db, "leagues", String(leagueId), "private", "admin"), { code: newCode, updatedAt: Date.now() });
-    showToast(`New code: ${newCode}`);
-    setLeagueCodes(prev => ({ ...prev, [leagueId]: newCode }));
-  }
   async function removeOwner(userId, leagueId) {
     if (!__fbReady) return;
     const { deleteDoc, doc } = _FS;
@@ -2434,79 +2376,91 @@ function App() {
   }
 
   async function createOwner() {
-    const { email: e, password: p, confirm: c } = newOwner;
-    if (!e.trim() || !p) { setOwnerError("Email and password are required."); return; }
-    if (p !== c) { setOwnerError("Passwords do not match."); return; }
-    if (users.some(u => u.email === e.trim())) { setOwnerError("That email is already in use."); return; }
-    let fresh = loadUsers();
-    if (__fbReady) {
-      try {
-        const { getDocs, collection } = _FS;
-        const snap = await getDocs(collection(_db, "users"));
-        fresh = snap.docs.map(d => d.data());
-      } catch(e2) { /* use localStorage list */ }
+    const { username: uname, password: p } = newOwner;
+    const u = (uname || "").trim().toLowerCase();
+    if (!u || !p) { setOwnerError("Nom d'utilisateur et mot de passe requis."); return; }
+    if (p.length < 6) { setOwnerError("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    if (users.some(usr => usr.username === u)) { setOwnerError("Ce nom d'utilisateur est déjà utilisé."); return; }
+    const secondaryAuth = window.__wxSecondaryAuth;
+    if (!secondaryAuth) { setOwnerError("Firebase secondaire non disponible. Recharge la page."); return; }
+    const authFns = window.__wxAuthFns || _AuthFns;
+    const lg = leagues.find(l => l.id === manageOwnerId);
+    try {
+      setOwnerError("");
+      const cred = await authFns.createUserWithEmailAndPassword(secondaryAuth, `${u}@websitex.app`, p);
+      const newUid = cred.user.uid;
+      const newUserDoc = {
+        username: u, role: "owner", leagueId: manageOwnerId,
+        mustChangePassword: true, createdAt: new Date().toISOString().slice(0, 10),
+      };
+      const { setDoc, doc } = _FS;
+      await setDoc(doc(_db, "users", newUid), newUserDoc);
+      setUsers(prev => [...prev, { ...newUserDoc, id: newUid }]);
+      setNewOwner({ username: "", password: "" });
+      setOwnerError("");
+      setCreatedCreds({ username: u, password: p, leagueName: lg?.name || "Ligue" });
+      showToast(`Compte créé pour ${u}`);
+    } catch(e) {
+      if (e.code === 'auth/email-already-in-use') {
+        setOwnerError("Ce nom d'utilisateur est déjà utilisé dans Firebase Auth.");
+      } else {
+        setOwnerError("Erreur: " + e.message);
+      }
     }
-    if (JSON.stringify(fresh) !== JSON.stringify(users)) setUsers(fresh);
-    if (fresh.find(u => u.email === e.trim())) { setOwnerError("An account with that email already exists."); return; }
-    const lg = leagues.find(l => l.id === ownerModal);
-    const hashedPw = await hashPassword(p);
-    const newUser = {
-      id: "user_" + Date.now(), email: e.trim(), password: hashedPw,
-      role: "owner", leagueId: ownerModal,
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    const updated = [...fresh, newUser];
-    saveUsers(updated);
-    if (__fbReady) {
-      try {
-        const { setDoc, doc } = _FS;
-        await setDoc(doc(_db, "users", newUser.id), newUser);
-      } catch(e2) { console.error("Firestore createOwner:", e2); }
+  }
+
+  async function resetAccess() {
+    const { ownerId, newUsername, tempPassword } = resetAccessForm;
+    const u = (newUsername || "").trim().toLowerCase();
+    if (!u || !tempPassword) { setOwnerError("Nom d'utilisateur et mot de passe temporaire requis."); return; }
+    if (tempPassword.length < 6) { setOwnerError("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    const secondaryAuth = window.__wxSecondaryAuth;
+    if (!secondaryAuth) { setOwnerError("Firebase secondaire non disponible. Recharge la page."); return; }
+    const authFns = window.__wxAuthFns || _AuthFns;
+    const oldOwner = users.find(usr => usr.id === ownerId);
+    if (!oldOwner) { setOwnerError("Propriétaire introuvable."); return; }
+    try {
+      setOwnerError("");
+      // Create new Firebase Auth account (old one stays in Auth but loses its Firestore doc)
+      const cred = await authFns.createUserWithEmailAndPassword(secondaryAuth, `${u}@websitex.app`, tempPassword);
+      const newUid = cred.user.uid;
+      const { setDoc, deleteDoc, doc } = _FS;
+      // Delete old users doc — old login loses all access
+      await deleteDoc(doc(_db, "users", ownerId));
+      // Create new users doc
+      const newUserDoc = {
+        username: u, role: "owner", leagueId: oldOwner.leagueId,
+        mustChangePassword: true, createdAt: new Date().toISOString().slice(0, 10),
+      };
+      await setDoc(doc(_db, "users", newUid), newUserDoc);
+      setUsers(prev => [...prev.filter(usr => usr.id !== ownerId), { ...newUserDoc, id: newUid }]);
+      setResetAccessForm({ ownerId: null, newUsername: "", tempPassword: "" });
+      setOwnerError("");
+      setCreatedCreds({ username: u, password: tempPassword, leagueName: leagues.find(l => l.id === oldOwner.leagueId)?.name || "Ligue", isReset: true });
+      showToast(`Accès réinitialisé — nouveau compte: ${u}`);
+    } catch(e) {
+      if (e.code === 'auth/email-already-in-use') {
+        setOwnerError(`Le nom d'utilisateur "${u}" est déjà pris dans Firebase Auth. Essaie un autre (ex: ${u}2).`);
+      } else {
+        setOwnerError("Erreur: " + e.message);
+      }
     }
-    setUsers(updated);
-    setOwnerModal(null);
-    setNewOwner({ email: "", password: "", confirm: "" });
-    setOwnerError("");
-    setCreatedCreds({ email: newUser.email, password: p, leagueName: lg?.name || "League" });
   }
 
   async function deleteOwner(userId) {
-    const updated = users.filter(u => u.id !== userId);
-    saveUsers(updated);
-    if (__fbReady) {
-      try {
-        const { deleteDoc, doc } = _FS;
-        await deleteDoc(doc(_db, "users", userId));
-      } catch(e) { console.error("Firestore deleteOwner:", e); }
-    }
-    setUsers(updated);
-    setDeleteOwnerId(null);
-    showToast("Owner account deleted.");
-  }
-
-  async function resetOwnerPassword() {
-    const { userId, password, confirm } = resetPwForm;
-    if (!password) { setOwnerError("Password cannot be empty."); return; }
-    if (password !== confirm) { setOwnerError("Passwords do not match."); return; }
-    const hashedPw = await hashPassword(password);
-    const updated = users.map(u => u.id === userId ? { ...u, password: hashedPw } : u);
-    saveUsers(updated);
-    if (__fbReady) {
-      try {
-        const { setDoc, doc } = _FS;
-        const userToUpdate = updated.find(u => u.id === userId);
-        if (userToUpdate) await setDoc(doc(_db, "users", userId), userToUpdate);
-      } catch(e) { console.error("Firestore resetPassword:", e); }
-    }
-    setUsers(updated);
-    setResetPwForm({ userId: null, password: "", confirm: "" });
-    setOwnerError(""); showToast("Password updated!");
+    if (!__fbReady) return;
+    try {
+      const { deleteDoc, doc } = _FS;
+      await deleteDoc(doc(_db, "users", userId));
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      setDeleteOwnerId(null);
+      showToast("Compte supprimé.");
+    } catch(e) { showToast("Erreur: " + e.message, "error"); }
   }
 
   async function addLeague() {
     if (!nL.name) return;
     const genCat = { id: "cat_" + Date.now() + "_gen", name: "General", gender: "", displayName: "General" };
-    const code = genAccessCode();
     const newLeague = { ...nL, id: Date.now(), categories: [genCat], teams: [], players: [], schedule: [], statToggles: getDefaultToggles(nL.sport), honours: {} };
     if (__fbReady) {
       try {
@@ -2517,12 +2471,6 @@ function App() {
           categories: newLeague.categories, statToggles: newLeague.statToggles,
           honours: {}, _format: "v2", _updatedAt: Date.now(),
         });
-        // Hash stored as doc ID — no bulk listing possible, only get() by known hash
-        const codeHash = await sha256hex(code);
-        await setDoc(doc(_db, "leagueCodes", codeHash), { leagueId: newLeague.id, createdAt: Date.now() });
-        // Plain code stored in private subcollection — readable only by superadmin/owner
-        await setDoc(doc(_db, "leagues", String(newLeague.id), "private", "admin"), { code, createdAt: Date.now() });
-        setLeagueCodes(prev => ({ ...prev, [newLeague.id]: code }));
         subcolData.current[String(newLeague.id)] = { teams: {}, players: {}, playersPrivate: {}, games: {}, stats: {} };
       } catch(e) { console.error("Firestore addLeague:", e); }
     }
@@ -3231,11 +3179,11 @@ function App() {
       <div style={{ width: 380, padding: 40, ...card }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>Website X</div>
-          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin — sign in to continue</div>
+          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin — connecte-toi pour continuer</div>
         </div>
         {__fbUncfg && (
           <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
-            🔴 <strong>Firebase not configured.</strong> Open index.html and replace the <code>REPLACE_ME</code> values in the Firebase module script.
+            🔴 <strong>Firebase non configuré.</strong>
           </div>
         )}
         {fbError && (
@@ -3244,48 +3192,68 @@ function App() {
           </div>
         )}
         {err && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#ef4444", textAlign: "center" }}>{err}</div>}
-        <button onClick={signInWithGoogle}
-          style={{ width: "100%", background: "#fff", border: "1px solid #ddd", borderRadius: 10, padding: "12px 20px", fontSize: 15, fontWeight: 600, cursor: "pointer", color: "#111", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.3-.2-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.4 19.2 14 24 14c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3c-7.6 0-14.2 4.5-17.7 11.7z"/><path fill="#FBBC05" d="M24 45c5.5 0 10.5-1.9 14.4-5l-6.7-5.5C29.6 36 26.9 37 24 37c-5.8 0-10.7-3.9-12.4-9.2l-7.1 5.5C8.2 40.8 15.5 45 24 45z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.5-2.3 4.6-4.3 6.1l6.7 5.5C41.9 36.5 45 31 45 24c0-1.3-.2-2.7-.5-4z"/></svg>
-          Sign in with Google
-        </button>
-        <div style={{ marginTop: 20, padding: "12px 16px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
-          Admin access only — use your authorized Google account
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={lbl}>Nom d'utilisateur</label>
+            <input style={inp} value={email} onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && signIn()}
+              placeholder="ex: nls_admin" autoComplete="username" autoCapitalize="none" />
+          </div>
+          <div>
+            <label style={lbl}>Mot de passe</label>
+            <input type="password" style={inp} value={pass} onChange={e => setPass(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && signIn()}
+              placeholder="••••••••" autoComplete="current-password" />
+          </div>
+          <button onClick={signIn} style={{ ...btn(), width: "100%", padding: "13px 20px", fontSize: 15 }}>
+            Se connecter
+          </button>
+        </div>
+        <div style={{ marginTop: 20, padding: "10px 14px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
+          Accès admin uniquement
         </div>
       </div>
     </div>
   );
 
-  // ── LINK ACCESS CODE (first sign-in, account not yet linked to a league) ──
-  if (page === "linkcode") return (
-    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 400, padding: 40, ...card }}>
-        <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <div style={{ fontSize: 22, fontWeight: 900, color: ACC }}>Website X</div>
-          <div style={{ fontSize: 13, color: T2, marginTop: 8, lineHeight: 1.5 }}>
-            Signed in as <strong style={{ color: T1 }}>{pendingGoogleUser?.email}</strong>.<br/>
-            Enter the access code your league admin gave you.
+  // ── FORCE PASSWORD CHANGE (mustChangePassword) ──
+  if (page === "changepw") {
+    const [newPw, setNewPw] = React.useState("");
+    const [confirmPw, setConfirmPw] = React.useState("");
+    return (
+      <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 380, padding: 40, ...card }}>
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: ACC }}>Website X</div>
+            <div style={{ fontSize: 14, color: T2, marginTop: 8, lineHeight: 1.5 }}>
+              Choisis ton mot de passe pour continuer.
+            </div>
           </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <label style={lbl}>Access Code</label>
-            <input style={{ ...inp, textAlign: "center", fontSize: 18, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}
-              value={accessCode} onChange={e => setAccessCode(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === "Enter" && submitAccessCode()}
-              placeholder="NLS-XXXX" maxLength={8} />
+          {err && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#ef4444", textAlign: "center" }}>{err}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={lbl}>Nouveau mot de passe</label>
+              <input type="password" style={inp} value={newPw} onChange={e => setNewPw(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && changePassword(newPw, confirmPw)}
+                placeholder="6 caractères minimum" autoComplete="new-password" />
+            </div>
+            <div>
+              <label style={lbl}>Confirmer le mot de passe</label>
+              <input type="password" style={inp} value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && changePassword(newPw, confirmPw)}
+                placeholder="••••••••" autoComplete="new-password" />
+            </div>
+            <button onClick={() => changePassword(newPw, confirmPw)} style={{ ...btn(), width: "100%", padding: "13px 20px", fontSize: 15 }}>
+              Confirmer →
+            </button>
+            <button style={{ background: "none", border: "none", color: T2, fontSize: 13, cursor: "pointer", textAlign: "center", padding: "4px 0" }} onClick={logout}>
+              Se déconnecter
+            </button>
           </div>
-          {accessCodeErr && <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}>{accessCodeErr}</div>}
-          <button style={{ ...btn(), width: "100%", padding: "12px 20px", fontSize: 15 }} onClick={submitAccessCode}>
-            Join League →
-          </button>
-          <button style={{ background: "none", border: "none", color: T2, fontSize: 13, cursor: "pointer", textAlign: "center", padding: "4px 0" }} onClick={logout}>
-            Sign out &amp; try another account
-          </button>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // ── DASHBOARD ──
   if (page === "dashboard") return (
@@ -3313,7 +3281,7 @@ function App() {
 
         {/* ── MANAGE USERS VIEW ── */}
         {showManageUsers && user?.role === "superadmin" && (() => {
-          const allUsers = [...users].sort((a,b) => (a.role||"").localeCompare(b.role||"") || (a.email||"").localeCompare(b.email||""));
+          const allUsers = [...users].sort((a,b) => (a.role||"").localeCompare(b.role||"") || (a.username||a.email||"").localeCompare(b.username||b.email||""));
           return (
             <div style={{ marginBottom: 36 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -3328,7 +3296,7 @@ function App() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: SURF }}>
-                      {["Email","Role","Assigned League","Actions"].map(h => (
+                      {["Utilisateur","Rôle","Ligue","Actions"].map(h => (
                         <th key={h} style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}` }}>{h}</th>
                       ))}
                     </tr>
@@ -3339,7 +3307,7 @@ function App() {
                       const isEditing = editUserRole?.userId === u.id;
                       return (
                         <tr key={u.id} style={{ borderBottom: i < allUsers.length-1 ? `1px solid ${BORDER}` : "none", background: isEditing ? ACC+"08" : "transparent" }}>
-                          <td style={{ padding: "12px 16px", fontWeight: 600, fontSize: 14 }}>{u.email}</td>
+                          <td style={{ padding: "12px 16px", fontWeight: 600, fontSize: 14 }}>{u.username || u.email || u.id}</td>
                           <td style={{ padding: "12px 16px" }}>
                             {isEditing ? (
                               <select value={editUserRole.role} onChange={e => setEditUserRole({ ...editUserRole, role: e.target.value })}
@@ -3381,9 +3349,9 @@ function App() {
                                   style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
                                   Change Role
                                 </button>
-                                <button onClick={() => { setManageOwnerId(u.leagueId); setResetPwForm({ userId: u.id, password: "", confirm: "" }); setOwnerError(""); }}
+                                <button onClick={() => { setManageOwnerId(u.leagueId); setResetAccessForm({ ownerId: u.id, newUsername: u.username || "", tempPassword: "" }); setOwnerError(""); }}
                                   style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
-                                  🔑 Reset PW
+                                  🔑 Reset accès
                                 </button>
                               </div>
                             )}
@@ -3439,7 +3407,6 @@ function App() {
                       <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Games</th>
                       <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Status</th>
                       <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>⚠️ Alerts</th>
-                      {user?.role === "superadmin" && <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Access Code</th>}
                       <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}` }}></th>
                     </tr>
                   </thead>
@@ -3457,7 +3424,6 @@ function App() {
                         if (origin.startsWith('https://')) return `${origin}/public.html?league=${l.id}`;
                         return null;
                       })();
-                      const code = leagueCodes[l.id] || null;
                       return (
                         <tr key={l.id} style={{ borderBottom: i < visibleLeagues.length-1 ? `1px solid ${BORDER}` : "none", cursor: "pointer" }}
                           onClick={e => { if (e.target.closest('button')) return; setSelId(l.id); setPage("league"); setTab("teams"); }}
@@ -3501,20 +3467,6 @@ function App() {
                               );
                             })()}
                           </td>
-                          {/* ── ACCESS CODE COLUMN (superadmin only) ── */}
-                          {user?.role === "superadmin" && (
-                            <td style={{ padding: "14px 16px" }}>
-                              {code ? (
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: ACC, letterSpacing: "0.06em" }}>{code}</span>
-                                  <button title="Copy" onClick={() => navigator.clipboard.writeText(code).then(() => showToast("Code copied!")).catch(() => {})}
-                                    style={{ background: "none", border: "none", color: T2, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>📋</button>
-                                  <button title="Regenerate" onClick={() => regenerateAccessCode(l.id)}
-                                    style={{ background: "none", border: "none", color: T2, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>🔄</button>
-                                </div>
-                              ) : <span style={{ color: T2, fontSize: 12 }}>—</span>}
-                            </td>
-                          )}
                           <td style={{ padding: "14px 16px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "nowrap" }}>
                               {user?.role === "superadmin" && (
@@ -3620,40 +3572,104 @@ function App() {
       {manageOwnerId && (() => {
         const lg = leagues.find(l => l.id === manageOwnerId);
         const ownersForLeague = users.filter(u => u.leagueId === manageOwnerId && u.role === "owner");
-        const code = leagueCodes[manageOwnerId] || null;
+        const isResetting = resetAccessForm.ownerId !== null;
         return (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-            <div style={{ width: 480, ...card, padding: 32, maxHeight: "80vh", overflowY: "auto" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Owners — {lg?.name}</div>
-              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Owners sign in with Google. Share the access code below for first-time setup.</div>
-              {code && (
-                <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: T2, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 4 }}>ACCESS CODE</div>
-                    <span style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 800, color: ACC, letterSpacing: "0.1em" }}>{code}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => navigator.clipboard.writeText(code).then(() => showToast("Code copied!")).catch(() => {})}
-                      style={{ ...btn("#252540"), padding: "6px 14px", fontSize: 12 }}>📋 Copy</button>
-                    <button onClick={() => regenerateAccessCode(manageOwnerId)}
-                      style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}>🔄 Regen</button>
+            <div style={{ width: 500, ...card, padding: 32, maxHeight: "88vh", overflowY: "auto" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>👤 Propriétaires — {lg?.name}</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Les propriétaires se connectent avec nom d'utilisateur + mot de passe.</div>
+
+              {/* Create owner form */}
+              {!isResetting && (
+                <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18, marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 12 }}>CRÉER UN COMPTE PROPRIÉTAIRE</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div>
+                      <label style={lbl}>Nom d'utilisateur</label>
+                      <input style={inp} value={newOwner.username}
+                        onChange={e => setNewOwner(o => ({ ...o, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                        placeholder="ex: nls_owner" autoCapitalize="none" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Mot de passe temporaire</label>
+                      <input type="password" style={inp} value={newOwner.password}
+                        onChange={e => setNewOwner(o => ({ ...o, password: e.target.value }))}
+                        placeholder="6 caractères minimum" autoComplete="new-password" />
+                    </div>
+                    {ownerError && <div style={{ color: "#ef4444", fontSize: 12 }}>{ownerError}</div>}
+                    <button onClick={createOwner} style={{ ...btn(), padding: "9px 16px", fontSize: 13 }}>
+                      Créer le compte →
+                    </button>
                   </div>
                 </div>
               )}
-              {ownersForLeague.length === 0
-                ? <div style={{ color: T2, fontSize: 14, marginBottom: 20, textAlign: "center", padding: "20px 0" }}>No owners yet. Share the access code above so an owner can sign in with Google.</div>
-                : ownersForLeague.map(owner => (
-                  <div key={owner.id} style={{ background: SURF, borderRadius: 10, padding: "14px 18px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.email}</div>
-                      <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Joined {owner.createdAt || "—"}</div>
+
+              {/* Reset access form */}
+              {isResetting && (() => {
+                const targetOwner = users.find(u => u.id === resetAccessForm.ownerId);
+                return (
+                  <div style={{ background: "#2e1313", border: "1px solid #ef444440", borderRadius: 10, padding: 18, marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#ef4444", letterSpacing: "0.08em", marginBottom: 8 }}>
+                      RÉINITIALISER L'ACCÈS — {targetOwner?.username}
                     </div>
-                    <button onClick={() => setDeleteOwnerId(owner.id)}
-                      style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>Remove</button>
+                    <div style={{ fontSize: 12, color: T2, marginBottom: 12, lineHeight: 1.5 }}>
+                      L'ancien compte perd l'accès. Si le même nom est pris dans Firebase Auth, essaie un suffixe (ex: {targetOwner?.username}2).
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div>
+                        <label style={lbl}>Nouveau nom d'utilisateur</label>
+                        <input style={inp} value={resetAccessForm.newUsername}
+                          onChange={e => setResetAccessForm(f => ({ ...f, newUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                          placeholder={targetOwner?.username} autoCapitalize="none" />
+                      </div>
+                      <div>
+                        <label style={lbl}>Nouveau mot de passe temporaire</label>
+                        <input type="password" style={inp} value={resetAccessForm.tempPassword}
+                          onChange={e => setResetAccessForm(f => ({ ...f, tempPassword: e.target.value }))}
+                          placeholder="6 caractères minimum" autoComplete="new-password" />
+                      </div>
+                      {ownerError && <div style={{ color: "#ef4444", fontSize: 12 }}>{ownerError}</div>}
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={resetAccess} style={{ ...btn(), background: "#7f1d1d", padding: "9px 16px", fontSize: 13, flex: 1 }}>
+                          Réinitialiser →
+                        </button>
+                        <button onClick={() => { setResetAccessForm({ ownerId: null, newUsername: "", tempPassword: "" }); setOwnerError(""); }}
+                          style={{ ...btn("#252540"), padding: "9px 16px", fontSize: 13 }}>
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Owner list */}
+              {ownersForLeague.length === 0
+                ? <div style={{ color: T2, fontSize: 14, marginBottom: 20, textAlign: "center", padding: "16px 0" }}>Aucun propriétaire. Crée un compte ci-dessus.</div>
+                : ownersForLeague.map(owner => (
+                  <div key={owner.id} style={{ background: SURF, borderRadius: 10, padding: "12px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.username || owner.email || owner.id}</div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
+                        {owner.mustChangePassword ? "⚠️ Doit changer son MDP" : "✓ Actif"} · Créé {owner.createdAt || "—"}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {!isResetting && (
+                        <button onClick={() => { setResetAccessForm({ ownerId: owner.id, newUsername: owner.username || "", tempPassword: "" }); setOwnerError(""); }}
+                          style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          🔑 Reset accès
+                        </button>
+                      )}
+                      <button onClick={() => setDeleteOwnerId(owner.id)}
+                        style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        Supprimer
+                      </button>
+                    </div>
                   </div>
                 ))
               }
-              <button style={{ ...btn("#252540"), width: "100%", marginTop: 12 }} onClick={() => setManageOwnerId(null)}>Close</button>
+              <button style={{ ...btn("#252540"), width: "100%", marginTop: 12 }} onClick={() => { setManageOwnerId(null); setNewOwner({ username: "", password: "" }); setOwnerError(""); setResetAccessForm({ ownerId: null, newUsername: "", tempPassword: "" }); }}>Fermer</button>
             </div>
           </div>
         );
@@ -3661,7 +3677,35 @@ function App() {
 
       {/* ── REMOVE OWNER CONFIRM ── */}
       {deleteOwnerId && (
-        <ConfirmModal icon="👤" title="Remove owner?" body={`Remove ${users.find(u=>u.id===deleteOwnerId)?.email} as owner? They will no longer be able to sign in. The league data is unaffected.`} confirmLabel="Yes, Remove" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); removeOwner(uid, manageOwnerId || leagues.find(l => users.find(u => u.id===uid)?.leagueId === l.id)?.id); }} onCancel={() => setDeleteOwnerId(null)} />
+        <ConfirmModal icon="👤" title="Supprimer ce propriétaire ?" body={`Supprimer ${users.find(u=>u.id===deleteOwnerId)?.username || deleteOwnerId} ? Leur compte Firestore sera supprimé. Les données de la ligue ne sont pas affectées.`} confirmLabel="Oui, supprimer" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); deleteOwner(uid); }} onCancel={() => setDeleteOwnerId(null)} />
+      )}
+
+      {/* ── CREATED CREDENTIALS MODAL ── */}
+      {createdCreds && (
+        <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}>
+          <div style={{ width: 420, ...card, padding: 32 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
+              {createdCreds.isReset ? "🔑 Accès réinitialisé" : "✅ Compte créé"}
+            </div>
+            <div style={{ fontSize: 13, color: T2, marginBottom: 20, lineHeight: 1.6 }}>
+              Partage ces identifiants avec le propriétaire de <strong style={{ color: T1 }}>{createdCreds.leagueName}</strong>. Ils devront changer leur mot de passe à la première connexion.
+            </div>
+            <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: T2, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 4 }}>NOM D'UTILISATEUR</div>
+                <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: ACC }}>{createdCreds.username}</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: T2, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 4 }}>MOT DE PASSE TEMPORAIRE</div>
+                <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: "#22c55e" }}>{createdCreds.password}</span>
+              </div>
+            </div>
+            <button onClick={() => {
+              navigator.clipboard.writeText(`Nom d'utilisateur: ${createdCreds.username}\nMot de passe: ${createdCreds.password}`).then(() => showToast("Identifiants copiés!")).catch(() => {});
+            }} style={{ ...btn("#252540"), width: "100%", marginBottom: 10 }}>📋 Copier les identifiants</button>
+            <button onClick={() => setCreatedCreds(null)} style={{ ...btn(), width: "100%" }}>Fermer</button>
+          </div>
+        </div>
       )}
 
       {showAdd && (

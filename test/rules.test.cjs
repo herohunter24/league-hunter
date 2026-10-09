@@ -1,6 +1,10 @@
 /**
  * Firestore Rules Unit Tests — League Hunter / Website X
  *
+ * Auth model: Email/Password with internal @websitex.app addresses.
+ * isSuperAdmin() reads users/{uid}.role == 'superadmin' (no email_verified).
+ * isLeagueOwner(id) reads users/{uid}.role == 'owner' && leagueId == id.
+ *
  * Run with:
  *   Terminal 1: firebase emulators:start --only firestore,auth
  *   Terminal 2: cd test && npm test
@@ -24,16 +28,12 @@ const FIRESTORE_PORT = 8080;
 
 // ── Test data ────────────────────────────────────────────────────────────────
 
-const SUPERADMIN_EMAIL = 'admin@test.com';
 const SUPERADMIN_UID   = 'uid_superadmin';
 const OWNER_UID        = 'uid_owner_1';
+const OTHER_OWNER_UID  = 'uid_owner_2';
 const STRANGER_UID     = 'uid_stranger';
 const LEAGUE_ID        = 'league_001';
 const OTHER_LEAGUE_ID  = 'league_002';
-const PLAIN_CODE       = 'NLS-TEST';
-// sha256('NLS-TEST') computed with Node crypto:
-//   require('crypto').createHash('sha256').update('NLS-TEST').digest('hex')
-const CODE_HASH = require('crypto').createHash('sha256').update(PLAIN_CODE).digest('hex');
 
 let testEnv;
 
@@ -60,8 +60,26 @@ beforeEach(async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
 
-    // Superadmin doc
-    await db.doc('meta/superadmin').set({ email: SUPERADMIN_EMAIL });
+    // Superadmin user doc
+    await db.doc(`users/${SUPERADMIN_UID}`).set({
+      username: 'admin', role: 'superadmin',
+      createdAt: '2025-01-01',
+    });
+
+    // Owner of league_001
+    await db.doc(`users/${OWNER_UID}`).set({
+      username: 'owner1', role: 'owner', leagueId: LEAGUE_ID,
+      mustChangePassword: false, createdAt: '2025-01-01',
+    });
+
+    // Owner of league_002
+    await db.doc(`users/${OTHER_OWNER_UID}`).set({
+      username: 'owner2', role: 'owner', leagueId: OTHER_LEAGUE_ID,
+      mustChangePassword: false, createdAt: '2025-01-01',
+    });
+
+    // meta/superadmin kept for backward compat (superadmin may read/write it)
+    await db.doc('meta/superadmin').set({ note: 'legacy' });
 
     // League 001
     await db.doc(`leagues/${LEAGUE_ID}`).set({
@@ -73,19 +91,6 @@ beforeEach(async () => {
     // League 002 (for cross-league owner tests)
     await db.doc(`leagues/${OTHER_LEAGUE_ID}`).set({
       id: OTHER_LEAGUE_ID, name: 'Other League', sport: 'Hockey', color: '#00f',
-    });
-
-    // Access code
-    await db.doc(`leagueCodes/${CODE_HASH}`).set({ leagueId: LEAGUE_ID, createdAt: Date.now() });
-
-    // Private admin subcollection
-    await db.doc(`leagues/${LEAGUE_ID}/private/admin`).set({ code: PLAIN_CODE, updatedAt: Date.now() });
-
-    // Owner user doc (doc ID == uid)
-    await db.doc(`users/${OWNER_UID}`).set({
-      email: 'owner@test.com', googleUid: OWNER_UID,
-      role: 'owner', leagueId: LEAGUE_ID, codeHash: CODE_HASH,
-      createdAt: '2025-01-01',
     });
 
     // A player doc (no email — stripped before write)
@@ -115,19 +120,16 @@ beforeEach(async () => {
 // ── Auth context helpers ──────────────────────────────────────────────────────
 
 function superadminCtx() {
-  return testEnv.authenticatedContext(SUPERADMIN_UID, {
-    email: SUPERADMIN_EMAIL, email_verified: true,
-  });
+  return testEnv.authenticatedContext(SUPERADMIN_UID, {});
 }
 function ownerCtx() {
-  return testEnv.authenticatedContext(OWNER_UID, {
-    email: 'owner@test.com', email_verified: true,
-  });
+  return testEnv.authenticatedContext(OWNER_UID, {});
+}
+function otherOwnerCtx() {
+  return testEnv.authenticatedContext(OTHER_OWNER_UID, {});
 }
 function strangerCtx() {
-  return testEnv.authenticatedContext(STRANGER_UID, {
-    email: 'nobody@test.com', email_verified: true,
-  });
+  return testEnv.authenticatedContext(STRANGER_UID, {});
 }
 function unauthCtx() {
   return testEnv.unauthenticatedContext();
@@ -170,62 +172,65 @@ describe('meta/publicSettings — stays public', () => {
   });
 });
 
-describe('leagueCodes — get vs list', () => {
-  it('authenticated user can GET a code doc by hash', async () => {
-    await assertSucceeds(strangerCtx().firestore().doc(`leagueCodes/${CODE_HASH}`).get());
-  });
-  it('unauthenticated user cannot GET a code doc', async () => {
-    await assertFails(unauthCtx().firestore().doc(`leagueCodes/${CODE_HASH}`).get());
-  });
-  it('stranger cannot LIST leagueCodes (bulk enumeration blocked)', async () => {
-    await assertFails(strangerCtx().firestore().collection('leagueCodes').get());
-  });
-  it('owner cannot LIST leagueCodes', async () => {
-    await assertFails(ownerCtx().firestore().collection('leagueCodes').get());
-  });
-  it('superadmin can write a code doc', async () => {
+describe('users — superadmin creates owner accounts', () => {
+  it('superadmin can create a user doc', async () => {
     await assertSucceeds(
-      superadminCtx().firestore().doc('leagueCodes/newhash123').set({ leagueId: LEAGUE_ID, createdAt: Date.now() })
+      superadminCtx().firestore().doc('users/new_uid').set({
+        username: 'newowner', role: 'owner', leagueId: LEAGUE_ID,
+        mustChangePassword: true, createdAt: '2025-01-01',
+      })
     );
   });
-  it('stranger cannot write a code doc', async () => {
+  it('owner cannot create a user doc', async () => {
     await assertFails(
-      strangerCtx().firestore().doc('leagueCodes/newhash123').set({ leagueId: LEAGUE_ID, createdAt: Date.now() })
+      ownerCtx().firestore().doc('users/new_uid').set({
+        username: 'sneaky', role: 'owner', leagueId: LEAGUE_ID,
+        mustChangePassword: false, createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('stranger cannot create a user doc', async () => {
+    await assertFails(
+      strangerCtx().firestore().doc('users/new_uid').set({
+        username: 'evil', role: 'superadmin', leagueId: LEAGUE_ID,
+        createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('unauthenticated cannot create a user doc', async () => {
+    await assertFails(
+      unauthCtx().firestore().doc('users/new_uid').set({
+        username: 'anon', role: 'owner', leagueId: LEAGUE_ID,
+        mustChangePassword: true, createdAt: '2025-01-01',
+      })
     );
   });
 });
 
-describe('users — owner linking create rule', () => {
-  it('authenticated user can create own doc with valid code hash', async () => {
-    const newUid = 'uid_new_owner';
-    const ctx = testEnv.authenticatedContext(newUid, { email: 'new@test.com', email_verified: true });
+describe('users — mustChangePassword self-update', () => {
+  it('owner can set mustChangePassword from true to false on own doc', async () => {
+    // Set mustChangePassword to true first
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`users/${OWNER_UID}`).update({ mustChangePassword: true });
+    });
     await assertSucceeds(
-      ctx.firestore().doc(`users/${newUid}`).set({
-        email: 'new@test.com', googleUid: newUid,
-        role: 'owner', leagueId: LEAGUE_ID, codeHash: CODE_HASH,
-        createdAt: '2025-01-01',
-      })
+      ownerCtx().firestore().doc(`users/${OWNER_UID}`).update({ mustChangePassword: false })
     );
   });
-  it('user cannot create doc with nonexistent code hash', async () => {
-    const newUid = 'uid_bad_code';
-    const ctx = testEnv.authenticatedContext(newUid, { email: 'bad@test.com', email_verified: true });
+  it('owner cannot set mustChangePassword from false to true on own doc', async () => {
+    // mustChangePassword is already false in beforeEach
     await assertFails(
-      ctx.firestore().doc(`users/${newUid}`).set({
-        email: 'bad@test.com', googleUid: newUid,
-        role: 'owner', leagueId: LEAGUE_ID, codeHash: 'invalid_hash_404',
-        createdAt: '2025-01-01',
-      })
+      ownerCtx().firestore().doc(`users/${OWNER_UID}`).update({ mustChangePassword: true })
     );
   });
-  it('user cannot create doc for a different uid', async () => {
-    const ctx = testEnv.authenticatedContext(STRANGER_UID, { email: 'stranger@test.com', email_verified: true });
+  it('owner cannot change username on own doc', async () => {
     await assertFails(
-      ctx.firestore().doc(`users/some_other_uid`).set({
-        email: 'stranger@test.com', googleUid: STRANGER_UID,
-        role: 'owner', leagueId: LEAGUE_ID, codeHash: CODE_HASH,
-        createdAt: '2025-01-01',
-      })
+      ownerCtx().firestore().doc(`users/${OWNER_UID}`).update({ username: 'hacked' })
+    );
+  });
+  it('stranger cannot update another user doc', async () => {
+    await assertFails(
+      strangerCtx().firestore().doc(`users/${OWNER_UID}`).update({ mustChangePassword: false })
     );
   });
 });
@@ -242,6 +247,12 @@ describe('users — read / delete', () => {
   });
   it('owner cannot delete another user doc', async () => {
     await assertFails(ownerCtx().firestore().doc(`users/${STRANGER_UID}`).delete());
+  });
+  it('superadmin can list users', async () => {
+    await assertSucceeds(superadminCtx().firestore().collection('users').get());
+  });
+  it('owner cannot list users', async () => {
+    await assertFails(ownerCtx().firestore().collection('users').get());
   });
 });
 
@@ -260,7 +271,7 @@ describe('leagues — root doc', () => {
   });
 });
 
-describe('leagues — fan vote update (item 1: narrow public update)', () => {
+describe('leagues — fan vote update (narrow public update)', () => {
   it('unauthenticated can increment fanVotes only', async () => {
     await assertSucceeds(
       unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({
@@ -310,7 +321,7 @@ describe('leagues/players — email stripped from public docs', () => {
   });
 });
 
-describe('leagues/playersPrivate — email protected (item 3)', () => {
+describe('leagues/playersPrivate — email protected', () => {
   it('owner can read playersPrivate', async () => {
     await assertSucceeds(
       ownerCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).get()
@@ -332,32 +343,35 @@ describe('leagues/playersPrivate — email protected (item 3)', () => {
     );
   });
   it('owner of league_002 cannot read league_001 playersPrivate', async () => {
-    await testEnv.withSecurityRulesDisabled(async ctx => {
-      await ctx.firestore().doc(`users/${STRANGER_UID}`).set({
-        email: 'other@test.com', googleUid: STRANGER_UID, role: 'owner',
-        leagueId: OTHER_LEAGUE_ID, codeHash: 'fakehash', createdAt: '2025-01-01',
-      });
-    });
-    const otherOwnerCtx = testEnv.authenticatedContext(STRANGER_UID, {
-      email: 'other@test.com', email_verified: true,
-    });
     await assertFails(
-      otherOwnerCtx.firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).get()
+      otherOwnerCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).get()
     );
   });
 });
 
-describe('leagues/private — access code store', () => {
+describe('leagues/private — admin-only data', () => {
   it('superadmin can read private/admin', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).set({ note: 'test' });
+    });
     await assertSucceeds(superadminCtx().firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).get());
   });
   it('owner can read own league private/admin', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).set({ note: 'test' });
+    });
     await assertSucceeds(ownerCtx().firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).get());
   });
   it('stranger cannot read private/admin', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).set({ note: 'test' });
+    });
     await assertFails(strangerCtx().firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).get());
   });
   it('unauthenticated cannot read private/admin', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).set({ note: 'test' });
+    });
     await assertFails(unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}/private/admin`).get());
   });
 });
@@ -396,7 +410,7 @@ describe('public-site writes — pageViews', () => {
   });
 });
 
-describe('public-site writes — subscribers double opt-in (item 2)', () => {
+describe('public-site writes — subscribers double opt-in', () => {
   it('public can create subscriber with active=false (double opt-in)', async () => {
     await assertSucceeds(
       unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}/subscribers/new_hash`).set({
@@ -478,39 +492,40 @@ describe('superadmin full access', () => {
   it('superadmin can list users', async () => {
     await assertSucceeds(superadminCtx().firestore().collection('users').get());
   });
-});
-
-describe('isSuperAdmin — email_verified required', () => {
-  it('unverified email cannot act as superadmin', async () => {
-    const ctx = testEnv.authenticatedContext(SUPERADMIN_UID, {
-      email: SUPERADMIN_EMAIL, email_verified: false,
-    });
-    await assertFails(ctx.firestore().doc('meta/superadmin').get());
+  it('superadmin can write league_002', async () => {
+    await assertSucceeds(superadminCtx().firestore().doc(`leagues/${OTHER_LEAGUE_ID}`).update({ name: 'Admin edit' }));
   });
 });
 
-describe('player email migration — end-to-end (item 2)', () => {
-  it('owner can write playersPrivate and remove email from players', async () => {
+describe('isSuperAdmin — role-based (no email_verified needed)', () => {
+  it('user with role=superadmin in users doc can read superadmin meta', async () => {
+    await assertSucceeds(superadminCtx().firestore().doc('meta/superadmin').get());
+  });
+  it('user with role=owner cannot read superadmin meta', async () => {
+    await assertFails(ownerCtx().firestore().doc('meta/superadmin').get());
+  });
+  it('stranger with no users doc cannot act as superadmin', async () => {
+    await assertFails(strangerCtx().firestore().doc('meta/superadmin').get());
+  });
+});
+
+describe('player email migration — end-to-end', () => {
+  it('owner can write playersPrivate and update players doc', async () => {
     const db = ownerCtx().firestore();
 
-    // Setup: player doc with email field still present (pre-migration state)
     await testEnv.withSecurityRulesDisabled(async ctx => {
       await ctx.firestore().doc(`leagues/${LEAGUE_ID}/players/player_pre`).set({
         id: 'player_pre', name: 'Pre-Migration Player', team: 'TeamA', email: 'premig@test.com',
       });
     });
 
-    // Step 1: write email to playersPrivate (migration creates/merges private doc)
     await assertSucceeds(
       db.doc(`leagues/${LEAGUE_ID}/playersPrivate/player_pre`).set({ email: 'premig@test.com' }, { merge: true })
     );
-
-    // Step 2: owner can update public player doc (to remove email — any write is allowed by rules)
     await assertSucceeds(
       db.doc(`leagues/${LEAGUE_ID}/players/player_pre`).update({ name: 'Pre-Migration Player' })
     );
 
-    // Verify: private doc has the email (using bypass context)
     let privEmail;
     await testEnv.withSecurityRulesDisabled(async ctx => {
       const snap = await ctx.firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_pre`).get();
