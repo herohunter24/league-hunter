@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>NLS — Admin</title>
+<title>Website X</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -15,9 +15,12 @@
   import { initializeApp }                                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, doc, getDocs, getDoc, setDoc,
            onSnapshot, deleteDoc, writeBatch, updateDoc,
-           deleteField, query, where, orderBy }                      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+           deleteField, query, where, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes,
            getDownloadURL }                                         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider,
+           onAuthStateChanged, signOut,
+           browserLocalPersistence, setPersistence }               from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // ─── REPLACE with your Firebase project config ───────────────────────────
   const firebaseConfig = {
@@ -40,10 +43,14 @@
       const app = initializeApp(firebaseConfig);
       const db  = getFirestore(app);
       const storage = getStorage(app);
+      const auth = getAuth(app);
+      await setPersistence(auth, browserLocalPersistence);
       window.__wxDB      = db;
+      window.__wxAuth    = auth;
       window.__wxStorage = storage;
-      window.__wxFS      = { collection, doc, getDocs, getDoc, setDoc, onSnapshot, deleteDoc, writeBatch, updateDoc, deleteField, query, where, orderBy };
+      window.__wxFS      = { collection, doc, getDocs, getDoc, setDoc, onSnapshot, deleteDoc, writeBatch, updateDoc, deleteField, query, where, orderBy, arrayUnion, arrayRemove };
       window.__wxST      = { storageRef, uploadBytes, getDownloadURL };
+      window.__wxAuthFns = { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut };
       window.__wxFirebaseReady = true;
     } catch(e) {
       console.error("[League Hunter] Firebase init failed:", e);
@@ -146,7 +153,7 @@
   <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;">
     <!-- Wordmark -->
     <div style="font-size:11px;font-weight:700;letter-spacing:0.22em;color:#6366f160;text-transform:uppercase;margin-bottom:8px;">League Hunter</div>
-    <div style="font-size:28px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;margin-bottom:36px;">NLS — Admin</div>
+    <div style="font-size:28px;font-weight:900;color:#6366f1;letter-spacing:-0.5px;margin-bottom:36px;">Website X</div>
     <!-- Basketball SVG -->
     <div style="position:relative;height:80px;display:flex;flex-direction:column;align-items:center;margin-bottom:28px;">
       <svg width="56" height="56" viewBox="0 0 60 60" style="animation:wx-bounce 0.72s ease-in-out infinite;transform-origin:50% 100%;display:block;flex-shrink:0;">
@@ -234,13 +241,15 @@
 const { useState, useEffect, useRef } = React;
 
 // ── FIREBASE GLOBALS (set by module script above) ──
-const __fbReady = window.__wxFirebaseReady        || false;
-const __fbUncfg = window.__wxFirebaseUnconfigured  || false;
-const __fbCfg   = window.__wxFirebaseConfig        || null;
-const _db       = window.__wxDB                    || null;
-const _FS       = window.__wxFS                    || {};
-const _storage  = window.__wxStorage              || null;
-const _ST       = window.__wxST                   || {};
+const __fbReady   = window.__wxFirebaseReady        || false;
+const __fbUncfg   = window.__wxFirebaseUnconfigured  || false;
+const __fbCfg     = window.__wxFirebaseConfig        || null;
+const _db         = window.__wxDB                    || null;
+const _auth       = window.__wxAuth                  || null;
+const _AuthFns    = window.__wxAuthFns               || {};
+const _FS         = window.__wxFS                    || {};
+const _storage    = window.__wxStorage               || null;
+const _ST         = window.__wxST                    || {};
 
 // ── FIRESTORE SUB-COLLECTION HELPERS ──
 // These operate at module level (outside App) so they're accessible anywhere.
@@ -1350,8 +1359,14 @@ function generateSeasonRecap(league, seasonNum) {
 // APP
 // ═══════════════════════════════════════════
 function App() {
-  const [page, setPage] = useState("login");
+  const [page, setPage] = useState("loading");
   const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
+  const [accessCode, setAccessCode] = useState("");
+  const [accessCodeErr, setAccessCodeErr] = useState("");
+  const [showLeagueSwitcher, setShowLeagueSwitcher] = useState(false);
+  const [leagueCodes, setLeagueCodes] = useState({}); // { leagueId: code } — superadmin only
   const [leagues, setLeagues] = useState(DEMO_LEAGUES);
   const [loading, setLoading]   = useState(true);
   const [fbError, setFbError]   = useState(null);
@@ -1812,6 +1827,33 @@ function App() {
       .catch(e => console.error("Users load:", e));
   }, []);
 
+  // ── LEAGUE CODES — superadmin only ──
+  useEffect(() => {
+    if (!__fbReady || user?.role !== "superadmin") return;
+    const { getDocs, collection } = _FS;
+    getDocs(collection(_db, "leagueCodes"))
+      .then(snap => {
+        const map = {};
+        snap.docs.forEach(d => { map[d.id] = d.data().code; });
+        setLeagueCodes(map);
+      })
+      .catch(() => {});
+  }, [user?.role]);
+
+  // ── FIREBASE AUTH — restore session across reloads ──
+  useEffect(() => {
+    if (!__fbReady || !_auth) { setPage("login"); setAuthChecked(true); return; }
+    const unsub = _AuthFns.onAuthStateChanged(_auth, async firebaseUser => {
+      if (firebaseUser) {
+        await resolveFirebaseUser(firebaseUser);
+      } else {
+        setPage("login");
+        setAuthChecked(true);
+      }
+    });
+    return () => unsub();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Conflict detection — warn if another editor saves while this tab has unsaved changes
   useEffect(() => {
     if (!__fbReady || !selId) return;
@@ -1835,6 +1877,11 @@ function App() {
 
   const league = leagues.find(l => l.id === selId);
 
+  function genAccessCode() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1, L
+    return 'NLS-' + Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
+
   async function hashPassword(pw) {
     const enc = new TextEncoder().encode(pw);
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -1842,76 +1889,127 @@ function App() {
   }
   const isHashed = s => typeof s === "string" && /^[0-9a-f]{64}$/.test(s);
 
-  function loadAttempts() { try { return JSON.parse(sessionStorage.getItem("wxLoginAttempts") || "{}"); } catch { return {}; } }
-  function saveAttempts(obj) { try { sessionStorage.setItem("wxLoginAttempts", JSON.stringify(obj)); } catch {} }
-
-  async function login() {
-    const inputHash = await hashPassword(pass);
-    // Rate limiting (sessionStorage so it persists across page reloads)
-    const now = Date.now();
-    const attempts = loadAttempts();
-    const rec = attempts[email] || { count: 0, lockUntil: 0 };
-    if (rec.lockUntil > now) {
-      const secs = Math.ceil((rec.lockUntil - now) / 1000);
-      setErr(`Too many failed attempts. Try again in ${secs}s.`);
-      return;
+  // ── GOOGLE AUTH ──
+  async function signInWithGoogle() {
+    if (!__fbReady || !_auth) { setErr("Firebase not configured."); return; }
+    setErr("");
+    try {
+      const { signInWithPopup, GoogleAuthProvider } = _AuthFns;
+      await signInWithPopup(_auth, new GoogleAuthProvider());
+      // onAuthStateChanged handles the rest
+    } catch(e) {
+      if (e.code !== 'auth/popup-closed-by-user') setErr(e.message || "Sign-in failed.");
     }
-
-    // Superadmin check — credentials fetched from Firestore (not hardcoded)
-    if (__fbReady) {
-      try {
-        const { getDoc, doc } = _FS;
-        const saSnap = await getDoc(doc(_db, "meta", "superadmin"));
-        if (saSnap.exists()) {
-          const sa = saSnap.data();
-          if (email === sa.email && inputHash === sa.passwordHash) {
-            saveAttempts({ ...attempts, [email]: { count: 0, lockUntil: 0 } });
-            setUser({ email: sa.email, role: "superadmin" }); setErr(""); setPage("dashboard"); return;
-          }
-        }
-      } catch(e) { console.error("[Auth] Superadmin fetch failed:", e); }
-    }
-
-    let allUsers = users;
-    if (__fbReady) {
-      try {
-        const { getDocs, collection } = _FS;
-        const snap = await getDocs(collection(_db, "users"));
-        allUsers = snap.docs.map(d => d.data());
-        setUsers(allUsers);
-      } catch(e) {
-        allUsers = loadUsers();
-        if (JSON.stringify(allUsers) !== JSON.stringify(users)) setUsers(allUsers);
-      }
-    } else {
-      allUsers = loadUsers();
-      if (JSON.stringify(allUsers) !== JSON.stringify(users)) setUsers(allUsers);
-    }
-    const owner = allUsers.find(u => {
-      if (u.email !== email) return false;
-      if (isHashed(u.password)) return u.password === inputHash;
-      return u.password === pass; // plaintext fallback — will be auto-upgraded below
-    });
-    if (owner) {
-      // Auto-upgrade plaintext password to hash on first login
-      if (!isHashed(owner.password)) {
-        const upgraded = allUsers.map(u => u.id === owner.id ? { ...u, password: inputHash } : u);
-        saveUsers(upgraded);
-        setUsers(upgraded);
-        if (__fbReady) {
-          try { const { setDoc, doc } = _FS; await setDoc(doc(_db, "users", owner.id), { ...owner, password: inputHash }); }
-          catch(e) { console.error("Password upgrade:", e); }
-        }
-      }
-      saveAttempts({ ...attempts, [email]: { count: 0, lockUntil: 0 } });
-      setUser(owner); setErr("");
-      setSelId(owner.leagueId); setTab("teams"); setPage("league"); return;
-    }
-    const newCount = rec.count + 1;
-    saveAttempts({ ...attempts, [email]: { count: newCount, lockUntil: newCount >= 5 ? now + 5 * 60 * 1000 : 0 } });
-    setErr("Invalid email or password.");
   }
-  function logout() { setPage("login"); setUser(null); setEmail(""); setPass(""); setSelId(null); setDirty(false); setLastSaved(null); }
+
+  async function resolveFirebaseUser(firebaseUser) {
+    if (!firebaseUser || !__fbReady) return;
+    const { getDoc, getDocs, doc, collection, query, where, setDoc } = _FS;
+    try {
+      // 1. Is this the superadmin?
+      const saSnap = await getDoc(doc(_db, "meta", "superadmin"));
+      if (saSnap.exists()) {
+        const sa = saSnap.data();
+        if (firebaseUser.email === sa.email) {
+          // Persist superadmin UID for Firestore rules
+          if (!sa.uid || sa.uid !== firebaseUser.uid) {
+            await setDoc(doc(_db, "meta", "superadmin"), { ...sa, uid: firebaseUser.uid }, { merge: true }).catch(() => {});
+          }
+          const saUser = { email: firebaseUser.email, role: "superadmin", uid: firebaseUser.uid };
+          setUser(saUser); setPage("dashboard"); setAuthChecked(true); return;
+        }
+      }
+    } catch(e) { console.error("[Auth] superadmin check:", e); }
+
+    // 2. Existing owner — match by googleUid or email
+    try {
+      const { getDocs: gd, collection: col, query: q, where: w } = _FS;
+      let ownerDoc = null;
+      const byUid = await getDocs(query(collection(_db, "users"), where("googleUid", "==", firebaseUser.uid)));
+      if (!byUid.empty) {
+        ownerDoc = byUid.docs[0].data();
+      } else {
+        const byEmail = await getDocs(query(collection(_db, "users"), where("email", "==", firebaseUser.email)));
+        if (!byEmail.empty) {
+          ownerDoc = byEmail.docs[0].data();
+          // Backfill googleUid
+          const { updateDoc, doc: d } = _FS;
+          await updateDoc(d(_db, "users", ownerDoc.id), { googleUid: firebaseUser.uid }).catch(() => {});
+          ownerDoc = { ...ownerDoc, googleUid: firebaseUser.uid };
+        }
+      }
+      if (ownerDoc) {
+        const allSnap = await getDocs(collection(_db, "users")).catch(() => null);
+        if (allSnap) setUsers(allSnap.docs.map(d => d.data()));
+        setUser({ ...ownerDoc, role: "owner", uid: firebaseUser.uid });
+        setSelId(ownerDoc.leagueId); setTab("teams"); setPage("league"); setAuthChecked(true); return;
+      }
+    } catch(e) { console.error("[Auth] owner lookup:", e); }
+
+    // 3. Not linked — ask for access code
+    setPendingGoogleUser(firebaseUser);
+    setPage("linkcode");
+    setAuthChecked(true);
+  }
+
+  async function submitAccessCode() {
+    if (!pendingGoogleUser || !__fbReady) return;
+    const code = accessCode.trim().toUpperCase();
+    if (!code) { setAccessCodeErr("Enter your access code."); return; }
+    setAccessCodeErr("");
+    try {
+      const { getDocs, collection, query, where, setDoc, doc } = _FS;
+      // Access codes stored in leagueCodes/{leagueId}
+      const snap = await getDocs(collection(_db, "leagueCodes"));
+      const match = snap.docs.find(d => d.data().code === code);
+      if (!match) { setAccessCodeErr("Code invalide. Vérifies avec ton administrateur."); return; }
+      const leagueId = parseInt(match.id);
+      const newUser = {
+        id: "user_" + Date.now(), email: pendingGoogleUser.email,
+        googleUid: pendingGoogleUser.uid, role: "owner",
+        leagueId, createdAt: new Date().toISOString().slice(0, 10),
+      };
+      await setDoc(doc(_db, "users", newUser.id), newUser);
+      // Add ownerUid to league doc
+      const { updateDoc, arrayUnion } = _FS;
+      if (updateDoc && arrayUnion) {
+        await updateDoc(doc(_db, "leagues", String(leagueId)), { ownerUids: arrayUnion(pendingGoogleUser.uid) }).catch(() => {});
+      }
+      const usersSnap = await getDocs(collection(_db, "users")).catch(() => null);
+      if (usersSnap) setUsers(usersSnap.docs.map(d => d.data()));
+      setPendingGoogleUser(null); setAccessCode("");
+      setUser(newUser); setSelId(leagueId); setTab("teams"); setPage("league");
+    } catch(e) { setAccessCodeErr("Erreur: " + e.message); }
+  }
+
+  function logout() {
+    setPage("login"); setUser(null); setSelId(null); setDirty(false); setLastSaved(null);
+    setPendingGoogleUser(null); setAccessCode(""); setAccessCodeErr("");
+    if (_auth && _AuthFns.signOut) _AuthFns.signOut(_auth).catch(() => {});
+  }
+
+  async function regenerateAccessCode(leagueId) {
+    if (!__fbReady) return;
+    const { setDoc, doc } = _FS;
+    const newCode = genAccessCode();
+    await setDoc(doc(_db, "leagueCodes", String(leagueId)), { code: newCode, updatedAt: Date.now() });
+    showToast(`New code: ${newCode}`);
+    setLeagueCodes(prev => ({ ...prev, [leagueId]: newCode }));
+  }
+  async function removeOwner(userId, leagueId) {
+    if (!__fbReady) return;
+    const { deleteDoc, doc, updateDoc, arrayRemove } = _FS;
+    const ownerUser = users.find(u => u.id === userId);
+    try {
+      if (ownerUser?.googleUid) {
+        await updateDoc(doc(_db, "leagues", String(leagueId)), { ownerUids: arrayRemove(ownerUser.googleUid) });
+      }
+      await deleteDoc(doc(_db, "users", String(userId)));
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      showToast("Owner removed.");
+    } catch(e) { showToast("Failed to remove owner: " + e.message, "error"); }
+  }
+
   function upd(updated) { setLeagues(prev => prev.map(l => l.id === updated.id ? updated : l)); setDirty(true); }
 
   // ── PUBLIC SETTINGS — immediate write, no dirty flag (real-time toggle for public site) ──
@@ -2349,18 +2447,19 @@ function App() {
   async function addLeague() {
     if (!nL.name) return;
     const genCat = { id: "cat_" + Date.now() + "_gen", name: "General", gender: "", displayName: "General" };
-    const newLeague = { ...nL, id: Date.now(), categories: [genCat], teams: [], players: [], schedule: [], statToggles: getDefaultToggles(nL.sport), honours: {} };
+    const code = genAccessCode();
+    const newLeague = { ...nL, id: Date.now(), categories: [genCat], teams: [], players: [], schedule: [], statToggles: getDefaultToggles(nL.sport), honours: {}, ownerUids: [] };
     if (__fbReady) {
       try {
         const { setDoc, doc } = _FS;
-        // Write meta-only root doc with v2 marker (no arrays — sub-collections are empty for new leagues)
         await setDoc(doc(_db, "leagues", String(newLeague.id)), {
           id: newLeague.id, name: newLeague.name, sport: newLeague.sport,
           color: newLeague.color, domain: newLeague.domain || "",
           categories: newLeague.categories, statToggles: newLeague.statToggles,
-          honours: {}, _format: "v2", _updatedAt: Date.now(),
+          honours: {}, ownerUids: [], _format: "v2", _updatedAt: Date.now(),
         });
-        // Seed subcolData for this brand-new league (empty sub-collections)
+        // Store access code separately (superadmin-only read in rules)
+        await setDoc(doc(_db, "leagueCodes", String(newLeague.id)), { code, createdAt: Date.now() });
         subcolData.current[String(newLeague.id)] = { teams: {}, players: {}, games: {}, stats: {} };
       } catch(e) { console.error("Firestore addLeague:", e); }
     }
@@ -2368,6 +2467,7 @@ function App() {
     setLeagues(updated);
     localStorage.setItem("wxLeagues", JSON.stringify(updated));
     setNL({ name: "", sport: "Basketball", domain: "", color: "#6366f1" }); setShowAdd(false);
+    showToast(`League created — access code: ${code}`);
   }
   const isValidEmoji = (str) => str && /\p{Emoji_Presentation}/u.test(str);
   async function addTeam() {
@@ -3006,17 +3106,27 @@ function App() {
     </div>
   );
 
+  // ── LOADING / AUTH CHECK ──
+  if (page === "loading" || !authChecked) return (
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 22, fontWeight: 900, color: ACC, letterSpacing: "-0.5px", marginBottom: 16 }}>Website X</div>
+        <div className="spinner" style={{ margin: "0 auto" }} />
+      </div>
+    </div>
+  );
+
   // ── LOGIN ──
   if (page === "login") return (
     <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 380, padding: 40, ...card }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>NLS</div>
-          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin</div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: ACC, letterSpacing: "-1px" }}>Website X</div>
+          <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Admin — sign in to continue</div>
         </div>
         {__fbUncfg && (
           <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
-            🔴 <strong>Firebase not configured.</strong> Open index.html and replace the <code>REPLACE_ME</code> values in the Firebase module script. Data is saving to localStorage only.
+            🔴 <strong>Firebase not configured.</strong> Open index.html and replace the <code>REPLACE_ME</code> values in the Firebase module script.
           </div>
         )}
         {fbError && (
@@ -3024,20 +3134,45 @@ function App() {
             ⚠️ {fbError}
           </div>
         )}
-        {__fbReady && !fbError && (
-          <div style={{ background: "#22c55e15", border: "1px solid #22c55e40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#22c55e", lineHeight: 1.6 }}>
-            🟢 <strong>Firebase connected.</strong> Data syncs across all devices and public sites in real time.
-          </div>
-        )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div><label style={lbl}>Email</label><input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key==="Enter"&&login()} placeholder="your@email.com" /></div>
-          <div><label style={lbl}>Password</label><input style={inp} type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key==="Enter"&&login()} placeholder="••••••••" /></div>
-          {err && <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}>{err}</div>}
-          <button style={{ ...btn(), width: "100%", padding: "12px 20px", fontSize: 15, marginTop: 4 }} onClick={login}>Sign In</button>
+        {err && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#ef4444", textAlign: "center" }}>{err}</div>}
+        <button onClick={signInWithGoogle}
+          style={{ width: "100%", background: "#fff", border: "1px solid #ddd", borderRadius: 10, padding: "12px 20px", fontSize: 15, fontWeight: 600, cursor: "pointer", color: "#111", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.3-.2-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.4 19.2 14 24 14c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3c-7.6 0-14.2 4.5-17.7 11.7z"/><path fill="#FBBC05" d="M24 45c5.5 0 10.5-1.9 14.4-5l-6.7-5.5C29.6 36 26.9 37 24 37c-5.8 0-10.7-3.9-12.4-9.2l-7.1 5.5C8.2 40.8 15.5 45 24 45z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.5-2.3 4.6-4.3 6.1l6.7 5.5C41.9 36.5 45 31 45 24c0-1.3-.2-2.7-.5-4z"/></svg>
+          Sign in with Google
+        </button>
+        <div style={{ marginTop: 20, padding: "12px 16px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
+          Admin access only — use your authorized Google account
         </div>
-        <div style={{ marginTop: 24, padding: "12px 16px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
-          Admin access only — unauthorized entry prohibited<br/>
-          <span style={{ color: "#f59e0b", fontSize: 11 }}>⚠️ Local admin tool — do not use sensitive passwords</span>
+      </div>
+    </div>
+  );
+
+  // ── LINK ACCESS CODE (first sign-in, account not yet linked to a league) ──
+  if (page === "linkcode") return (
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 400, padding: 40, ...card }}>
+        <div style={{ textAlign: "center", marginBottom: 30 }}>
+          <div style={{ fontSize: 22, fontWeight: 900, color: ACC }}>Website X</div>
+          <div style={{ fontSize: 13, color: T2, marginTop: 8, lineHeight: 1.5 }}>
+            Signed in as <strong style={{ color: T1 }}>{pendingGoogleUser?.email}</strong>.<br/>
+            Enter the access code your league admin gave you.
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={lbl}>Access Code</label>
+            <input style={{ ...inp, textAlign: "center", fontSize: 18, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}
+              value={accessCode} onChange={e => setAccessCode(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === "Enter" && submitAccessCode()}
+              placeholder="NLS-XXXX" maxLength={8} />
+          </div>
+          {accessCodeErr && <div style={{ color: "#ef4444", fontSize: 13, textAlign: "center" }}>{accessCodeErr}</div>}
+          <button style={{ ...btn(), width: "100%", padding: "12px 20px", fontSize: 15 }} onClick={submitAccessCode}>
+            Join League →
+          </button>
+          <button style={{ background: "none", border: "none", color: T2, fontSize: 13, cursor: "pointer", textAlign: "center", padding: "4px 0" }} onClick={logout}>
+            Sign out &amp; try another account
+          </button>
         </div>
       </div>
     </div>
@@ -3187,9 +3322,16 @@ function App() {
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
                   <thead>
                     <tr style={{ background: SURF }}>
-                      {["League","Sport","Owner","Teams","Players","Games","Status","⚠️ Alerts",""].map(h => (
-                        <th key={h} style={{ textAlign: h===""?"right":"left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: h==="⚠️ Alerts"?"#f59e0b":T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>{h}</th>
-                      ))}
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>League</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Sport</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Owner(s)</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Teams</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Players</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Games</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Status</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>⚠️ Alerts</th>
+                      {user?.role === "superadmin" && <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Access Code</th>}
+                      <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}` }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3199,6 +3341,14 @@ function App() {
                       const completed = (l.schedule||[]).filter(g => g.homeScore !== undefined).length;
                       const status = upcoming > 0 ? "Active" : completed > 0 ? "Completed" : "Setup";
                       const statusColor = upcoming > 0 ? "#22c55e" : completed > 0 ? ACC : "#f59e0b";
+                      const lPublicUrl = (() => {
+                        const custom = (l.customPublicSiteUrl || '').trim();
+                        if (custom && custom.startsWith('https://')) return custom;
+                        const origin = window.location.origin;
+                        if (origin.startsWith('https://')) return `${origin}/public.html?league=${l.id}`;
+                        return null;
+                      })();
+                      const code = leagueCodes[l.id] || null;
                       return (
                         <tr key={l.id} style={{ borderBottom: i < visibleLeagues.length-1 ? `1px solid ${BORDER}` : "none" }}
                           onMouseEnter={e => e.currentTarget.style.background = SURF}
@@ -3210,7 +3360,7 @@ function App() {
                               </div>
                               <div>
                                 <div style={{ fontWeight: 700, fontSize: 14 }}>{l.name}</div>
-                                {l.domain && <div style={{ fontSize: 11, color: T2, marginTop: 1 }}>{l.domain}</div>}
+                                {lPublicUrl && <a href={lPublicUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: ACC, marginTop: 1, display: "block", textDecoration: "none" }}>↗ Public site</a>}
                               </div>
                             </div>
                           </td>
@@ -3226,7 +3376,7 @@ function App() {
                           <td style={{ padding: "14px 16px" }}>
                             <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, background: statusColor+"20", color: statusColor, fontWeight: 700 }}>{status}</span>
                           </td>
-                          {/* ── ALERTS COLUMN (System 5) ── */}
+                          {/* ── ALERTS COLUMN ── */}
                           <td style={{ padding: "14px 16px" }}>
                             {(() => {
                               const awaitingCount = (l.schedule || []).filter(g => isGameAwaiting(g)).length;
@@ -3241,21 +3391,27 @@ function App() {
                               );
                             })()}
                           </td>
+                          {/* ── ACCESS CODE COLUMN (superadmin only) ── */}
+                          {user?.role === "superadmin" && (
+                            <td style={{ padding: "14px 16px" }}>
+                              {code ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: ACC, letterSpacing: "0.06em" }}>{code}</span>
+                                  <button title="Copy" onClick={() => navigator.clipboard.writeText(code).then(() => showToast("Code copied!")).catch(() => {})}
+                                    style={{ background: "none", border: "none", color: T2, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>📋</button>
+                                  <button title="Regenerate" onClick={() => regenerateAccessCode(l.id)}
+                                    style={{ background: "none", border: "none", color: T2, cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>🔄</button>
+                                </div>
+                              ) : <span style={{ color: T2, fontSize: 12 }}>—</span>}
+                            </td>
+                          )}
                           <td style={{ padding: "14px 16px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "nowrap" }}>
-                              {user?.role !== "owner" && (
-                                <>
-                                  <button onClick={() => { setOwnerModal(l.id); setNewOwner({ email: "", password: "", confirm: "" }); setOwnerError(""); }}
-                                    style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
-                                    👤 {lOwners.length > 0 ? "Add Owner" : "Assign Owner"}
-                                  </button>
-                                  {lOwners.length > 0 && (
-                                    <button onClick={() => { setManageOwnerId(l.id); setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}
-                                      style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer" }}>
-                                      Manage
-                                    </button>
-                                  )}
-                                </>
+                              {user?.role === "superadmin" && (
+                                <button onClick={() => { setManageOwnerId(l.id); }}
+                                  style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                  👤 Owners {lOwners.length > 0 ? `(${lOwners.length})` : ""}
+                                </button>
                               )}
                               <button onClick={() => { setSelId(l.id); setPage("league"); setTab("teams"); }}
                                 style={{ ...btn(), padding: "5px 14px", fontSize: 12, whiteSpace: "nowrap" }}>
@@ -3274,117 +3430,52 @@ function App() {
         })()}
       </div>
 
-      {/* ── ASSIGN OWNER MODAL ── */}
-      {ownerModal && (() => {
-        const lg = leagues.find(l => l.id === ownerModal);
-        return (
-          <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-            <div style={{ width: 460, ...card, padding: 32 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Assign Owner Account</div>
-              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>{lg?.name}</div>
-              <div style={{ fontSize: 12, color: "#22c55e", background: "#22c55e12", border: "1px solid #22c55e30", borderRadius: 8, padding: "10px 14px", marginBottom: 20, lineHeight: 1.6 }}>
-                🔒 Passwords are hashed with SHA-256 before storage — plaintext is never saved.
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div><label style={lbl}>Email</label><input style={inp} value={newOwner.email} onChange={e=>setNewOwner({...newOwner,email:e.target.value})} placeholder="owner@example.com" autoComplete="off" /></div>
-                <div><label style={lbl}>Password</label><input type="password" style={inp} value={newOwner.password} onChange={e=>setNewOwner({...newOwner,password:e.target.value})} placeholder="Choose a password" autoComplete="new-password" /></div>
-                <div><label style={lbl}>Confirm Password</label><input type="password" style={inp} value={newOwner.confirm} onChange={e=>setNewOwner({...newOwner,confirm:e.target.value})} onKeyDown={e=>e.key==="Enter"&&createOwner()} placeholder="Repeat password" autoComplete="new-password" /></div>
-                {ownerError && <div style={{ color: "#ef4444", fontSize: 13 }}>{ownerError}</div>}
-                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button style={{ ...btn(), flex: 1 }} onClick={createOwner}>Create Account</button>
-                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setOwnerModal(null); setOwnerError(""); }}>Cancel</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── CREDENTIALS CARD ── */}
-      {createdCreds && (
-        <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-          <div style={{ width: 460, ...card, padding: 32 }}>
-            <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🎉</div>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>Owner Account Created</div>
-              <div style={{ fontSize: 13, color: T2, marginTop: 6 }}>Share these credentials with the league owner. Screenshot or copy them now — the password will not be shown again.</div>
-            </div>
-            <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "20px 22px", marginBottom: 20, fontFamily: "monospace", fontSize: 13 }}>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>LOGIN URL</div>
-                <div style={{ color: T1, wordBreak: "break-all" }}>{window.location.href}</div>
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>EMAIL</div>
-                <div style={{ color: T1, fontWeight: 700 }}>{createdCreds.email}</div>
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>PASSWORD</div>
-                <div style={{ color: ACC, fontWeight: 800, fontSize: 15 }}>{createdCreds.password}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 4 }}>LEAGUE</div>
-                <div style={{ color: T1 }}>{createdCreds.leagueName}</div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => {
-                const txt = `Login: ${window.location.href}\nEmail: ${createdCreds.email}\nPassword: ${createdCreds.password}\nLeague: ${createdCreds.leagueName}`;
-                navigator.clipboard.writeText(txt).then(() => showToast("Credentials copied!")).catch(() => showToast("Copy failed."));
-              }}>📋 Copy All</button>
-              <button style={{ ...btn(), flex: 1 }} onClick={() => setCreatedCreds(null)}>Done</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── MANAGE OWNERS MODAL ── */}
       {manageOwnerId && (() => {
         const lg = leagues.find(l => l.id === manageOwnerId);
         const ownersForLeague = users.filter(u => u.leagueId === manageOwnerId && u.role === "owner");
+        const code = leagueCodes[manageOwnerId] || null;
         return (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
             <div style={{ width: 480, ...card, padding: 32, maxHeight: "80vh", overflowY: "auto" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Manage Owners</div>
-              <div style={{ fontSize: 13, color: T2, marginBottom: 24 }}>{lg?.name}</div>
-              {ownersForLeague.length === 0 && <div style={{ color: T2, fontSize: 14, marginBottom: 20 }}>No owners assigned yet.</div>}
-              {ownersForLeague.map(owner => (
-                <div key={owner.id} style={{ background: SURF, borderRadius: 10, padding: "16px 18px", marginBottom: 14 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Owners — {lg?.name}</div>
+              <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Owners sign in with Google. Share the access code below for first-time setup.</div>
+              {code && (
+                <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T2, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 4 }}>ACCESS CODE</div>
+                    <span style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 800, color: ACC, letterSpacing: "0.1em" }}>{code}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => navigator.clipboard.writeText(code).then(() => showToast("Code copied!")).catch(() => {})}
+                      style={{ ...btn("#252540"), padding: "6px 14px", fontSize: 12 }}>📋 Copy</button>
+                    <button onClick={() => regenerateAccessCode(manageOwnerId)}
+                      style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}>🔄 Regen</button>
+                  </div>
+                </div>
+              )}
+              {ownersForLeague.length === 0
+                ? <div style={{ color: T2, fontSize: 14, marginBottom: 20, textAlign: "center", padding: "20px 0" }}>No owners yet. Share the access code above so an owner can sign in with Google.</div>
+                : ownersForLeague.map(owner => (
+                  <div key={owner.id} style={{ background: SURF, borderRadius: 10, padding: "14px 18px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.email}</div>
-                      <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Created {owner.createdAt} · ID {owner.id}</div>
+                      <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>Joined {owner.createdAt || "—"}</div>
                     </div>
                     <button onClick={() => setDeleteOwnerId(owner.id)}
-                      style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>Delete</button>
+                      style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>Remove</button>
                   </div>
-                  {resetPwForm.userId === owner.id ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.password} onChange={e=>setResetPwForm({...resetPwForm,password:e.target.value})} placeholder="New password" autoComplete="new-password" />
-                      <input type="password" style={{ ...inp, fontSize: 13 }} value={resetPwForm.confirm} onChange={e=>setResetPwForm({...resetPwForm,confirm:e.target.value})} placeholder="Confirm new password" autoComplete="new-password" />
-                      {ownerError && <div style={{ color: "#ef4444", fontSize: 12 }}>{ownerError}</div>}
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button style={{ ...btn(), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={resetOwnerPassword}>Save</button>
-                        <button style={{ ...btn("#252540"), flex: 1, padding: "8px 14px", fontSize: 13 }} onClick={() => { setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => { setResetPwForm({ userId: owner.id, password: "", confirm: "" }); setOwnerError(""); }}
-                      style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>
-                      🔑 Reset Password
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button style={{ ...btn("#252540"), width: "100%", marginTop: 8 }} onClick={() => { setManageOwnerId(null); setResetPwForm({ userId: null, password: "", confirm: "" }); setOwnerError(""); }}>Close</button>
+                ))
+              }
+              <button style={{ ...btn("#252540"), width: "100%", marginTop: 12 }} onClick={() => setManageOwnerId(null)}>Close</button>
             </div>
           </div>
         );
       })()}
 
-      {/* ── DELETE OWNER CONFIRM ── */}
+      {/* ── REMOVE OWNER CONFIRM ── */}
       {deleteOwnerId && (
-        <ConfirmModal icon="🗑️" title="Delete Owner Account?" body={`This will permanently remove the login credentials for ${users.find(u=>u.id===deleteOwnerId)?.email}. The league data is unaffected.`} confirmLabel="Yes, Delete Account" onConfirm={() => deleteOwner(deleteOwnerId)} onCancel={() => setDeleteOwnerId(null)} />
+        <ConfirmModal icon="👤" title="Remove owner?" body={`Remove ${users.find(u=>u.id===deleteOwnerId)?.email} as owner? They will no longer be able to sign in. The league data is unaffected.`} confirmLabel="Yes, Remove" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); removeOwner(uid, manageOwnerId || leagues.find(l => users.find(u => u.id===uid)?.leagueId === l.id)?.id); }} onCancel={() => setDeleteOwnerId(null)} />
       )}
 
       {showAdd && (
@@ -3524,16 +3615,23 @@ function App() {
     // player stat entry helpers
     function getGamePlayers(g) { return catPlayers.filter(p => p.team===g.home||p.team===g.away); }
 
+    // Update browser tab title
+    React.useEffect(() => {
+      document.title = `${league.name} — Website X`;
+      return () => { document.title = "Website X"; };
+    }, [league.name]);
+
     return (
       <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
 
         {/* HEADER */}
         <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {user?.role==="superadmin" && <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← Back</button>}
-            <div style={{ width: 1, height: 24, background: BORDER }} />
-            <div style={{ fontSize: 18, fontWeight: 900, color: ACC }}>WEBSITE X</div>
-            <div style={{ fontSize: 14, color: T2 }}>/ {league.name}</div>
+            {user?.role==="superadmin" && <button onClick={handleBack} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>← Dashboard</button>}
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: T1, lineHeight: 1.1 }}>{league.name}</div>
+              <div style={{ fontSize: 10, color: T2, letterSpacing: "0.1em", textTransform: "uppercase" }}>Website X</div>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {lastSaved && !dirty && (
@@ -3541,6 +3639,24 @@ function App() {
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
                 Saved {lastSaved}
               </span>
+            )}
+            {user?.role === "superadmin" && leagues.length > 1 && (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setShowLeagueSwitcher(v => !v)}
+                  style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>
+                  Switch league ▾
+                </button>
+                {showLeagueSwitcher && (
+                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, boxShadow: "0 6px 24px #00000070", zIndex: 200, minWidth: 220, maxHeight: 300, overflowY: "auto" }}>
+                    {leagues.map(l => (
+                      <button key={l.id} onClick={() => { setSelId(l.id); setTab("teams"); setShowLeagueSwitcher(false); }}
+                        style={{ display: "block", width: "100%", background: l.id === selId ? ACC+"20" : "none", border: "none", padding: "10px 16px", fontSize: 13, color: l.id === selId ? ACC : T1, cursor: "pointer", textAlign: "left", fontWeight: l.id === selId ? 700 : 400 }}>
+                        {l.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <span style={{ fontSize: 12, padding: "4px 10px", background: user?.role==="superadmin"?ACC+"20":"#6366f120", borderRadius: 6, fontWeight: 600, color: user?.role==="superadmin"?ACC:"#818cf8" }}>
               {user?.role==="superadmin"?"Super Admin":"League Owner"}

@@ -2,36 +2,83 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Top-level meta collection (superadmin doc, etc.) — admin reads/writes
+    // ── Helpers ──
+    function isSuperAdmin() {
+      return request.auth != null &&
+             request.auth.token.email == get(/databases/$(database)/documents/meta/superadmin).data.email;
+    }
+
+    function isLeagueOwner(leagueId) {
+      return request.auth != null &&
+             request.auth.uid in get(/databases/$(database)/documents/leagues/$(leagueId)).data.ownerUids;
+    }
+
+    // ── meta collection ──
+    // superadmin doc is public-readable so helpers can verify email
     match /meta/{doc} {
-      allow read, write: if true;
+      allow read:  if true;
+      allow write: if isSuperAdmin();
     }
 
-    // Top-level users collection — server-side only, no client access
+    // ── users collection ──
+    // Each user can read/write their own doc; superadmin can read/write all
     match /users/{userId} {
-      allow read, write: if false;
+      allow read:  if isSuperAdmin() || (request.auth != null && request.auth.uid == resource.data.googleUid);
+      allow write: if isSuperAdmin() || (request.auth != null && request.auth.uid == resource.data.googleUid);
+      // Allow creating own user doc (first sign-in claim)
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.googleUid;
     }
 
-    // Leagues and all sub-collections — existing open-access behaviour
-    match /leagues/{leagueId} {
-      allow read, write: if true;
+    // ── leagueCodes collection ──
+    // Codes are stored separately from leagues (which are publicly readable)
+    // Any authenticated user can read a code (to verify it at sign-in)
+    // Only superadmin can write codes
+    match /leagueCodes/{leagueId} {
+      allow read:  if request.auth != null;
+      allow write: if isSuperAdmin();
+    }
 
-      match /teams/{doc}     { allow read, write: if true; }
-      match /players/{doc}   { allow read, write: if true; }
-      match /games/{doc}     { allow read, write: if true; }
-      match /meta/{doc}      { allow read, write: if true; }
+    // ── leagues and sub-collections ──
+    match /leagues/{leagueId} {
+      // Public sites need to read league data; owners and superadmin can write
+      allow read:  if true;
+      allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+
+      // ownerUids field update: allow authenticated users to add their own UID
+      // (first-claim when redeeming access code) — handled in submitAccessCode via
+      // superadmin-equivalent write path; keep write guard above
+
+      match /teams/{doc} {
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+      }
+      match /players/{doc} {
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+      }
+      match /games/{doc} {
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+      }
+      match /meta/{doc} {
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+      }
 
       // pageViews: public site creates; nobody reads/edits/deletes from client
-      match /pageViews/{doc} { allow create: if true; allow read, update, delete: if false; }
+      match /pageViews/{doc} {
+        allow create: if true;
+        allow read, update, delete: if false;
+      }
 
-      // Email alert subscribers — all access via Cloud Functions (Admin SDK bypasses rules)
+      // Email subscribers — Cloud Functions (Admin SDK bypasses rules)
       match /subscribers/{subId} {
         allow read, write: if false;
       }
 
-      // Email log — Cloud Functions write; kept readable for future admin queries
+      // Email log — Cloud Functions write; kept readable for owner/superadmin
       match /emailLog/{logId} {
-        allow read:  if true;
+        allow read:  if isSuperAdmin() || isLeagueOwner(leagueId);
         allow write: if false;
       }
     }
