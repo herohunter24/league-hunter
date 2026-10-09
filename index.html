@@ -4,6 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>NLS — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@600&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -55,7 +58,7 @@
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #08080f; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: #08080f; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
   input, select, button { font-family: inherit; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: #111120; }
@@ -101,6 +104,8 @@
     .game-card-inner { flex-wrap: wrap; }
     .dash-stats-row { flex-wrap: wrap; }
     .dash-stats-row > div { flex: 1 1 40% !important; }
+    button, input, select { min-height: 44px; }
+    input, textarea { font-size: 16px !important; }
   }
 
   /* ── TOAST SYSTEM ── */
@@ -696,7 +701,7 @@ const DEMO_LEAGUES = [
 ];
 
 const BG = "#08080f", SURF = "#111120", CARD = "#16162a", BORDER = "#23233a";
-const ACC = "#f97316", T1 = "#e8e8f5", T2 = "#6868a0";
+const ACC = "#f97316", T1 = "#e8e8f5", T2 = "#A9B4C6";
 
 const inp = { background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "10px 14px", fontSize: 14, width: "100%", outline: "none", boxSizing: "border-box" };
 const btn = (bg = ACC) => ({ background: bg, border: "none", borderRadius: 8, color: "#fff", padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" });
@@ -1431,6 +1436,7 @@ function App() {
   const [rpAdjAmount, setRpAdjAmount] = useState("");
   const [rpAdjReason, setRpAdjReason] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [openGameMenuId, setOpenGameMenuId] = useState(null);
   const [allStarForm, setAllStarForm] = useState({ votingOpensAt: '', votingClosesAt: '' });
   const [awardsForm, setAwardsForm]   = useState({});
   const [publishingAward, setPublishingAward] = useState(null);
@@ -3179,7 +3185,7 @@ function App() {
                   <div style={{ fontSize: 20, fontWeight: 700 }}>All Leagues</div>
                   <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{visibleLeagues.length} league{visibleLeagues.length !== 1 ? "s" : ""} in your network</div>
                 </div>
-                {user?.role !== "owner" && <button style={btn()} onClick={() => setShowAdd(true)}>+ Create New League</button>}
+                {user?.role !== "owner" && <button style={btn()} onClick={() => setShowAdd(true)}>+ Create league</button>}
               </div>
 
               {/* Table */}
@@ -3200,7 +3206,8 @@ function App() {
                       const status = upcoming > 0 ? "Active" : completed > 0 ? "Completed" : "Setup";
                       const statusColor = upcoming > 0 ? "#22c55e" : completed > 0 ? ACC : "#f59e0b";
                       return (
-                        <tr key={l.id} style={{ borderBottom: i < visibleLeagues.length-1 ? `1px solid ${BORDER}` : "none" }}
+                        <tr key={l.id} style={{ borderBottom: i < visibleLeagues.length-1 ? `1px solid ${BORDER}` : "none", cursor: "pointer" }}
+                          onClick={e => { if (e.target.closest('button')) return; setSelId(l.id); setPage("league"); setTab("teams"); }}
                           onMouseEnter={e => e.currentTarget.style.background = SURF}
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                           <td style={{ padding: "14px 16px" }}>
@@ -3210,7 +3217,7 @@ function App() {
                               </div>
                               <div>
                                 <div style={{ fontWeight: 700, fontSize: 14 }}>{l.name}</div>
-                                {l.domain && <div style={{ fontSize: 11, color: T2, marginTop: 1 }}>{l.domain}</div>}
+                                {l.domain && l.domain.startsWith('http') && <div style={{ fontSize: 11, color: T2, marginTop: 1 }}>{l.domain}</div>}
                               </div>
                             </div>
                           </td>
@@ -3390,7 +3397,7 @@ function App() {
       {showAdd && (
         <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
           <div style={{ width: 460, ...card, padding: 32 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>Add New League</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>Create league</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div><label style={lbl}>League Name</label><input style={inp} value={nL.name} onChange={e => setNL({...nL,name:e.target.value})} placeholder="e.g. Hockey Summer League" /></div>
               <div><label style={lbl}>Sport</label>
@@ -3403,7 +3410,7 @@ function App() {
                 <input type="color" value={nL.color} onChange={e => setNL({...nL,color:e.target.value})} style={{ height: 44, width: "100%", borderRadius: 8, border: `1px solid ${BORDER}`, background: SURF, cursor: "pointer", padding: 4 }} />
               </div>
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                <button style={{ ...btn(), flex: 1 }} onClick={addLeague}>Create League</button>
+                <button style={{ ...btn(), flex: 1 }} onClick={addLeague}>Create league</button>
                 <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setShowAdd(false)}>Cancel</button>
               </div>
             </div>
@@ -3589,7 +3596,7 @@ function App() {
               {/* Mobile: dropdown */}
               <div className="cat-select-row">
                 <select style={{ ...inp, width: "100%" }} value={activeCatId || ""} onChange={e => setActiveCatId(e.target.value)}>
-                  {cats.map(c => <option key={c.id} value={c.id}>{c.displayName || c.name}</option>)}
+                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               {/* Desktop: tab row */}
@@ -3597,7 +3604,7 @@ function App() {
                 {cats.map(c => (
                   <button key={c.id} onClick={() => setActiveCatId(c.id)}
                     style={{ background: "none", border: "none", padding: "11px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: activeCatId===c.id ? ACC : T2, borderBottom: activeCatId===c.id ? `2px solid ${ACC}` : "2px solid transparent", transition: "all 0.15s" }}>
-                    {c.displayName || c.name}
+                    {c.name}
                   </button>
                 ))}
                 <button onClick={() => setShowCatModal(true)}
@@ -3611,12 +3618,6 @@ function App() {
                   </button>
                 )}
                 <div style={{ flex: 1 }} />
-                {activeCatId && cats.length > 1 && (
-                  <button onClick={() => setDeleteCatId(activeCatId)}
-                    style={{ background: "none", border: "none", padding: "11px 16px", fontSize: 12, cursor: "pointer", color: "#ef444488", whiteSpace: "nowrap" }}>
-                    🗑 Delete
-                  </button>
-                )}
               </div>
             </div>
           );
@@ -3642,7 +3643,7 @@ function App() {
           {tab==="teams" && (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Teams {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
+                Teams {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
               </div>
               <div style={{ ...card, marginBottom: 24 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add New Team</div>
@@ -3655,13 +3656,13 @@ function App() {
                   {(league.categories || []).length > 1 && (
                     <select style={{ ...inp, flex: 1, minWidth: 140 }} value={nT.categoryId || activeCatId || ""} onChange={e=>setNT({...nT,categoryId:e.target.value})}>
                       <option value="">Select category</option>
-                      {(league.categories || []).map(c => <option key={c.id} value={c.id}>{c.displayName || c.name}</option>)}
+                      {(league.categories || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   )}
                   <button style={btn()} onClick={() => {
                     if (!nT.name || !nT.name.trim()) return;
                     const catId = nT.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
-                    const catName = (league.categories || []).find(c => c.id === catId)?.displayName || (league.categories || []).find(c => c.id === catId)?.name || '—';
+                    const catName = (league.categories || []).find(c => c.id === catId)?.name || '—';
                     addConfirm.ask({
                       actionType: 'add', entityType: 'team', entityLabel: nT.name.trim(),
                       summary: `You are about to add team "${nT.name.trim()}"${catName !== '—' ? ` to category "${catName}"` : ''}.`,
@@ -3732,7 +3733,7 @@ function App() {
           {tab==="players" && (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Players {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
+                Players {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
               </div>
               <div style={{ ...card, marginBottom: 24 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Add New Player</div>
@@ -3944,7 +3945,7 @@ function App() {
           {tab==="schedule" && (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Schedule {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
+                Schedule {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
               </div>
               {(() => {
                 // Per-league venue suggestions (deduplicated, sorted)
@@ -4036,18 +4037,25 @@ function App() {
                                   : <span style={{ fontSize: 12, color: "#6b7280", padding: "4px 12px", background: "#6b728015", borderRadius: 6, fontWeight: 600 }}>Upcoming</span>
                                 }
                                 <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                                <button onClick={() => deleteConfirm.ask({
-                                    actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
-                                    summary: `You are about to permanently delete this game. This cannot be undone.`,
-                                    details: [
-                                      { label: 'Matchup', value: `${g.home} vs ${g.away}` },
-                                      { label: 'Date',    value: g.date || '—' },
-                                      { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
-                                    ],
-                                    requiresTypedConfirm: true, confirmWord: 'DELETE',
-                                    confirmLabel: 'Yes, Delete Game', dangerStyle: true,
-                                    onConfirm: () => deleteGame(g.id),
-                                  })} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                                <div style={{ position: "relative" }}>
+                                  <button onClick={e => { e.stopPropagation(); setOpenGameMenuId(openGameMenuId === g.id ? null : g.id); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 14, cursor: "pointer", lineHeight: 1 }}>⋯</button>
+                                  {openGameMenuId === g.id && (
+                                    <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, boxShadow: "0 4px 16px #00000060", zIndex: 50, minWidth: 130 }}>
+                                      <button onClick={() => { setOpenGameMenuId(null); deleteConfirm.ask({
+                                          actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
+                                          summary: `You are about to permanently delete this game. This cannot be undone.`,
+                                          details: [
+                                            { label: 'Matchup', value: `${g.home} vs ${g.away}` },
+                                            { label: 'Date',    value: g.date || '—' },
+                                            { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
+                                          ],
+                                          requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                          confirmLabel: 'Yes, Delete Game', dangerStyle: true,
+                                          onConfirm: () => deleteGame(g.id),
+                                        }); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>🗑 Delete</button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -4121,18 +4129,25 @@ function App() {
                                   );
                                 })()}
                                 <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                                <button onClick={() => deleteConfirm.ask({
-                                    actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
-                                    summary: `You are about to permanently delete this game. This cannot be undone.`,
-                                    details: [
-                                      { label: 'Matchup', value: `${g.home} vs ${g.away}` },
-                                      { label: 'Date',    value: g.date || '—' },
-                                      { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
-                                    ],
-                                    requiresTypedConfirm: true, confirmWord: 'DELETE',
-                                    confirmLabel: 'Yes, Delete Game', dangerStyle: true,
-                                    onConfirm: () => deleteGame(g.id),
-                                  })} style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Delete</button>
+                                <div style={{ position: "relative" }}>
+                                  <button onClick={e => { e.stopPropagation(); setOpenGameMenuId(openGameMenuId === g.id ? null : g.id); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 14, cursor: "pointer", lineHeight: 1 }}>⋯</button>
+                                  {openGameMenuId === g.id && (
+                                    <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, boxShadow: "0 4px 16px #00000060", zIndex: 50, minWidth: 130 }}>
+                                      <button onClick={() => { setOpenGameMenuId(null); deleteConfirm.ask({
+                                          actionType: 'delete', entityType: 'game', entityLabel: `${g.home} vs ${g.away}`,
+                                          summary: `You are about to permanently delete this game. This cannot be undone.`,
+                                          details: [
+                                            { label: 'Matchup', value: `${g.home} vs ${g.away}` },
+                                            { label: 'Date',    value: g.date || '—' },
+                                            { label: 'Stats entered', value: g.playerStats && Object.keys(g.playerStats).length > 0 ? 'Yes' : 'No' },
+                                          ],
+                                          requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                          confirmLabel: 'Yes, Delete Game', dangerStyle: true,
+                                          onConfirm: () => deleteGame(g.id),
+                                        }); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>🗑 Delete</button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             {hasScore && <BoxScore game={g} players={league.players} sport={sport} toggles={toggles} />}
@@ -4150,7 +4165,7 @@ function App() {
           {tab==="scores" && (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-                Enter Scores {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
+                Enter Scores {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
               </div>
               <div style={{ ...card, marginBottom: 28 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T2, marginBottom: 14 }}>Submit Result</div>
@@ -4386,7 +4401,7 @@ function App() {
           {tab==="stats" && (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
-                Player Statistics {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.displayName || activeCat.name}</span>}
+                Player Statistics {activeCat && <span style={{ fontSize: 13, color: T2, fontWeight: 400 }}>— {activeCat.name}</span>}
               </div>
               <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Season totals &amp; averages — auto-calculated, ranked by category</div>
 
@@ -4394,14 +4409,10 @@ function App() {
               <div style={{ ...card, marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>🏅 Player Rankings</div>
-                  <button onClick={() => setShowResetConfirm(true)}
-                    style={{ background: "none", border: "1px solid #ef444440", borderRadius: 6, color: "#ef4444", padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>
-                    🔄 Reset Season
-                  </button>
                 </div>
                 <div style={{ fontSize: 12, color: T2, marginBottom: 14 }}>
-                  Season {(league.season||{}).number||1}
-                  {(league.season||{}).resetAt ? ` · Reset ${new Date((league.season||{}).resetAt).toLocaleDateString()}` : ' · All-time'}
+                  {(league.season||{}).name || "Current season"}
+                  {(league.season||{}).resetAt ? ` · Reset ${new Date((league.season||{}).resetAt).toLocaleDateString()}` : ''}
                 </div>
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -4638,7 +4649,7 @@ function App() {
           {/* ── PUBLIC SETTINGS ── */}
           {tab==="public" && (() => {
             const ps = getPublicSettings(league);
-            const publicUrl = (league.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${league.id}`;
+            const publicUrl = ((league.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${league.id}`).replace(/#statistiques$/, '');
             const PS_TOGGLES = [
               ['showStandings',   '📊 Show Standings',            'League standings table with team records'],
               ['showSchedule',    '📅 Show Schedule',             'Upcoming games and past results'],
@@ -4940,7 +4951,7 @@ function App() {
                       };
                       return (
                         <div key={cat.id} style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 14px" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{cat.displayName || cat.name}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{cat.name}</div>
                           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                             <div style={{ flex: 1, minWidth: 150 }}>
                               <label style={lbl}>🏆 Play of the Month</label>
@@ -5447,7 +5458,7 @@ function App() {
                 </div>
               </div>
 
-              <div style={{ ...card, background: SURF, marginTop: 20 }}>
+              {user?.role === "superadmin" && <div style={{ ...card, background: SURF, marginTop: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Data Cleanup</div>
                 <div style={{ fontSize: 13, color: T2, marginBottom: 14, lineHeight: 1.6 }}>
                   Remove any players whose team no longer exists in the teams list. Runs instantly and writes to Firestore — use this if a team was deleted but its players are still showing on the public site.
@@ -5468,10 +5479,10 @@ function App() {
                     </div>
                   );
                 })()}
-              </div>
+              </div>}
 
               {/* ── STORAGE SIZE MONITOR ── */}
-              {(() => {
+              {user?.role === "superadmin" && (() => {
                 const gameCount   = (league.schedule || []).length;
                 const teamCount   = (league.teams    || []).length;
                 const playerCount = (league.players  || []).length;
@@ -5624,28 +5635,46 @@ function App() {
 
               <div style={{ ...card, background: "#1a0a0a", border: "1px solid #7f1d1d", marginTop: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, color: "#ef4444" }}>Danger Zone</div>
-                <div style={{ fontSize: 13, color: T2, marginBottom: 14, lineHeight: 1.6 }}>
-                  Permanently delete this league and all its data from Firestore. This cannot be undone.
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: T2, marginBottom: 8, lineHeight: 1.6 }}>Reset all player rankings and start a new season. Cannot be undone.</div>
+                    <button onClick={() => setShowResetConfirm(true)}
+                      style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
+                      🔄 Reset Season
+                    </button>
+                  </div>
+                  {activeCatId && (league.categories || []).length > 1 && (
+                    <div>
+                      <div style={{ fontSize: 13, color: T2, marginBottom: 8, lineHeight: 1.6 }}>Delete the current category and all its teams, players, and games. Cannot be undone.</div>
+                      <button onClick={() => setDeleteCatId(activeCatId)}
+                        style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
+                        🗑 Delete Category
+                      </button>
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 13, color: T2, marginBottom: 8, lineHeight: 1.6 }}>Permanently delete this league and all its data from Firestore. This cannot be undone.</div>
+                    <button onClick={() => deleteConfirm.ask({
+                        actionType: 'delete', entityType: 'league', entityLabel: league.name,
+                        summary: `You are about to permanently delete "${league.name}" and all its data from Firestore. This cannot be undone.`,
+                        details: [
+                          { label: 'League',  value: league.name },
+                          { label: 'Teams',   value: String((league.teams || []).length) },
+                          { label: 'Players', value: String((league.players || []).length) },
+                          { label: 'Games',   value: String((league.schedule || []).length) },
+                        ],
+                        requiresTypedConfirm: true, confirmWord: league.name,
+                        confirmLabel: 'Yes, Delete League', dangerStyle: true,
+                        onConfirm: () => deleteLeague(league.id),
+                      })} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
+                      Delete League
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => deleteConfirm.ask({
-                    actionType: 'delete', entityType: 'league', entityLabel: league.name,
-                    summary: `You are about to permanently delete "${league.name}" and all its data from Firestore. This cannot be undone.`,
-                    details: [
-                      { label: 'League',  value: league.name },
-                      { label: 'Teams',   value: String((league.teams || []).length) },
-                      { label: 'Players', value: String((league.players || []).length) },
-                      { label: 'Games',   value: String((league.schedule || []).length) },
-                    ],
-                    requiresTypedConfirm: true, confirmWord: league.name,
-                    confirmLabel: 'Yes, Delete League', dangerStyle: true,
-                    onConfirm: () => deleteLeague(league.id),
-                  })} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
-                  Delete League
-                </button>
               </div>
 
               {/* CONNECTION STATUS */}
-              {(() => {
+              {user?.role === "superadmin" && (() => {
                 const hb = localStorage.getItem("wxLeagues_pubHeartbeat");
                 const lastUpdated = localStorage.getItem("wxLeagues_updated");
                 let hbColor = T2, hbLabel = "No heartbeat", hbDesc = "Public site heartbeat not detected.";
@@ -5841,7 +5870,7 @@ service cloud.firestore {
                   </div>
                   <div>
                     <label style={lbl}>Message</label>
-                    <textarea style={{ ...inp, minHeight:100, resize:"vertical" }} value={nlsAnnMsg} onChange={e=>setNlsAnnMsg(e.target.value)} placeholder="Texte du courriel (une phrase ou un paragraphe)…" />
+                    <textarea style={{ ...inp, minHeight:100, resize:"vertical", fontFamily:"inherit" }} value={nlsAnnMsg} onChange={e=>setNlsAnnMsg(e.target.value)} placeholder="Texte du courriel (une phrase ou un paragraphe)…" />
                   </div>
                   <div>
                     <label style={lbl}>Adresse de test (optionnel)</label>
@@ -6196,7 +6225,7 @@ service cloud.firestore {
                   const editing = editCatId === c.id;
                   const commitRename = () => {
                     const v = editCatVal.trim();
-                    if (v) setReorderCats(prev => prev.map(x => x.id === c.id ? { ...x, displayName: v } : x));
+                    if (v) setReorderCats(prev => prev.map(x => x.id === c.id ? { ...x, name: v, displayName: v } : x));
                     setEditCatId(null);
                   };
                   return (
@@ -6229,8 +6258,8 @@ service cloud.firestore {
                       </>
                     ) : (
                       <>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: T1, flex: 1 }}>{c.displayName || c.name}</span>
-                        <button onClick={() => { setEditCatId(c.id); setEditCatVal(c.displayName || c.name); }} title="Rename" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>✏️ Edit</button>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: T1, flex: 1 }}>{c.name}</span>
+                        <button onClick={() => { setEditCatId(c.id); setEditCatVal(c.name); }} title="Rename" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>✏️ Edit</button>
                       </>
                     )}
                   </div>
@@ -6315,7 +6344,7 @@ service cloud.firestore {
           return (
             <ConfirmModal
               icon="⚠️"
-              title={`Delete "${cat?.displayName || cat?.name || "this category"}"?`}
+              title={`Delete "${cat?.name || "this category"}"?`}
               body={`This will permanently delete ${tCount} team${tCount!==1?"s":""}, ${pCount} player${pCount!==1?"s":""}, and ${gCount} game${gCount!==1?"s":""}. This cannot be undone.`}
               confirmLabel="Yes, Delete Category"
               onConfirm={() => deleteCategory(deleteCatId)}
