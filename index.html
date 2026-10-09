@@ -1383,6 +1383,43 @@ function generateSeasonRecap(league, seasonNum) {
 }
 
 // ═══════════════════════════════════════════
+// ERROR BOUNDARY
+// ═══════════════════════════════════════════
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("[ErrorBoundary] Caught error:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement("div", {
+        style: { minHeight: "100vh", background: "#08080f", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }
+      }, React.createElement("div", {
+        style: { maxWidth: 480, width: "100%", background: "#12121f", border: "1px solid #ef444440", borderRadius: 12, padding: 32, textAlign: "center" }
+      }, [
+        React.createElement("div", { key: "icon", style: { fontSize: 40, marginBottom: 12 } }, "⚠️"),
+        React.createElement("div", { key: "title", style: { fontSize: 18, fontWeight: 700, color: "#f1f1f8", marginBottom: 8 } }, "Une erreur est survenue"),
+        React.createElement("div", { key: "msg", style: { fontSize: 13, color: "#8888aa", marginBottom: 20, wordBreak: "break-word" } },
+          this.state.error?.message || "Erreur inconnue"
+        ),
+        React.createElement("button", {
+          key: "btn",
+          onClick: () => { this.setState({ hasError: false, error: null }); window.location.reload(); },
+          style: { background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }
+        }, "Recharger la page")
+      ]));
+    }
+    return this.props.children;
+  }
+}
+
+// ═══════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════
 function App() {
@@ -1442,6 +1479,9 @@ function App() {
   const [editTeam, setEditTeam] = useState(null);     // { id, name, emoji }
   const [editPlayer, setEditPlayer] = useState(null); // { id, name, number, position, team, email }
   const [editEmojiErr, setEditEmojiErr] = useState("");
+  // changepw screen state — must be top-level (hooks cannot be inside conditionals)
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
   // DELETE CONFIRM — single useActionConfirm instance handles all delete actions
   const deleteConfirm = useActionConfirm();
   // ADD CONFIRM — single useActionConfirm instance handles all add actions
@@ -1921,6 +1961,15 @@ function App() {
   }, [dirty]);
 
   const league = leagues.find(l => l.id === selId);
+
+  // document.title — top-level effect (hooks cannot be inside page conditionals)
+  useEffect(() => {
+    if (page === "league" && league?.name) {
+      document.title = `${league.name} — Website X`;
+    } else {
+      document.title = "Website X";
+    }
+  }, [page, league?.name]);
 
   function _genAccessCode_unused() {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -3270,8 +3319,6 @@ function App() {
 
   // ── FORCE PASSWORD CHANGE (mustChangePassword) ──
   if (page === "changepw") {
-    const [newPw, setNewPw] = React.useState("");
-    const [confirmPw, setConfirmPw] = React.useState("");
     return (
       <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 380, padding: 40, ...card }}>
@@ -3896,12 +3943,6 @@ function App() {
 
     // player stat entry helpers
     function getGamePlayers(g) { return catPlayers.filter(p => p.team===g.home||p.team===g.away); }
-
-    // Update browser tab title
-    React.useEffect(() => {
-      document.title = `${league.name} — Website X`;
-      return () => { document.title = "Website X"; };
-    }, [league.name]);
 
     return (
       <div style={{ minHeight: "100vh", background: BG, color: T1 }}>
@@ -6952,7 +6993,7 @@ service cloud.firestore {
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App />);
+root.render(<ErrorBoundary><App /></ErrorBoundary>);
 </script>
 </body>
 </html>
