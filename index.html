@@ -47,7 +47,9 @@
       const db  = getFirestore(app);
       const storage = getStorage(app);
       const auth = getAuth(app);
-      await setPersistence(auth, browserLocalPersistence);
+      // Expose globals synchronously — do NOT await before this point so that
+      // window.__wxFirebaseReady is set before DOMContentLoaded fires and
+      // the Babel script reads it.
       window.__wxDB      = db;
       window.__wxAuth    = auth;
       window.__wxStorage = storage;
@@ -55,6 +57,8 @@
       window.__wxST      = { storageRef, uploadBytes, getDownloadURL };
       window.__wxAuthFns = { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut };
       window.__wxFirebaseReady = true;
+      // Local persistence: best-effort, fire-and-forget — auth works without it
+      setPersistence(auth, browserLocalPersistence).catch(e => console.warn("[Auth] setPersistence:", e));
     } catch(e) {
       console.error("[League Hunter] Firebase init failed:", e);
       window.__wxFirebaseReady  = false;
@@ -1866,8 +1870,12 @@ function App() {
 
   // ── FIREBASE AUTH — restore session across reloads ──
   useEffect(() => {
-    if (!__fbReady || !_auth) { setPage("login"); setAuthChecked(true); return; }
-    const unsub = _AuthFns.onAuthStateChanged(_auth, async firebaseUser => {
+    // Read live window values: module script may have finished after Babel ran
+    const auth  = _auth  || window.__wxAuth;
+    const ready = __fbReady || window.__wxFirebaseReady;
+    const fns   = (_AuthFns?.onAuthStateChanged ? _AuthFns : null) || window.__wxAuthFns;
+    if (!ready || !auth || !fns) { setPage("login"); setAuthChecked(true); return; }
+    const unsub = fns.onAuthStateChanged(auth, async firebaseUser => {
       if (firebaseUser) {
         await resolveFirebaseUser(firebaseUser);
       } else {
@@ -1920,11 +1928,14 @@ function App() {
 
   // ── GOOGLE AUTH ──
   async function signInWithGoogle() {
-    if (!__fbReady || !_auth) { setErr("Firebase not configured."); return; }
+    // Check live window value in case module script finished after Babel ran
+    const authReady = __fbReady || window.__wxFirebaseReady;
+    const auth = _auth || window.__wxAuth;
+    const authFns = (_AuthFns?.signInWithPopup ? _AuthFns : null) || (window.__wxAuthFns?.signInWithPopup ? window.__wxAuthFns : null);
+    if (!authReady || !auth || !authFns) { setErr("Firebase not configured."); return; }
     setErr("");
     try {
-      const { signInWithPopup, GoogleAuthProvider } = _AuthFns;
-      await signInWithPopup(_auth, new GoogleAuthProvider());
+      await authFns.signInWithPopup(auth, new authFns.GoogleAuthProvider());
       // onAuthStateChanged handles the rest
     } catch(e) {
       if (e.code !== 'auth/popup-closed-by-user') setErr(e.message || "Sign-in failed.");
@@ -1932,8 +1943,8 @@ function App() {
   }
 
   async function resolveFirebaseUser(firebaseUser) {
-    if (!firebaseUser || !__fbReady) return;
-    const { getDoc, getDocs, doc, collection, query, where, setDoc } = _FS;
+    if (!firebaseUser || (!__fbReady && !window.__wxFirebaseReady)) return;
+    const { getDoc, getDocs, doc, collection, query, where, setDoc } = _FS?.getDoc ? _FS : window.__wxFS;
     try {
       // 1. Is this the superadmin?
       const saSnap = await getDoc(doc(_db, "meta", "superadmin"));
