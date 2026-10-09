@@ -57,6 +57,12 @@
       window.__wxFS      = { collection, doc, getDocs, getDoc, setDoc, onSnapshot, deleteDoc, writeBatch, updateDoc, deleteField, query, where, orderBy, arrayUnion, arrayRemove };
       window.__wxST      = { storageRef, uploadBytes, getDownloadURL };
       window.__wxAuthFns = { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, onAuthStateChanged, signOut };
+      // Mark ready BEFORE the secondary-app await so DOMContentLoaded / Babel always
+      // sees the flag as true. The secondary app is only needed for owner creation.
+      window.__wxFirebaseReady = true;
+      window.dispatchEvent(new CustomEvent('wxFirebaseReady'));
+      // Local persistence: best-effort, fire-and-forget — auth works without it
+      setPersistence(auth, browserLocalPersistence).catch(e => console.warn("[Auth] setPersistence:", e));
       // Secondary app instance for creating owner accounts without signing out the superadmin
       try {
         const { initializeApp: initApp2 } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
@@ -64,9 +70,6 @@
         const secondaryApp = initApp2(firebaseConfig, "secondary");
         window.__wxSecondaryAuth = getAuth2(secondaryApp);
       } catch(e2) { console.warn("[Auth] secondary app init:", e2); }
-      window.__wxFirebaseReady = true;
-      // Local persistence: best-effort, fire-and-forget — auth works without it
-      setPersistence(auth, browserLocalPersistence).catch(e => console.warn("[Auth] setPersistence:", e));
     } catch(e) {
       console.error("[League Hunter] Firebase init failed:", e);
       window.__wxFirebaseReady  = false;
@@ -1396,6 +1399,7 @@ function App() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [nL, setNL] = useState({ name: "", sport: "Basketball", domain: "", color: "#6366f1" });
   const [nT, setNT] = useState({ name: "", emoji: "⭐" });
@@ -1857,21 +1861,42 @@ function App() {
 
 
   // ── FIREBASE AUTH — restore session across reloads ──
+  // DOMContentLoaded (and thus Babel+React) can fire before the module script's
+  // async imports finish, so window.__wxFirebaseReady may be false at mount.
+  // We listen for the 'wxFirebaseReady' custom event if Firebase isn't ready yet.
   useEffect(() => {
-    // Read live window values: module script may have finished after Babel ran
-    const auth  = _auth  || window.__wxAuth;
-    const ready = __fbReady || window.__wxFirebaseReady;
-    const fns   = (_AuthFns?.onAuthStateChanged ? _AuthFns : null) || window.__wxAuthFns;
-    if (!ready || !auth || !fns) { setPage("login"); setAuthChecked(true); return; }
-    const unsub = fns.onAuthStateChanged(auth, async firebaseUser => {
-      if (firebaseUser) {
-        await resolveFirebaseUser(firebaseUser);
-      } else {
-        setPage("login");
-        setAuthChecked(true);
+    let unsubAuth = null;
+
+    function registerAuthListener() {
+      const auth = window.__wxAuth;
+      const fns  = window.__wxAuthFns;
+      if (!auth || !fns?.onAuthStateChanged) {
+        console.warn("[Auth] registerAuthListener: auth or fns missing, showing login");
+        setPage("login"); setAuthChecked(true); return;
       }
-    });
-    return () => unsub();
+      console.log("[Auth] registerAuthListener: registering onAuthStateChanged");
+      unsubAuth = fns.onAuthStateChanged(auth, async firebaseUser => {
+        console.log("[Auth] onAuthStateChanged fired, user:", firebaseUser?.uid ?? "null");
+        if (firebaseUser) {
+          await resolveFirebaseUser(firebaseUser);
+        } else {
+          setPage("login");
+          setAuthChecked(true);
+        }
+      });
+    }
+
+    if (window.__wxFirebaseReady) {
+      registerAuthListener();
+    } else {
+      console.log("[Auth] Firebase not ready at mount — waiting for wxFirebaseReady event");
+      window.addEventListener('wxFirebaseReady', registerAuthListener, { once: true });
+    }
+
+    return () => {
+      window.removeEventListener('wxFirebaseReady', registerAuthListener);
+      if (unsubAuth) unsubAuth();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Conflict detection — warn if another editor saves while this tab has unsaved changes
@@ -1905,60 +1930,86 @@ function App() {
   // ── EMAIL/PASSWORD AUTH ──
 
   async function signIn() {
-    const authReady = __fbReady || window.__wxFirebaseReady;
-    const auth = _auth || window.__wxAuth;
-    const authFns = window.__wxAuthFns || _AuthFns;
-    if (!authReady || !auth || !authFns) { setErr("Firebase non configuré."); return; }
+    console.log("[Auth] signIn: click received");
+    const auth    = window.__wxAuth;
+    const authFns = window.__wxAuthFns;
+    if (!window.__wxFirebaseReady || !auth || !authFns?.signInWithEmailAndPassword) {
+      console.warn("[Auth] signIn: Firebase pas prêt", { ready: window.__wxFirebaseReady, auth: !!auth, fns: !!authFns });
+      setErr("Firebase pas prêt — réessaie dans un instant.");
+      return;
+    }
     const u = (email || "").trim().toLowerCase();
     const p = pass || "";
     if (!u) { setErr("Nom d'utilisateur requis."); return; }
     if (!p) { setErr("Mot de passe requis."); return; }
     setErr("");
+    setSigningIn(true);
+    const builtEmail = `${u}@websitex.app`;
+    console.log("[Auth] signIn: calling signInWithEmailAndPassword for", builtEmail);
     try {
-      await authFns.signInWithEmailAndPassword(auth, `${u}@websitex.app`, p);
-      // onAuthStateChanged handles the rest
+      const cred = await authFns.signInWithEmailAndPassword(auth, builtEmail, p);
+      console.log("[Auth] signIn: Firebase Auth success, uid:", cred.user.uid);
+      // Call directly — don't rely solely on onAuthStateChanged which may not be
+      // registered if Firebase wasn't ready at mount time.
+      await resolveFirebaseUser(cred.user);
     } catch(e) {
+      console.error("[Auth] signIn error:", e.code, e.message);
       if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
-        setErr("Nom d'utilisateur ou mot de passe invalide.");
+        setErr("Nom d'utilisateur ou mot de passe incorrect.");
+      } else if (e.code === 'auth/network-request-failed') {
+        setErr("Erreur réseau — vérifie ta connexion.");
+      } else if (e.code === 'auth/too-many-requests') {
+        setErr("Trop de tentatives — réessaie plus tard.");
       } else {
         setErr(e.message || "Connexion échouée.");
       }
+    } finally {
+      setSigningIn(false);
     }
   }
 
   async function resolveFirebaseUser(firebaseUser) {
-    if (!firebaseUser || (!__fbReady && !window.__wxFirebaseReady)) return;
-    const { getDoc, getDocs, collection, doc } = _FS?.getDoc ? _FS : window.__wxFS;
+    if (!firebaseUser) { console.warn("[Auth] resolveFirebaseUser: no firebaseUser"); return; }
+    if (!window.__wxFirebaseReady) { console.warn("[Auth] resolveFirebaseUser: Firebase not ready"); return; }
+    const db = window.__wxDB || _db;
+    const { getDoc, getDocs, collection, doc } = window.__wxFS?.getDoc ? window.__wxFS : (_FS?.getDoc ? _FS : {});
+    console.log("[Auth] resolveFirebaseUser: reading users/" + firebaseUser.uid);
     try {
-      const userSnap = await getDoc(doc(_db, "users", firebaseUser.uid));
+      const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       if (!userSnap.exists()) {
-        setErr("Compte non trouvé. Contacte ton administrateur.");
+        console.warn("[Auth] resolveFirebaseUser: no users doc for uid", firebaseUser.uid);
+        setErr("Compte sans accès. Contacte ton administrateur.");
         setPage("login"); setAuthChecked(true); return;
       }
       const userData = userSnap.data();
+      console.log("[Auth] resolveFirebaseUser: role =", userData.role);
       const u = { ...userData, uid: firebaseUser.uid, id: firebaseUser.uid };
 
       if (u.role === "superadmin") {
-        const allSnap = await getDocs(collection(_db, "users")).catch(() => null);
+        const allSnap = await getDocs(collection(db, "users")).catch(() => null);
         if (allSnap) setUsers(allSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+        console.log("[Auth] resolveFirebaseUser: → dashboard (superadmin)");
         setUser(u); setPage("dashboard"); setAuthChecked(true); return;
       }
 
       if (u.role === "owner") {
-        const allSnap = await getDocs(collection(_db, "users")).catch(() => null);
+        const allSnap = await getDocs(collection(db, "users")).catch(() => null);
         if (allSnap) setUsers(allSnap.docs.map(d => ({ ...d.data(), id: d.id })));
         setUser(u);
         if (u.mustChangePassword) {
+          console.log("[Auth] resolveFirebaseUser: → changepw (mustChangePassword)");
           setPage("changepw"); setAuthChecked(true); return;
         }
+        console.log("[Auth] resolveFirebaseUser: → league", u.leagueId);
         setSelId(u.leagueId); setTab("teams"); setPage("league"); setAuthChecked(true); return;
       }
 
+      console.warn("[Auth] resolveFirebaseUser: unrecognized role", u.role);
       setErr("Rôle non reconnu. Contacte ton administrateur.");
       setPage("login"); setAuthChecked(true);
     } catch(e) {
-      console.error("[Auth] resolveFirebaseUser:", e);
-      setErr("Erreur de connexion: " + e.message);
+      console.error("[Auth] resolveFirebaseUser error:", e.code, e.message);
+      setErr("Erreur de connexion: " + (e.message || "inconnue"));
       setPage("login"); setAuthChecked(true);
     }
   }
@@ -3205,8 +3256,9 @@ function App() {
               onKeyDown={e => e.key === "Enter" && signIn()}
               placeholder="••••••••" autoComplete="current-password" />
           </div>
-          <button onClick={signIn} style={{ ...btn(), width: "100%", padding: "13px 20px", fontSize: 15 }}>
-            Se connecter
+          <button onClick={signIn} disabled={signingIn} style={{ ...btn(), width: "100%", padding: "13px 20px", fontSize: 15, opacity: signingIn ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {signingIn && <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />}
+            {signingIn ? "Connexion…" : "Se connecter"}
           </button>
         </div>
         <div style={{ marginTop: 20, padding: "10px 14px", background: SURF, borderRadius: 8, fontSize: 12, color: T2, textAlign: "center", lineHeight: 1.6 }}>
