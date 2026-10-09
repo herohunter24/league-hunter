@@ -5,49 +5,46 @@ service cloud.firestore {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     // Superadmin: email match + Google-verified email required.
-    // Uses get() which is a server-side read — does NOT require the
-    // meta/superadmin document to be client-readable.
+    // Uses server-side get() — does NOT require meta/superadmin to be client-readable.
     function isSuperAdmin() {
       return request.auth != null
           && request.auth.token.email_verified == true
           && request.auth.token.email == get(/databases/$(database)/documents/meta/superadmin).data.email;
     }
 
-    // League owner: presence of users/{uid} with matching leagueId.
-    // Ownership is created by submitAccessCode (Firestore rule validates the
-    // codeHash on create) — clients never write ownerUids on the league doc.
+    // League owner: users/{uid} doc with matching leagueId.
+    // Ownership doc is created by submitAccessCode; Firestore rule validates the
+    // codeHash on create — clients never write ownerUids on the league doc.
     function isLeagueOwner(leagueId) {
       return request.auth != null
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.leagueId == leagueId;
     }
 
-    // Any signed-in user (used for narrow public-site writes)
+    // Any signed-in user (for narrow public-site writes like votes and subscriptions)
     function isSignedIn() {
       return request.auth != null;
     }
 
 
     // ── meta collection ──────────────────────────────────────────────────────
-    // superadmin doc: NOT publicly readable (email is sensitive).
-    // The isSuperAdmin() helper uses a server-side get(), so it works even
-    // when the client cannot read this document.
+    // meta/superadmin: NOT publicly readable (email is sensitive).
+    //   The isSuperAdmin() helper uses a server-side get() and works regardless.
+    // All other meta docs (publicSettings, sync heartbeat, etc.) stay publicly
+    //   readable because the public site reads them.
     match /meta/superadmin {
       allow read:  if isSuperAdmin();
       allow write: if isSuperAdmin();
     }
-    // All other meta docs (e.g. sync heartbeat) — read-only publicly
     match /meta/{doc} {
-      allow read:  if doc != "superadmin";
+      allow read:  if doc != "superadmin";   // publicSettings, sync, etc. — public ✓
       allow write: if isSuperAdmin();
     }
 
 
     // ── users collection ─────────────────────────────────────────────────────
     // New scheme: doc ID == request.auth.uid.
-    // Create: allowed only when the referenced codeHash exists in leagueCodes
-    //         AND its leagueId matches what the user is claiming — no server
-    //         function required.
-    // Read/update/delete: own doc or superadmin.
+    // Create: only when the referenced codeHash exists in leagueCodes AND its
+    //         leagueId matches the claimed leagueId — no Cloud Function needed.
     match /users/{userId} {
       allow get:    if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list:   if isSuperAdmin();
@@ -62,15 +59,13 @@ service cloud.firestore {
 
     // ── leagueCodes collection ────────────────────────────────────────────────
     // Doc ID = sha256(plain_code).  Fields: {leagueId, createdAt}.
-    // - get (single doc by known hash): any signed-in user — needed for code claim.
-    // - list (bulk read): BLOCKED for everyone — attacker cannot enumerate codes.
-    // - write: superadmin only (create on addLeague, delete+create on regen).
+    // get (single doc by known hash): any signed-in user — needed for code claim.
+    // list (bulk read): BLOCKED — attacker cannot enumerate codes.
+    // write: superadmin only.
     match /leagueCodes/{codeHash} {
-      allow get:    if isSignedIn();
-      allow list:   if false;
-      allow create,
-            update,
-            delete: if isSuperAdmin();
+      allow get:                     if isSignedIn();
+      allow list:                    if false;
+      allow create, update, delete:  if isSuperAdmin();
     }
 
 
@@ -78,43 +73,60 @@ service cloud.firestore {
     match /leagues/{leagueId} {
 
       // Root league doc — publicly readable (public site depends on this).
-      // Write: superadmin or league owner.
-      allow read:   if true;
-      allow write:  if isSuperAdmin() || isLeagueOwner(leagueId);
+      // Write: superadmin or league owner, OR a narrow public update for fan votes.
+      allow read:  if true;
+      allow write: if isSuperAdmin() || isLeagueOwner(leagueId)
+                   || isValidFanVoteUpdate();
+
+      // ── Narrow public update: fan vote counter on leagues/{id} ────────────
+      // Only the allStar.fanVotes map may change.  All other fields (including
+      // allStar.officialTeam, allStar.nominee, etc.) must stay identical.
+      // TODO: migrate to Cloud Function (option a) once project is on Blaze plan
+      //       so the increment is atomic and rate-limited server-side.
+      function isValidFanVoteUpdate() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allStar'])
+            && request.resource.data.allStar.diff(resource.data.allStar).affectedKeys().hasOnly(['fanVotes']);
+      }
 
       // Teams, players, games, meta — public read; restricted write.
       match /teams/{doc} {
-        allow read:   if true;
-        allow write:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
       match /players/{doc} {
-        allow read:   if true;
-        allow write:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow read:  if true;   // email field is stripped before writing here
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
       match /games/{doc} {
-        allow read:   if true;
-        allow write:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
       match /meta/{doc} {
-        allow read:   if true;
-        allow write:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+      }
+
+      // Personal player contact info (email) — kept out of public players docs.
+      // Admin panel reads from here and merges back into in-memory player objects.
+      match /playersPrivate/{doc} {
+        allow read:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
 
       // EmailJS config (serviceId, publicKey, template IDs) — SENSITIVE.
-      // Admin panel reads/writes this; public site must never read it.
       match /settings/{doc} {
-        allow read:   if isSuperAdmin() || isLeagueOwner(leagueId);
-        allow write:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow read:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
 
       // Private subcollection — plain access codes + any future admin-only data.
       match /private/{doc} {
-        allow read:   if isSuperAdmin() || isLeagueOwner(leagueId);
-        allow write:  if isSuperAdmin();
+        allow read:  if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow write: if isSuperAdmin();
       }
 
       // Page-view analytics — public site creates; nobody reads from client.
-      // Validate fields so strangers can't pollute with arbitrary data.
+      // Field validation prevents arbitrary data pollution.
       match /pageViews/{viewId} {
         allow create: if request.resource.data.keys().hasOnly(['timestamp','date','section','sessionId','userAgent'])
                       && request.resource.data.timestamp is number
@@ -123,20 +135,25 @@ service cloud.firestore {
         allow read, update, delete: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
 
-      // Email alert subscribers — public site create/update; nobody else reads.
-      // Field validation: email (string), preferences (map), active (bool).
+      // Email alert subscribers.
+      // create: double opt-in — active MUST be false; confirmation flow sets it true.
+      // update: only to set active from true → false (unsubscribe); no other field changes.
       match /subscribers/{subId} {
         allow create: if request.resource.data.keys().hasOnly(['email','preferences','subscribedAt','active'])
                       && request.resource.data.email is string
-                      && request.resource.data.active is bool;
+                      && request.resource.data.active == false;   // double opt-in
         allow update: if resource.data.keys().hasOnly(['email','preferences','subscribedAt','active'])
                       && request.resource.data.keys().hasOnly(['email','preferences','subscribedAt','active'])
-                      && request.resource.data.active is bool;
+                      && resource.data.active == true
+                      && request.resource.data.active == false
+                      && request.resource.data.email == resource.data.email
+                      && request.resource.data.preferences == resource.data.preferences
+                      && request.resource.data.subscribedAt == resource.data.subscribedAt;
         allow read, delete: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
 
       // All-Star votes — public site creates; only admin reads.
-      // Validate: playerId (string), email (string), votedAt (string).
+      // Field validation: playerId, email, votedAt — strings only.
       match /allStarVotes/{voterId} {
         allow create: if request.resource.data.keys().hasOnly(['playerId','email','votedAt'])
                       && request.resource.data.playerId is string

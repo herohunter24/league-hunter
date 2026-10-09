@@ -263,13 +263,20 @@ async function loadFullLeague(leagueId) {
     const metaSnap = await getDoc(doc(_db, "leagues", lid));
     if (!metaSnap.exists()) return null;
     const meta = metaSnap.data();
-    const [teamsSnap, playersSnap, gamesSnap] = await Promise.all([
+    const [teamsSnap, playersSnap, gamesSnap, playersPrivSnap] = await Promise.all([
       getDocs(collection(_db, "leagues", lid, "teams")),
       getDocs(collection(_db, "leagues", lid, "players")),
       getDocs(collection(_db, "leagues", lid, "games")),
+      getDocs(collection(_db, "leagues", lid, "playersPrivate")).catch(() => null),
     ]);
     const teams   = teamsSnap.docs.map(d => d.data());
-    const players = playersSnap.docs.map(d => d.data());
+    // Merge private email fields back into player objects (admin only)
+    const privEmails = {};
+    if (playersPrivSnap) playersPrivSnap.docs.forEach(d => { privEmails[d.id] = d.data().email; });
+    const players = playersSnap.docs.map(d => {
+      const p = d.data();
+      return privEmails[String(p.id)] ? { ...p, email: privEmails[String(p.id)] } : p;
+    });
     const games   = await Promise.all(gamesSnap.docs.map(async gDoc => {
       const game = gDoc.data();
       const statsSnap = await getDocs(collection(_db, "leagues", lid, "games", gDoc.id, "playerStats"));
@@ -1769,7 +1776,8 @@ function App() {
               const lid = String(lg.id);
               seedData[lid] = {
                 teams:   Object.fromEntries((lg.teams   || []).map(t => [String(t.id), t])),
-                players: Object.fromEntries((lg.players || []).map(p => [String(p.id), p])),
+                players: Object.fromEntries((lg.players || []).map(p => { const { email: _e, ...pub } = p; return [String(p.id), pub]; })),
+                playersPrivate: Object.fromEntries((lg.players || []).filter(p => p.email).map(p => [String(p.id), { email: p.email }])),
                 games:   Object.fromEntries((lg.schedule || []).map(g => { const { playerStats, ...rest } = g; return [String(g.id), rest]; })),
                 stats:   Object.fromEntries((lg.schedule || []).map(g => [String(g.id), g.playerStats || {}])),
               };
@@ -2207,7 +2215,7 @@ function App() {
       // treat it as a full write (skip diff entirely — write every doc unconditionally).
       // This protects against a new device/session where subcolData is empty.
       const isFirstWrite = !subcolData.current[lid];
-      const prev = subcolData.current[lid] || { teams: {}, players: {}, games: {}, stats: {} };
+      const prev = subcolData.current[lid] || { teams: {}, players: {}, games: {}, stats: {}, playersPrivate: {} };
 
       // Build new state maps (keyed by string id for easy diff)
       const newTeams   = Object.fromEntries((updated.teams   || []).map(t => [String(t.id), t]));
@@ -2253,14 +2261,25 @@ function App() {
         if (!newTeams[tid]) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "teams", tid) });
       }
 
-      // Players: write changed docs (or all on cold start), delete removed docs
+      // Players: strip email from public doc; write email to playersPrivate
+      // Email is a personal field — public site reads players but never needs email.
       for (const [pid, player] of Object.entries(newPlayers)) {
-        if (isFirstWrite || JSON.stringify(player) !== JSON.stringify(prev.players[pid])) {
-          ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "players", pid), data: player });
+        const { email: playerEmail, ...publicPlayer } = player;
+        if (isFirstWrite || JSON.stringify(publicPlayer) !== JSON.stringify(prev.players[pid])) {
+          ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "players", pid), data: publicPlayer });
+        }
+        const prevPriv = (prev.playersPrivate || {})[pid];
+        if (playerEmail && (isFirstWrite || playerEmail !== prevPriv?.email)) {
+          ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "playersPrivate", pid), data: { email: playerEmail } });
+        } else if (!playerEmail && prevPriv) {
+          ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "playersPrivate", pid) });
         }
       }
       for (const pid of Object.keys(prev.players)) {
-        if (!newPlayers[pid]) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "players", pid) });
+        if (!newPlayers[pid]) {
+          ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "players", pid) });
+          ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "playersPrivate", pid) });
+        }
       }
 
       // Games + playerStats sub-sub-collection
@@ -2311,7 +2330,8 @@ function App() {
       // Update tracked state so next write can diff correctly
       subcolData.current[lid] = {
         teams:   newTeams,
-        players: newPlayers,
+        players: Object.fromEntries(Object.entries(newPlayers).map(([pid, p]) => { const { email: _e, ...pub } = p; return [pid, pub]; })),
+        playersPrivate: Object.fromEntries(Object.entries(newPlayers).filter(([, p]) => p.email).map(([pid, p]) => [pid, { email: p.email }])),
         games:   Object.fromEntries(Object.entries(newGames).map(([gid, g]) => {
           const { playerStats, ...rest } = g; return [gid, rest];
         })),
@@ -2480,7 +2500,7 @@ function App() {
         // Plain code stored in private subcollection — readable only by superadmin/owner
         await setDoc(doc(_db, "leagues", String(newLeague.id), "private", "admin"), { code, createdAt: Date.now() });
         setLeagueCodes(prev => ({ ...prev, [newLeague.id]: code }));
-        subcolData.current[String(newLeague.id)] = { teams: {}, players: {}, games: {}, stats: {} };
+        subcolData.current[String(newLeague.id)] = { teams: {}, players: {}, playersPrivate: {}, games: {}, stats: {} };
       } catch(e) { console.error("Firestore addLeague:", e); }
     }
     const updated = [...leagues, newLeague];
