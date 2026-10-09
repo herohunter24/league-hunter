@@ -81,9 +81,16 @@ service cloud.firestore {
         allow read:  if true;
         allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
-      match /games/{doc} {
+      match /games/{gameId} {
         allow read:  if true;
         allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+
+        // Per-game player stats — sub-sub-collection.
+        // Both the admin panel and the public site read this path.
+        match /playerStats/{pid} {
+          allow read:  if true;
+          allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+        }
       }
       match /meta/{doc} {
         allow read:  if true;
@@ -138,6 +145,12 @@ service cloud.firestore {
                       && request.resource.data.playerId is string
                       && request.resource.data.votedAt is string;
         allow read, update, delete: if isSuperAdmin() || isLeagueOwner(leagueId);
+      }
+
+      // Game recaps — admin/owner write, public read.
+      match /recaps/{doc} {
+        allow read:  if true;
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
       }
 
       // Email send log — Cloud Functions (Admin SDK) write; admin reads.

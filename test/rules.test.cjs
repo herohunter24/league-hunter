@@ -103,6 +103,24 @@ beforeEach(async () => {
       email: 'alice@test.com',
     });
 
+    // A game doc (real production shape)
+    await db.doc(`leagues/${LEAGUE_ID}/games/game_001`).set({
+      id: 'game_001', date: '2025-03-15', time: '19:00',
+      homeTeam: 'TeamA', awayTeam: 'TeamB',
+      homeScore: 98, awayScore: 87,
+    });
+
+    // playerStats sub-sub-collection under that game
+    await db.doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`).set({
+      points: 22, rebounds: 5, assists: 4, steals: 2, blocks: 1,
+      fgMade: 8, fgAtt: 15, threeMade: 2, threeAtt: 5, ftMade: 4, ftAtt: 4,
+    });
+
+    // A recap doc
+    await db.doc(`leagues/${LEAGUE_ID}/recaps/1`).set({
+      num: 1, text: 'Great game!', date: '2025-03-15', author: 'admin',
+    });
+
     // A subscriber (inactive — double opt-in)
     await db.doc(`leagues/${LEAGUE_ID}/subscribers/sub_hash_1`).set({
       email: 'fan@test.com', preferences: { scores: true },
@@ -506,6 +524,106 @@ describe('isSuperAdmin — role-based (no email_verified needed)', () => {
   });
   it('stranger with no users doc cannot act as superadmin', async () => {
     await assertFails(strangerCtx().firestore().doc('meta/superadmin').get());
+  });
+});
+
+describe('leagues/games/playerStats — sub-sub-collection', () => {
+  it('unauthenticated can read playerStats', async () => {
+    await assertSucceeds(
+      unauthCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`).get()
+    );
+  });
+  it('public site can list playerStats for a game', async () => {
+    await assertSucceeds(
+      unauthCtx().firestore()
+        .collection(`leagues/${LEAGUE_ID}/games/game_001/playerStats`).get()
+    );
+  });
+  it('owner can write playerStats', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 30, rebounds: 6, assists: 5, steals: 1, blocks: 0,
+               fgMade: 11, fgAtt: 18, threeMade: 3, threeAtt: 6, ftMade: 5, ftAtt: 6 })
+    );
+  });
+  it('superadmin can write playerStats', async () => {
+    await assertSucceeds(
+      superadminCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_2`)
+        .set({ points: 15, rebounds: 3, assists: 2, steals: 0, blocks: 1,
+               fgMade: 5, fgAtt: 10, threeMade: 1, threeAtt: 3, ftMade: 4, ftAtt: 4 })
+    );
+  });
+  it('stranger cannot write playerStats', async () => {
+    await assertFails(
+      strangerCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 99 })
+    );
+  });
+  it('unauthenticated cannot write playerStats', async () => {
+    await assertFails(
+      unauthCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 99 })
+    );
+  });
+  it('owner of other league cannot write playerStats', async () => {
+    await assertFails(
+      otherOwnerCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 99 })
+    );
+  });
+});
+
+describe('leagues/recaps — game recaps', () => {
+  it('unauthenticated can read a recap', async () => {
+    await assertSucceeds(
+      unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}/recaps/1`).get()
+    );
+  });
+  it('public site can list recaps', async () => {
+    await assertSucceeds(
+      unauthCtx().firestore().collection(`leagues/${LEAGUE_ID}/recaps`).get()
+    );
+  });
+  it('owner can write a recap', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc(`leagues/${LEAGUE_ID}/recaps/2`).set({
+        num: 2, text: 'Another recap', date: '2025-03-22', author: 'owner1',
+      })
+    );
+  });
+  it('superadmin can write a recap', async () => {
+    await assertSucceeds(
+      superadminCtx().firestore().doc(`leagues/${LEAGUE_ID}/recaps/3`).set({
+        num: 3, text: 'Admin recap', date: '2025-03-29', author: 'admin',
+      })
+    );
+  });
+  it('stranger cannot write a recap', async () => {
+    await assertFails(
+      strangerCtx().firestore().doc(`leagues/${LEAGUE_ID}/recaps/4`).set({
+        num: 4, text: 'Hacked recap',
+      })
+    );
+  });
+  it('unauthenticated cannot write a recap', async () => {
+    await assertFails(
+      unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}/recaps/4`).set({
+        num: 4, text: 'Anon recap',
+      })
+    );
+  });
+  it('owner of other league cannot write recap for this league', async () => {
+    await assertFails(
+      otherOwnerCtx().firestore().doc(`leagues/${LEAGUE_ID}/recaps/4`).set({
+        num: 4, text: 'Cross-league hack',
+      })
+    );
   });
 });
 
