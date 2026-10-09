@@ -1,0 +1,12 @@
+{
+  "name": "league-hunter-rules-tests",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test rules.test.cjs"
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^3.0.0",
+    "firebase": "^10.12.0"
+  }
+}

@@ -1827,18 +1827,22 @@ function App() {
       .catch(e => console.error("Users load:", e));
   }, []);
 
-  // ── LEAGUE CODES — superadmin only ──
+  // ── LEAGUE CODES — superadmin only, read from private subcollection ──
   useEffect(() => {
-    if (!__fbReady || user?.role !== "superadmin") return;
-    const { getDocs, collection } = _FS;
-    getDocs(collection(_db, "leagueCodes"))
-      .then(snap => {
-        const map = {};
-        snap.docs.forEach(d => { map[d.id] = d.data().code; });
-        setLeagueCodes(map);
-      })
-      .catch(() => {});
-  }, [user?.role]);
+    if (!__fbReady || user?.role !== "superadmin" || !leagues.length) return;
+    const { getDoc, doc } = _FS;
+    Promise.all(
+      leagues.map(l =>
+        getDoc(doc(_db, "leagues", String(l.id), "private", "admin"))
+          .then(snap => snap.exists() ? [l.id, snap.data().code] : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const map = {};
+      results.filter(Boolean).forEach(([id, code]) => { map[id] = code; });
+      setLeagueCodes(map);
+    });
+  }, [user?.role, leagues.length]);
 
   // ── FIREBASE AUTH — restore session across reloads ──
   useEffect(() => {
@@ -1882,6 +1886,11 @@ function App() {
     return 'NLS-' + Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   }
 
+  async function sha256hex(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
   async function hashPassword(pw) {
     const enc = new TextEncoder().encode(pw);
     const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -1923,24 +1932,30 @@ function App() {
 
     // 2. Existing owner — match by googleUid or email
     try {
-      const { getDocs: gd, collection: col, query: q, where: w } = _FS;
+      const { getDoc, getDocs, collection, query, where, updateDoc, doc: d } = _FS;
       let ownerDoc = null;
-      const byUid = await getDocs(query(collection(_db, "users"), where("googleUid", "==", firebaseUser.uid)));
-      if (!byUid.empty) {
-        ownerDoc = byUid.docs[0].data();
+      let ownerDocId = null;
+      // New scheme: doc ID == uid
+      const byUid = await getDoc(d(_db, "users", firebaseUser.uid));
+      if (byUid.exists()) {
+        ownerDoc = byUid.data(); ownerDocId = firebaseUser.uid;
       } else {
-        const byEmail = await getDocs(query(collection(_db, "users"), where("email", "==", firebaseUser.email)));
-        if (!byEmail.empty) {
-          ownerDoc = byEmail.docs[0].data();
-          // Backfill googleUid
-          const { updateDoc, doc: d } = _FS;
-          await updateDoc(d(_db, "users", ownerDoc.id), { googleUid: firebaseUser.uid }).catch(() => {});
-          ownerDoc = { ...ownerDoc, googleUid: firebaseUser.uid };
+        // Backward compat: old docs used "user_XXXXX" ids with googleUid/email fields
+        const q1 = await getDocs(query(collection(_db, "users"), where("googleUid", "==", firebaseUser.uid)));
+        if (!q1.empty) {
+          ownerDoc = q1.docs[0].data(); ownerDocId = q1.docs[0].id;
+        } else {
+          const q2 = await getDocs(query(collection(_db, "users"), where("email", "==", firebaseUser.email)));
+          if (!q2.empty) {
+            ownerDoc = q2.docs[0].data(); ownerDocId = q2.docs[0].id;
+            await updateDoc(d(_db, "users", ownerDocId), { googleUid: firebaseUser.uid }).catch(() => {});
+            ownerDoc = { ...ownerDoc, googleUid: firebaseUser.uid };
+          }
         }
       }
       if (ownerDoc) {
         const allSnap = await getDocs(collection(_db, "users")).catch(() => null);
-        if (allSnap) setUsers(allSnap.docs.map(d => d.data()));
+        if (allSnap) setUsers(allSnap.docs.map(doc => doc.data()));
         setUser({ ...ownerDoc, role: "owner", uid: firebaseUser.uid });
         setSelId(ownerDoc.leagueId); setTab("teams"); setPage("league"); setAuthChecked(true); return;
       }
@@ -1958,27 +1973,24 @@ function App() {
     if (!code) { setAccessCodeErr("Enter your access code."); return; }
     setAccessCodeErr("");
     try {
-      const { getDocs, collection, query, where, setDoc, doc } = _FS;
-      // Access codes stored in leagueCodes/{leagueId}
-      const snap = await getDocs(collection(_db, "leagueCodes"));
-      const match = snap.docs.find(d => d.data().code === code);
-      if (!match) { setAccessCodeErr("Code invalide. Vérifies avec ton administrateur."); return; }
-      const leagueId = parseInt(match.id);
+      const { getDoc, getDocs, collection, setDoc, doc } = _FS;
+      // Hash the entered code and look up the single doc (no bulk list needed)
+      const hash = await sha256hex(code);
+      const codeSnap = await getDoc(doc(_db, "leagueCodes", hash));
+      if (!codeSnap.exists()) { setAccessCodeErr("Code invalide. Vérifies avec ton administrateur."); return; }
+      const leagueId = codeSnap.data().leagueId;
+      // Create users/{uid} — Firestore rule validates hash + leagueId match
       const newUser = {
-        id: "user_" + Date.now(), email: pendingGoogleUser.email,
-        googleUid: pendingGoogleUser.uid, role: "owner",
-        leagueId, createdAt: new Date().toISOString().slice(0, 10),
+        email: pendingGoogleUser.email, googleUid: pendingGoogleUser.uid,
+        role: "owner", leagueId, codeHash: hash,
+        createdAt: new Date().toISOString().slice(0, 10),
       };
-      await setDoc(doc(_db, "users", newUser.id), newUser);
-      // Add ownerUid to league doc
-      const { updateDoc, arrayUnion } = _FS;
-      if (updateDoc && arrayUnion) {
-        await updateDoc(doc(_db, "leagues", String(leagueId)), { ownerUids: arrayUnion(pendingGoogleUser.uid) }).catch(() => {});
-      }
+      await setDoc(doc(_db, "users", pendingGoogleUser.uid), newUser);
       const usersSnap = await getDocs(collection(_db, "users")).catch(() => null);
       if (usersSnap) setUsers(usersSnap.docs.map(d => d.data()));
       setPendingGoogleUser(null); setAccessCode("");
-      setUser(newUser); setSelId(leagueId); setTab("teams"); setPage("league");
+      setUser({ ...newUser, id: pendingGoogleUser.uid, uid: pendingGoogleUser.uid });
+      setSelId(leagueId); setTab("teams"); setPage("league");
     } catch(e) { setAccessCodeErr("Erreur: " + e.message); }
   }
 
@@ -1990,20 +2002,24 @@ function App() {
 
   async function regenerateAccessCode(leagueId) {
     if (!__fbReady) return;
-    const { setDoc, doc } = _FS;
+    const { setDoc, deleteDoc, getDoc, doc } = _FS;
+    // Read current plain code from private subcollection to compute old hash
+    const privateSnap = await getDoc(doc(_db, "leagues", String(leagueId), "private", "admin")).catch(() => null);
+    if (privateSnap?.exists()) {
+      const oldHash = await sha256hex(privateSnap.data().code);
+      await deleteDoc(doc(_db, "leagueCodes", oldHash)).catch(() => {});
+    }
     const newCode = genAccessCode();
-    await setDoc(doc(_db, "leagueCodes", String(leagueId)), { code: newCode, updatedAt: Date.now() });
+    const newHash = await sha256hex(newCode);
+    await setDoc(doc(_db, "leagueCodes", newHash), { leagueId, createdAt: Date.now() });
+    await setDoc(doc(_db, "leagues", String(leagueId), "private", "admin"), { code: newCode, updatedAt: Date.now() });
     showToast(`New code: ${newCode}`);
     setLeagueCodes(prev => ({ ...prev, [leagueId]: newCode }));
   }
   async function removeOwner(userId, leagueId) {
     if (!__fbReady) return;
-    const { deleteDoc, doc, updateDoc, arrayRemove } = _FS;
-    const ownerUser = users.find(u => u.id === userId);
+    const { deleteDoc, doc } = _FS;
     try {
-      if (ownerUser?.googleUid) {
-        await updateDoc(doc(_db, "leagues", String(leagueId)), { ownerUids: arrayRemove(ownerUser.googleUid) });
-      }
       await deleteDoc(doc(_db, "users", String(userId)));
       setUsers(prev => prev.filter(u => u.id !== userId));
       showToast("Owner removed.");
@@ -2448,7 +2464,7 @@ function App() {
     if (!nL.name) return;
     const genCat = { id: "cat_" + Date.now() + "_gen", name: "General", gender: "", displayName: "General" };
     const code = genAccessCode();
-    const newLeague = { ...nL, id: Date.now(), categories: [genCat], teams: [], players: [], schedule: [], statToggles: getDefaultToggles(nL.sport), honours: {}, ownerUids: [] };
+    const newLeague = { ...nL, id: Date.now(), categories: [genCat], teams: [], players: [], schedule: [], statToggles: getDefaultToggles(nL.sport), honours: {} };
     if (__fbReady) {
       try {
         const { setDoc, doc } = _FS;
@@ -2456,10 +2472,14 @@ function App() {
           id: newLeague.id, name: newLeague.name, sport: newLeague.sport,
           color: newLeague.color, domain: newLeague.domain || "",
           categories: newLeague.categories, statToggles: newLeague.statToggles,
-          honours: {}, ownerUids: [], _format: "v2", _updatedAt: Date.now(),
+          honours: {}, _format: "v2", _updatedAt: Date.now(),
         });
-        // Store access code separately (superadmin-only read in rules)
-        await setDoc(doc(_db, "leagueCodes", String(newLeague.id)), { code, createdAt: Date.now() });
+        // Hash stored as doc ID — no bulk listing possible, only get() by known hash
+        const codeHash = await sha256hex(code);
+        await setDoc(doc(_db, "leagueCodes", codeHash), { leagueId: newLeague.id, createdAt: Date.now() });
+        // Plain code stored in private subcollection — readable only by superadmin/owner
+        await setDoc(doc(_db, "leagues", String(newLeague.id), "private", "admin"), { code, createdAt: Date.now() });
+        setLeagueCodes(prev => ({ ...prev, [newLeague.id]: code }));
         subcolData.current[String(newLeague.id)] = { teams: {}, players: {}, games: {}, stats: {} };
       } catch(e) { console.error("Firestore addLeague:", e); }
     }
