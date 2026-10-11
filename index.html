@@ -1038,10 +1038,10 @@ function LeaderCard({ title, icon, data, statKey, color, lowerBetter, fmtFn }) {
     .sort((a, b) => lowerBetter ? (a[statKey] - b[statKey]) : (b[statKey] - a[statKey]));
   const top = sorted.slice(0, 3);
   if (!top.length) return null;
-  const medals = ["🥇", "🥈", "🥉"];
+  const medals = ["1.", "2.", "3."];
   return (
     <div style={{ ...card, minWidth: 200, flex: "1 1 200px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.06em", marginBottom: 14 }}>{icon} {title.toUpperCase()}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.06em", marginBottom: 14 }}>{title.toUpperCase()}</div>
       {top.map((p, i) => (
         <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: i < top.length - 1 ? 10 : 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1189,12 +1189,11 @@ function ConfirmModal({ icon, title, body, confirmLabel, onConfirm, onCancel }) 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}>
       <div style={{ width: 400, ...card, padding: 32, textAlign: "center" }}>
-        <div style={{ fontSize: 36, marginBottom: 14 }}>{icon}</div>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{title}</div>
         <div style={{ fontSize: 14, color: T2, marginBottom: 24 }}>{body}</div>
         <div style={{ display: "flex", gap: 12 }}>
-          <button style={{ ...btn("#ef4444"), flex: 1 }} onClick={onConfirm}>{confirmLabel || "Confirm"}</button>
-          <button style={{ ...btn("#252540"), flex: 1 }} onClick={onCancel}>Cancel</button>
+          <button style={{ ...btn("#ef4444"), flex: 1 }} onClick={onConfirm}>{confirmLabel || "Confirmer"}</button>
+          <button style={{ ...btn("#252540"), flex: 1 }} onClick={onCancel}>Annuler</button>
         </div>
       </div>
     </div>
@@ -1255,14 +1254,14 @@ function ActionConfirmModal({
 
   // Icon + title derived from actionType
   const ACTION_META = {
-    add:    { icon: '➕', verb: 'Add'    },
-    edit:   { icon: '✏️',  verb: 'Edit'   },
-    delete: { icon: '🗑️', verb: 'Delete' },
-    modify: { icon: '⚙️', verb: 'Modify' },
+    add:    { verb: 'Add'    },
+    edit:   { verb: 'Edit'   },
+    delete: { verb: 'Delete' },
+    modify: { verb: 'Modify' },
   };
   const meta       = ACTION_META[actionType] || ACTION_META.modify;
   const entityCap  = entityType ? entityType.charAt(0).toUpperCase() + entityType.slice(1) : '';
-  const autoTitle  = `${meta.icon} ${meta.verb}${entityCap ? ' ' + entityCap : ''}${entityLabel ? ': ' + entityLabel : ''}`;
+  const autoTitle  = `${meta.verb}${entityCap ? ' ' + entityCap : ''}${entityLabel ? ': ' + entityLabel : ''}`;
 
   const confirmBg  = dangerStyle ? '#ef4444' : ACC;
 
@@ -1473,7 +1472,13 @@ class ErrorBoundary extends React.Component {
       }, React.createElement("div", {
         style: { maxWidth: 480, width: "100%", background: "#12121f", border: "1px solid #ef444440", borderRadius: 12, padding: 32, textAlign: "center" }
       }, [
-        React.createElement("div", { key: "icon", style: { fontSize: 40, marginBottom: 12 } }, "⚠️"),
+        React.createElement("div", { key: "icon", style: { marginBottom: 12, color: "#ef4444", display: "flex", justifyContent: "center" } },
+          React.createElement("svg", { width: 40, height: 40, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" },
+            React.createElement("path", { d: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" }),
+            React.createElement("line", { x1: 12, y1: 9, x2: 12, y2: 13 }),
+            React.createElement("line", { x1: 12, y1: 17, x2: "12.01", y2: 17 })
+          )
+        ),
         React.createElement("div", { key: "title", style: { fontSize: 18, fontWeight: 700, color: "#f1f1f8", marginBottom: 8 } }, "Une erreur est survenue"),
         React.createElement("div", { key: "msg", style: { fontSize: 13, color: "#8888aa", marginBottom: 20, wordBreak: "break-word" } },
           this.state.error?.message || "Erreur inconnue"
@@ -1581,6 +1586,7 @@ function App() {
   const [rpAdjReason, setRpAdjReason] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [openGameMenuId, setOpenGameMenuId] = useState(null);
+  const [openTeamMenuId, setOpenTeamMenuId] = useState(null);
   const [allStarForm, setAllStarForm] = useState({ votingOpensAt: '', votingClosesAt: '' });
   const [awardsForm, setAwardsForm]   = useState({});
   const [publishingAward, setPublishingAward] = useState(null);
@@ -3393,12 +3399,12 @@ function App() {
         </div>
         {__fbUncfg && (
           <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#ef4444", lineHeight: 1.6 }}>
-            🔴 <strong>Firebase non configuré.</strong>
+            <strong>Firebase non configuré.</strong>
           </div>
         )}
         {fbError && (
           <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "#f59e0b", lineHeight: 1.6 }}>
-            ⚠️ {fbError}
+            {fbError}
           </div>
         )}
         {err && <div style={{ background: "#ef444415", border: "1px solid #ef444440", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#ef4444", textAlign: "center" }}>{err}</div>}
@@ -3479,7 +3485,7 @@ function App() {
           {user?.role === "superadmin" && (
             <button onClick={() => setShowManageUsers(v => !v)}
               style={{ background: showManageUsers ? ACC+"22" : "none", border: `1px solid ${showManageUsers ? ACC : BORDER}`, borderRadius: 8, color: showManageUsers ? ACC : T2, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: showManageUsers ? 700 : 400 }}>
-              👥 Utilisateurs
+              Utilisateurs
             </button>
           )}
           <button onClick={logout} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>Déconnexion</button>
@@ -3495,7 +3501,7 @@ function App() {
             <div style={{ marginBottom: 36 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>👥 Tous les utilisateurs</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>Tous les utilisateurs</div>
                   <div style={{ fontSize: 13, color: T2, marginTop: 3 }}>{allUsers.length} utilisateur{allUsers.length !== 1 ? "s" : ""} dans toutes les ligues</div>
                 </div>
                 <button onClick={() => setShowManageUsers(false)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>✕ Fermer</button>
@@ -3560,7 +3566,7 @@ function App() {
                                 </button>
                                 <button onClick={() => { setManageOwnerId(u.leagueId); setResetAccessForm({ ownerId: u.id, newUsername: u.username || "", tempPassword: "" }); setOwnerError(""); }}
                                   style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
-                                  🔑 Reset accès
+                                  Reset accès
                                 </button>
                               </div>
                             )}
@@ -3578,9 +3584,14 @@ function App() {
         {/* ── STAT CARDS ── */}
         {!showManageUsers && (
           <div style={{ display: "flex", gap: 16, marginBottom: 36, flexWrap: "wrap" }}>
-            {[["Ligues totales",leagues.length,"🏆"],["Équipes totales",leagues.reduce((a,l)=>a+l.teams.length,0),"👕"],["Joueurs totaux",leagues.reduce((a,l)=>a+l.players.length,0),"👤"],["Matchs planifiés",leagues.reduce((a,l)=>a+l.schedule.length,0),"📅"]].map(([label,val,icon]) => (
+            {[
+              ["Ligues totales",   leagues.length,                                           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="10"/><path d="M7 4H3v3c0 3.3 2.7 6 6 6"/><path d="M17 4h4v3c0 3.3-2.7 6-6 6"/><path d="M7 4h10v5c0 3.3-2.7 6-6 6s-6-2.7-6-6V4"/></svg>],
+              ["Équipes totales",  leagues.reduce((a,l)=>a+l.teams.length,0),               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>],
+              ["Joueurs totaux",   leagues.reduce((a,l)=>a+l.players.length,0),             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>],
+              ["Matchs planifiés", leagues.reduce((a,l)=>a+l.schedule.length,0),            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>],
+            ].map(([label,val,icon]) => (
               <div key={label} style={{ flex: "1 1 180px", ...card, textAlign: "center" }}>
-                <div style={{ fontSize: 24, marginBottom: 4 }}>{icon}</div>
+                <div style={{ fontSize: 24, marginBottom: 4, color: T2, display: "flex", justifyContent: "center" }}>{icon}</div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: ACC }}>{val}</div>
                 <div style={{ fontSize: 12, color: T2, marginTop: 4 }}>{label}</div>
               </div>
@@ -3615,7 +3626,7 @@ function App() {
                       <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Joueurs</th>
                       <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Matchs</th>
                       <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Statut</th>
-                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>⚠️ Alertes</th>
+                      <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" }}>Alertes</th>
                       <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.04em", borderBottom: `1px solid ${BORDER}` }}></th>
                     </tr>
                   </thead>
@@ -3640,8 +3651,8 @@ function App() {
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                           <td style={{ padding: "14px 16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div style={{ width: 36, height: 36, borderRadius: 8, background: l.color+"25", border: `2px solid ${l.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-                                {l.sport==="Hockey"?"🏒":l.sport==="Basketball"?"🏀":"🏆"}
+                              <div style={{ width: 36, height: 36, borderRadius: 8, background: l.color+"25", border: `2px solid ${l.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: l.color, flexShrink: 0, letterSpacing: "-0.02em" }}>
+                                {l.sport==="Hockey"?"HKY":l.sport==="Basketball"?"BBL":l.sport==="Soccer"?"SOC":l.sport==="Baseball"?"BSB":"SPT"}
                               </div>
                               <div>
                                 <div style={{ fontWeight: 700, fontSize: 14 }}>{l.name}</div>
@@ -3670,7 +3681,7 @@ function App() {
                               return (
                                 <button onClick={() => { setSelId(l.id); setPage("league"); setTab("schedule"); }}
                                   style={{ background: urgentCount ? "#ef444420" : "#f59e0b20", border: `1px solid ${urgentCount ? "#ef444450" : "#f59e0b50"}`, borderRadius: 6, color: urgentCount ? "#ef4444" : "#f59e0b", padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-                                  ⚠️ {awaitingCount} manquant{awaitingCount > 1 ? "s" : ""}
+                                  {awaitingCount} manquant{awaitingCount > 1 ? "s" : ""}
                                   {urgentCount > 0 && <span style={{ marginLeft: 4, color: "#ef4444" }}>· {urgentCount} urgent{urgentCount > 1 ? "s" : ""}</span>}
                                 </button>
                               );
@@ -3681,7 +3692,7 @@ function App() {
                               {user?.role === "superadmin" && (
                                 <button onClick={() => { setManageOwnerId(l.id); }}
                                   style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
-                                  👤 Responsables {lOwners.length > 0 ? `(${lOwners.length})` : ""}
+                                  Responsables {lOwners.length > 0 ? `(${lOwners.length})` : ""}
                                 </button>
                               )}
                               <button onClick={() => { setSelId(l.id); setPage("league"); setTab("teams"); }}
@@ -3705,7 +3716,7 @@ function App() {
       {user?.role === "superadmin" && (
         <div style={{ maxWidth: 1100, margin: "0 auto 40px", padding: "0 24px" }}>
           <div style={{ ...card, padding: 28 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>⚙️ Système</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Système</div>
             <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Migrations et outils de maintenance ponctuels. Super admin uniquement.</div>
 
             {/* Migration: move player emails to playersPrivate */}
@@ -3740,7 +3751,7 @@ function App() {
                             </button>
                           : (
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: 13, color: "#f59e0b" }}>⚠️ Ceci écrira dans Firestore. Continuer ?</span>
+                              <span style={{ fontSize: 13, color: "#f59e0b" }}>Ceci écrira dans Firestore. Continuer ?</span>
                               <button onClick={migrationRun} disabled={migRunning}
                                 style={{ ...btn(), background: "#ef444430", border: "1px solid #ef444460", color: "#ef4444", opacity: migRunning ? 0.5 : 1 }}>
                                 {migRunning ? "En cours…" : "Oui, lancer"}
@@ -3762,7 +3773,7 @@ function App() {
               {migDone && (
                 <div style={{ fontSize: 13, marginBottom: 14, color: migDone.errors > 0 ? "#f59e0b" : "#22c55e" }}>
                   {migDone.errors > 0
-                    ? `⚠️ Terminé avec erreurs — ${migDone.moved} déplacés, ${migDone.errors} échoués. Voir la console.`
+                    ? `Terminé avec erreurs — ${migDone.moved} déplacés, ${migDone.errors} échoués. Voir la console.`
                     : `✓ Migration terminée — ${migDone.moved} courriel${migDone.moved !== 1 ? "s" : ""} déplacés vers playersPrivate.`
                   }
                 </div>
@@ -3785,7 +3796,7 @@ function App() {
         return (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
             <div style={{ width: 500, ...card, padding: 32, maxHeight: "88vh", overflowY: "auto" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>👤 Propriétaires — {lg?.name}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Propriétaires — {lg?.name}</div>
               <div style={{ fontSize: 13, color: T2, marginBottom: 20 }}>Les propriétaires se connectent avec nom d'utilisateur + mot de passe.</div>
 
               {/* Create owner form */}
@@ -3860,14 +3871,14 @@ function App() {
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{owner.username || owner.email || owner.id}</div>
                       <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
-                        {owner.mustChangePassword ? "⚠️ Doit changer son MDP" : "✓ Actif"} · Créé {owner.createdAt || "—"}
+                        {owner.mustChangePassword ? "! Doit changer son MDP" : "Actif"} · Créé {owner.createdAt || "—"}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
                       {!isResetting && (
                         <button onClick={() => { setResetAccessForm({ ownerId: owner.id, newUsername: owner.username || "", tempPassword: "" }); setOwnerError(""); }}
                           style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
-                          🔑 Reset accès
+                          Reset accès
                         </button>
                       )}
                       <button onClick={() => setDeleteOwnerId(owner.id)}
@@ -3886,7 +3897,7 @@ function App() {
 
       {/* ── REMOVE OWNER CONFIRM ── */}
       {deleteOwnerId && (
-        <ConfirmModal icon="👤" title="Supprimer ce propriétaire ?" body={`Supprimer ${users.find(u=>u.id===deleteOwnerId)?.username || deleteOwnerId} ? Leur compte Firestore sera supprimé. Les données de la ligue ne sont pas affectées.`} confirmLabel="Oui, supprimer" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); deleteOwner(uid); }} onCancel={() => setDeleteOwnerId(null)} />
+        <ConfirmModal title="Supprimer ce propriétaire ?" body={`Supprimer ${users.find(u=>u.id===deleteOwnerId)?.username || deleteOwnerId} ? Leur compte Firestore sera supprimé. Les données de la ligue ne sont pas affectées.`} confirmLabel="Oui, supprimer" onConfirm={() => { const uid = deleteOwnerId; setDeleteOwnerId(null); deleteOwner(uid); }} onCancel={() => setDeleteOwnerId(null)} />
       )}
 
       {/* ── CREATED CREDENTIALS MODAL ── */}
@@ -3894,7 +3905,7 @@ function App() {
         <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}>
           <div style={{ width: 420, ...card, padding: 32 }}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
-              {createdCreds.isReset ? "🔑 Accès réinitialisé" : "✅ Compte créé"}
+              {createdCreds.isReset ? "Accès réinitialisé" : "Compte créé"}
             </div>
             <div style={{ fontSize: 13, color: T2, marginBottom: 20, lineHeight: 1.6 }}>
               Partage ces identifiants avec le propriétaire de <strong style={{ color: T1 }}>{createdCreds.leagueName}</strong>. Ils devront changer leur mot de passe à la première connexion.
@@ -3911,7 +3922,7 @@ function App() {
             </div>
             <button onClick={() => {
               navigator.clipboard.writeText(`Nom d'utilisateur: ${createdCreds.username}\nMot de passe: ${createdCreds.password}`).then(() => showToast("Identifiants copiés!")).catch(() => {});
-            }} style={{ ...btn("#252540"), width: "100%", marginBottom: 10 }}>📋 Copier les identifiants</button>
+            }} style={{ ...btn("#252540"), width: "100%", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier les identifiants</button>
             <button onClick={() => setCreatedCreds(null)} style={{ ...btn(), width: "100%" }}>Fermer</button>
           </div>
         </div>
@@ -4088,7 +4099,7 @@ function App() {
           return (
             <div style={{ background: urgent.length ? "#ef444418" : "#f59e0b18", borderBottom: `1px solid ${urgent.length ? "#ef444440" : "#f59e0b40"}`, padding: "10px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: urgent.length ? "#ef4444" : "#f59e0b", display: "flex", alignItems: "center", gap: 8 }}>
-                ⚠️ {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score{urgent.length ? ` — ${urgent.length} en retard 48h+` : ""}
+                {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score{urgent.length ? ` — ${urgent.length} en retard 48h+` : ""}
               </span>
               <button onClick={() => handleTabSwitch("schedule")}
                 style={{ background: urgent.length ? "#ef4444" : "#f59e0b", border: "none", borderRadius: 7, color: "#fff", padding: "6px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -4157,7 +4168,7 @@ function App() {
           </nav>
 
           {/* MAIN AREA */}
-          <div className="wx-main">
+          <div className="wx-main" onClick={() => { setOpenTeamMenuId(null); setOpenGameMenuId(null); }}>
             {/* TOP BAR: category picker + Ctrl+K search */}
             <div className="wx-topbar" style={{ borderBottom: `1px solid ${BORDER}`, background: SURF }}>
               {/* Category picker */}
@@ -4217,7 +4228,7 @@ function App() {
           {/* ── MIGRATION WARNING ── */}
           {league._migrated && (
             <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b50", borderRadius: 8, padding: "10px 16px", marginBottom: 20, fontSize: 13, color: "#f59e0b", lineHeight: 1.6 }}>
-              ⚠️ <strong>Catégories assignées automatiquement.</strong> Les équipes, joueurs et matchs ont été placés dans la catégorie <strong>Général</strong>. Clique sur <strong>Enregistrer</strong> pour sauvegarder dans Firestore.
+              <strong>Catégories assignées automatiquement.</strong> Les équipes, joueurs et matchs ont été placés dans la catégorie <strong>Général</strong>. Clique sur <strong>Enregistrer</strong> pour sauvegarder dans Firestore.
             </div>
           )}
 
@@ -4257,7 +4268,7 @@ function App() {
                 {/* Today's games by gym */}
                 {todayGames.length === 0 ? (
                   <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "32px 24px", textAlign: "center", marginBottom: 24 }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>📅</div>
+                    <div style={{ marginBottom: 10, color: T2, display: "flex", justifyContent: "center" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
                     <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>Aucun match aujourd'hui</div>
                     <div style={{ fontSize: 13, color: T2 }}>Les prochains matchs apparaîtront ici le jour même.</div>
                   </div>
@@ -4372,20 +4383,31 @@ function App() {
                           <button title="Modifier" onClick={() => { setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`, color: T2, cursor: "pointer", background: "none" }}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
-                          <button title="Retirer" onClick={() => deleteConfirm.ask({
-                              actionType: 'delete', entityType: 'team', entityLabel: t.name,
-                              summary: `Supprimer définitivement l'équipe "${t.name}". Tous les joueurs et matchs associés seront aussi supprimés.`,
-                              details: [
-                                { label: 'Équipe', value: t.name },
-                                { label: 'Joueurs', value: String(league.players.filter(p => p.team === t.name || String(p.teamId) === String(t.id)).length) },
-                                { label: 'Matchs', value: String(league.schedule.filter(g => g.home === t.name || g.away === t.name).length) },
-                              ],
-                              requiresTypedConfirm: true, confirmWord: 'DELETE',
-                              confirmLabel: 'Oui, supprimer', dangerStyle: true,
-                              onConfirm: () => delTeam(t.id),
-                            })} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: "1px solid #ef444440", color: "#ef4444", cursor: "pointer", background: "none" }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                          </button>
+                          {/* ⋯ overflow menu */}
+                          <div style={{ position: "relative" }}>
+                            <button onClick={e => { e.stopPropagation(); setOpenTeamMenuId(openTeamMenuId === t.id ? null : t.id); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 14, cursor: "pointer", lineHeight: 1, height: 32, display: "flex", alignItems: "center" }}>⋯</button>
+                            {openTeamMenuId === t.id && (
+                              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, boxShadow: "0 4px 16px #00000060", zIndex: 50, minWidth: 150 }}>
+                                <button onClick={() => { setOpenTeamMenuId(null); setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: T1, cursor: "pointer", textAlign: "left" }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier
+                                </button>
+                                <button onClick={() => { setOpenTeamMenuId(null); deleteConfirm.ask({
+                                    actionType: 'delete', entityType: 'team', entityLabel: t.name,
+                                    summary: `Supprimer définitivement l'équipe "${t.name}". Tous les joueurs et matchs associés seront aussi supprimés.`,
+                                    details: [
+                                      { label: 'Équipe', value: t.name },
+                                      { label: 'Joueurs', value: String(league.players.filter(p => p.team === t.name || String(p.teamId) === String(t.id)).length) },
+                                      { label: 'Matchs', value: String(league.schedule.filter(g => g.home === t.name || g.away === t.name).length) },
+                                    ],
+                                    requiresTypedConfirm: true, confirmWord: 'DELETE',
+                                    confirmLabel: 'Oui, supprimer', dangerStyle: true,
+                                    onConfirm: () => delTeam(t.id),
+                                  }); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", borderTop: `1px solid ${BORDER}`, padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg> Supprimer
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         {uploadStatus && uploadStatus.key === `team_${t.id}` && (
                           <div style={{ position: "absolute", left: 0, right: 0 }}><UploadStatus statusKey={`team_${t.id}`} /></div>
@@ -4442,7 +4464,7 @@ function App() {
                   }}>Ajouter</button>
                 </div>
                 {sport==="Hockey" && <div style={{ fontSize: 12, color: T2, marginTop: 10 }}>Indiquer le poste <strong style={{ color: T1 }}>Gardien</strong> pour suivre les arrêts séparément.</div>}
-                {catTeams.length === 0 && <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 10 }}>⚠️ Ajouter une équipe dans cette catégorie avant d'ajouter des joueurs.</div>}
+                {catTeams.length === 0 && <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 10 }}>Ajouter une équipe dans cette catégorie avant d'ajouter des joueurs.</div>}
               </div>
               {catPlayers.length===0 ? (
                 <div style={{ textAlign: "center", padding: "56px 24px" }}>
@@ -4495,7 +4517,7 @@ function App() {
                                       return <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: tier2.color, background: tier2.color+'18', border: `1px solid ${tier2.color}40`, borderRadius: 100, padding: '2px 7px' }}>{lbl2.label}</span>;
                                     })()}
                                   </div>
-                                  <div style={{ fontSize: 12, color: T2 }}>#{p.number} · {p.position}{isGoalie(p)?" 🥅":""}</div>
+                                  <div style={{ fontSize: 12, color: T2 }}>#{p.number} · {p.position}{isGoalie(p)?" — G":""}</div>
                                   {(p.height || p.weight) && (
                                     <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
                                       {formatHeight(p.height, league.units || 'imperial')}
@@ -4736,9 +4758,9 @@ function App() {
                 const dates = Object.keys(dateMap).sort();
                 if (catSchedule.length === 0) return (
                   <div style={{ textAlign: "center", padding: "56px 24px" }}>
-                    <div style={{ fontSize: 36, marginBottom: 12 }}>📅</div>
+                    <div style={{ marginBottom: 12, color: T2, display: "flex", justifyContent: "center" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
                     <div style={{ fontWeight: 700, fontSize: 16, color: T1, marginBottom: 6 }}>Aucun match planifié</div>
-                    <div style={{ fontSize: 13, color: T2 }}>Ajouter un match ci-dessus ☝️</div>
+                    <div style={{ fontSize: 13, color: T2 }}>Ajouter un match ci-dessus.</div>
                   </div>
                 );
                 if (filtered.length === 0) return (
@@ -4821,7 +4843,7 @@ function App() {
                                             requiresTypedConfirm: true, confirmWord: 'DELETE',
                                             confirmLabel: 'Oui, supprimer', dangerStyle: true,
                                             onConfirm: () => deleteGame(g.id),
-                                          }); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>🗑 Supprimer</button>
+                                          }); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Supprimer</button>
                                       </div>
                                     )}
                                   </div>
@@ -4854,7 +4876,7 @@ function App() {
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 {status === "TODAY"
-                                  ? <span style={{ fontSize: 12, color: ACC, padding: "4px 12px", background: ACC+"20", borderRadius: 6, fontWeight: 700, border: `1px solid ${ACC}40` }}>📅 Aujourd'hui</span>
+                                  ? <span style={{ fontSize: 12, color: ACC, padding: "4px 12px", background: ACC+"20", borderRadius: 6, fontWeight: 700, border: `1px solid ${ACC}40` }}>Aujourd'hui</span>
                                   : <span style={{ fontSize: 12, color: "#6b7280", padding: "4px 12px", background: "#6b728015", borderRadius: 6, fontWeight: 600 }}>À venir</span>
                                 }
                                 <button onClick={() => setEditGame({...g})} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Modifier</button>
@@ -4873,7 +4895,7 @@ function App() {
                                           requiresTypedConfirm: true, confirmWord: 'DELETE',
                                           confirmLabel: 'Yes, Delete Game', dangerStyle: true,
                                           onConfirm: () => deleteGame(g.id),
-                                        }); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>🗑 Delete</button>
+                                        }); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
                                     </div>
                                   )}
                                 </div>
@@ -4922,7 +4944,7 @@ function App() {
                                 )}
                                 {status === "FINAL"         && <span style={{ fontSize: 12, color: "#22c55e", padding: "4px 12px", background: "#22c55e15", borderRadius: 6, fontWeight: 600 }}>Final</span>}
                                 {status === "LIVE"          && null /* LIVE badge already shown inline */}
-                                {status === "SCORE NEEDED"  && <span style={{ fontSize: 12, color: "#ef4444", padding: "4px 12px", background: "#ef444420", borderRadius: 6, fontWeight: 700, border: "1px solid #ef444440", animation: "livepulse-admin 1.8s ease-in-out infinite" }}>⚠️ Score requis</span>}
+                                {status === "SCORE NEEDED"  && <span style={{ fontSize: 12, color: "#ef4444", padding: "4px 12px", background: "#ef444420", borderRadius: 6, fontWeight: 700, border: "1px solid #ef444440", animation: "livepulse-admin 1.8s ease-in-out infinite" }}>Score requis</span>}
                                 {status === "AWAITING SCORE"&& <span style={{ fontSize: 12, color: ACC, padding: "4px 12px", background: ACC+"15", borderRadius: 6, fontWeight: 600 }}>En attente du score</span>}
                                 {!hasScore
                                   ? <button onClick={() => setEditScore({id: g.id, homeScore: "", awayScore: ""})} style={{ background: awaiting ? "#ef4444" : "none", border: awaiting ? "none" : `1px solid ${ACC}55`, borderRadius: 6, color: awaiting ? "#fff" : ACC, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>Entrer le score</button>
@@ -4965,7 +4987,7 @@ function App() {
                                           requiresTypedConfirm: true, confirmWord: 'DELETE',
                                           confirmLabel: 'Yes, Delete Game', dangerStyle: true,
                                           onConfirm: () => deleteGame(g.id),
-                                        }); }} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>🗑 Delete</button>
+                                        }); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete</button>
                                     </div>
                                   )}
                                 </div>
@@ -5210,7 +5232,7 @@ function App() {
               )}
               {played.length===0 && (
                 <div style={{ textAlign: "center", padding: "56px 24px" }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>🏆</div>
+                  <div style={{ marginBottom: 12, color: T2, display: "flex", justifyContent: "center" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="10"/><path d="M7 4H3v3c0 3.3 2.7 6 6 6"/><path d="M17 4h4v3c0 3.3-2.7 6-6 6"/><path d="M7 4h10v5c0 3.3-2.7 6-6 6s-6-2.7-6-6V4"/></svg></div>
                   <div style={{ fontWeight: 700, fontSize: 16, color: T1, marginBottom: 6 }}>Aucun résultat pour l'instant</div>
                   <div style={{ fontSize: 13, color: T2 }}>Les matchs apparaîtront ici une fois les scores entrés.</div>
                 </div>
@@ -5229,7 +5251,7 @@ function App() {
               {/* ── 🏅 PLAYER RANKINGS ── */}
               <div style={{ ...card, marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>🏅 Classement joueurs</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>Classement joueurs</div>
                 </div>
                 <div style={{ fontSize: 12, color: T2, marginBottom: 14 }}>
                   {(league.season||{}).name || "Current season"}
@@ -5284,7 +5306,7 @@ function App() {
                 </div>
                 {/* Manual RP adjustment */}
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>⚙️ Ajustement RP manuel</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Ajustement RP manuel</div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                     <div style={{ flex: "1 1 160px" }}>
                       <label style={lbl}>Joueur</label>
@@ -5396,7 +5418,7 @@ function App() {
 
                   {skaterTotals.length===0 && goalieTotals.length===0 && (
                     <div style={{ textAlign: "center", padding: "56px 24px" }}>
-                      <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
+                      <div style={{ marginBottom: 12, color: T2, display: "flex", justifyContent: "center" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
                       <div style={{ fontWeight: 700, fontSize: 16, color: T1, marginBottom: 6 }}>Aucune statistique pour l'instant</div>
                       <div style={{ fontSize: 13, color: T2 }}>Entre les stats des joueurs après chaque match pour voir les leaders ici.</div>
                     </div>
@@ -5418,7 +5440,7 @@ function App() {
                   )}
                   {bballTotals.length===0 ? (
                     <div style={{ textAlign: "center", padding: "56px 24px" }}>
-                      <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
+                      <div style={{ marginBottom: 12, color: T2, display: "flex", justifyContent: "center" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
                       <div style={{ fontWeight: 700, fontSize: 16, color: T1, marginBottom: 6 }}>Aucune statistique pour l'instant</div>
                       <div style={{ fontSize: 13, color: T2 }}>Entre les stats des joueurs après chaque match pour voir les leaders ici.</div>
                     </div>
@@ -5472,13 +5494,13 @@ function App() {
             const ps = getPublicSettings(league);
             const publicUrl = ((league.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${league.id}`).replace(/#statistiques$/, '');
             const PS_TOGGLES = [
-              ['showStandings',   '📊 Classement',                'Tableau de classement de la ligue avec les fiches des équipes'],
-              ['showSchedule',    '📅 Calendrier',                'Matchs à venir et résultats passés'],
-              ['showPlayers',     '👤 Joueurs',                   'Liste des joueurs avec recherche et filtres'],
-              ['showPlayerCards', '🃏 Cartes joueurs',            'Cartes de niveau (Bronze → Légende) et classements'],
-              ['showStats',       '🏆 Statistiques',              'Leaders de la ligue — meilleurs marqueurs, rebondeurs, etc.'],
-              ['showLeagueInfo',  'ℹ️ Infos ligue',              'Bannière héros avec le nom et la description de la ligue'],
-              ['showAllStar',     '⭐ Section All-Star',           'Bannière promotionnelle NLS ALL-STAR sur la page d\'accueil'],
+              ['showStandings',   'Classement',       'Tableau de classement de la ligue avec les fiches des équipes'],
+              ['showSchedule',    'Calendrier',       'Matchs à venir et résultats passés'],
+              ['showPlayers',     'Joueurs',          'Liste des joueurs avec recherche et filtres'],
+              ['showPlayerCards', 'Cartes joueurs',   'Cartes de niveau (Bronze → Légende) et classements'],
+              ['showStats',       'Statistiques',     'Leaders de la ligue — meilleurs marqueurs, rebondeurs, etc.'],
+              ['showLeagueInfo',  'Infos ligue',      'Bannière héros avec le nom et la description de la ligue'],
+              ['showAllStar',     'Section All-Star', 'Bannière promotionnelle NLS ALL-STAR sur la page d\'accueil'],
             ];
             const lmsg = league.leagueMessage || {};
             const draftTitle  = psDraft && psDraft._lmTitle    !== undefined ? psDraft._lmTitle    : (lmsg.title || '');
@@ -5492,7 +5514,7 @@ function App() {
                 {/* Public URL */}
                 <div style={{ ...card, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🌐 URL publique</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>URL publique</div>
                     <span style={{ fontFamily: "monospace", fontSize: 12, color: ACC, wordBreak: "break-all" }}>{publicUrl}</span>
                   </div>
                   <a href={publicUrl} target="_blank" rel="noopener noreferrer" style={{ ...btn(), textDecoration: "none", fontSize: 13, padding: "8px 18px", whiteSpace: "nowrap" }}>↗ Aperçu</a>
@@ -5500,7 +5522,7 @@ function App() {
 
                 {/* Feature toggles — write immediately */}
                 <div style={{ ...card, marginBottom: 20 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>👁 Sections visibles</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Sections visibles</div>
                   <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
                     Choisis ce que les fans voient sur ta page publique. Les modifications s'appliquent <strong style={{ color: T1 }}>instantanément</strong> — pas besoin de sauvegarder.
                   </div>
@@ -5524,14 +5546,14 @@ function App() {
 
                 {/* All-Star date — saved but not displayed yet; TODO: use for countdown / fan-vote button */}
                 <div style={{ ...card, marginBottom: 20 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>⭐ Date de l'événement All-Star <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optionnel)</span></div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Date de l'événement All-Star <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optionnel)</span></div>
                   <div style={{ fontSize: 12, color: T2, marginBottom: 12, lineHeight: 1.6 }}>Enregistré pour usage futur — alimentera un compte à rebours ou un bouton de vote des fans. N'apparaît pas encore sur la page publique.</div>
                   <input type="date" style={inp} value={ps.allstarDate || ''} onChange={e => savePublicSettings(league, { ...ps, allstarDate: e.target.value || null })} />
                 </div>
 
                 {/* League Message customization — drives the public site's League Message section (not the hero) */}
                 <div style={{ ...card, marginBottom: 20 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📢 Message de la ligue <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optionnel)</span></div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Message de la ligue <span style={{ color: T2, fontWeight: 400, fontSize: 12 }}>(optionnel)</span></div>
                   <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
                     Contrôle la section <strong style={{ color: T1 }}>Message de la ligue</strong> sur ta page d'accueil publique. Le titre héros reste tel quel. Laisse vide pour utiliser le texte par défaut.
                   </div>
@@ -5577,7 +5599,7 @@ function App() {
 
               {/* ── FEATURE 4: LEAGUE EDITING ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>✏️ Infos ligue</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Infos ligue</div>
                 <div style={{ fontSize: 12, color: T2, marginBottom: 18, lineHeight: 1.6 }}>Modifie le nom d'affichage, la couleur d'accentuation et le domaine public de ta ligue. Les modifications apparaissent sur le site public après la sauvegarde.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <div>
@@ -5598,7 +5620,7 @@ function App() {
                     <label style={lbl}>Sport</label>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div style={{ padding: "10px 16px", borderRadius: 8, background: SURF, border: `1px solid ${BORDER}`, fontSize: 14, color: T1, fontWeight: 600 }}>
-                        {sport === "Hockey" ? "🏒" : sport === "Basketball" ? "🏀" : "🏆"} {sport}
+                        {sport}
                       </div>
                       <span style={{ fontSize: 12, color: T2 }}>Le sport ne peut pas être changé après la création</span>
                     </div>
@@ -5656,7 +5678,7 @@ function App() {
                 };
                 return (
                   <div style={{ ...card, marginBottom: 20 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>🌐 Site web public</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Site web public</div>
                     <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
                       Relie un site public personnalisé pour cette ligue (ex. une page de marque comme NLS). Laisse vide pour utiliser la page League Hunter par défaut.
                     </div>
@@ -5677,14 +5699,14 @@ function App() {
                     {isFileUrl && hostedSuggestion && (
                       <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b55", borderRadius: 8, padding: "12px 14px", marginBottom: 14 }}>
                         <div style={{ fontSize: 12.5, color: "#f59e0b", fontWeight: 600, lineHeight: 1.5 }}>
-                          ⚠️ Les URLs locales <code style={{ background: "#00000040", padding: "1px 5px", borderRadius: 3 }}>file://</code> ne fonctionnent que sur ton ordinateur — les fans ne peuvent pas les ouvrir.
+                          Les URLs locales <code style={{ background: "#00000040", padding: "1px 5px", borderRadius: 3 }}>file://</code> ne fonctionnent que sur ton ordinateur — les fans ne peuvent pas les ouvrir.
                         </div>
                         <div style={{ fontSize: 11.5, color: T2, marginTop: 8, marginBottom: 6 }}>Utilise plutôt l'URL Vercel hébergée :</div>
                         <div style={{ fontFamily: "monospace", fontSize: 11.5, color: ACC, background: "#00000040", padding: "8px 10px", borderRadius: 6, wordBreak: "break-all" }}>{hostedSuggestion}</div>
                         <button
                           style={{ ...btn("#f59e0b"), color: "#000", fontSize: 12.5, padding: "8px 16px", marginTop: 10 }}
                           onClick={() => { saveCustomPublicUrl(league, hostedSuggestion); setUrlDraft(null); }}
-                        >🔄 Utiliser l'URL hébergée</button>
+                        >Utiliser l'URL hébergée</button>
                       </div>
                     )}
 
@@ -5694,7 +5716,7 @@ function App() {
                         style={{ ...btn(), fontSize: 13, padding: "9px 20px", opacity: testingConn ? 0.6 : 1 }}
                         disabled={testingConn}
                         onClick={() => testPublicSiteConnection(league)}
-                      >{testingConn ? '⏳ Test en cours…' : '🔌 Tester la connexion'}</button>
+                      >{testingConn ? 'Test en cours…' : 'Tester la connexion'}</button>
                       <button
                         onClick={() => {
                           if (!isConnected) return;
@@ -5733,9 +5755,9 @@ function App() {
                         <span style={{ fontFamily: "monospace", color: ACC, wordBreak: "break-all" }}>{effectiveUrl}</span>
                       </div>
                       <button
-                        style={{ ...btn("#252540"), fontSize: 12, padding: "8px 16px", whiteSpace: "nowrap" }}
+                        style={{ ...btn("#252540"), fontSize: 12, padding: "8px 16px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}
                         onClick={() => { navigator.clipboard.writeText(effectiveUrl).then(() => showToast('Copié dans le presse-papiers')).catch(() => showToast('Échec de la copie', 'error')); }}
-                      >📋 Copier</button>
+                      ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</button>
                     </div>
                   </div>
                 );
@@ -5743,7 +5765,7 @@ function App() {
 
               {/* ── SPOTLIGHT (Play of the Month / Player of the Week) ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>🏅 Coup de projecteur</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Coup de projecteur</div>
                 <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
                   Joueur du mois et joueur de la semaine, par catégorie. Laisse sur <strong style={{ color: T1 }}>Auto</strong> et le site public choisit le meilleur joueur automatiquement — ou force un choix ci-dessous.
                 </div>
@@ -5753,7 +5775,7 @@ function App() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {/* Play-of-the-Month month — shown as "JUIN 2026" on the public banner */}
                     <div>
-                      <label style={lbl}>🏆 Joueur du mois — Mois</label>
+                      <label style={lbl}>Joueur du mois — Mois</label>
                       <input type="month" style={{ ...inp, maxWidth: 200 }}
                         value={(league.playOfTheMonth || {}).month || ''}
                         onChange={e => saveSpotlight(league, 'playOfTheMonth', { ...(league.playOfTheMonth || {}), month: e.target.value })} />
@@ -5775,14 +5797,14 @@ function App() {
                           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{cat.name}</div>
                           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                             <div style={{ flex: 1, minWidth: 150 }}>
-                              <label style={lbl}>🏆 Joueur du mois</label>
+                              <label style={lbl}>Joueur du mois</label>
                               <select style={inp} value={potm.playerId || ''} onChange={e => setOverride('playOfTheMonth', e.target.value)}>
                                 <option value="">Auto (meilleur joueur)</option>
                                 {catPlayers.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                               </select>
                             </div>
                             <div style={{ flex: 1, minWidth: 150 }}>
-                              <label style={lbl}>⭐ Joueur de la semaine</label>
+                              <label style={lbl}>Joueur de la semaine</label>
                               <select style={inp} value={potw.playerId || ''} onChange={e => setOverride('playerOfTheWeek', e.target.value)}>
                                 <option value="">Auto (meilleur cette semaine)</option>
                                 {catPlayers.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
@@ -5813,7 +5835,7 @@ function App() {
                 return (
                   <div style={{ ...card, marginBottom: 20 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700 }}>📊 Analytics</div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>Analytics</div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: anVisitors > 0 ? "#22c55e" : T2, display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: anVisitors > 0 ? "#22c55e" : "#3a3a44", boxShadow: anVisitors > 0 ? "0 0 8px #22c55e" : "none" }}></span>
                         {anVisitors} en ligne
@@ -5880,7 +5902,7 @@ function App() {
 
               {/* ── SHARE YOUR LEAGUE — QR Code ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📲 Partager ta ligue</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Partager ta ligue</div>
                 <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
                   Imprime ce code QR et affiche-le dans ton gymnase pour que les fans puissent suivre ta ligue en direct.
                 </div>
@@ -5905,7 +5927,7 @@ function App() {
                         link.href = canvas.toDataURL('image/png');
                         link.click();
                       }}>
-                      ⬇ Télécharger le code QR
+                      Télécharger le code QR
                     </button>
                   </div>
                 </div>
@@ -5913,7 +5935,7 @@ function App() {
 
               {/* ── EMAIL NOTIFICATIONS CONFIG ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📧 Notifications par courriel</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Notifications par courriel</div>
                 <div style={{ fontSize: 12, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
                   Utilise <a href="https://www.emailjs.com/docs/" target="_blank" rel="noopener noreferrer" style={{ color: ACC }}>EmailJS (gratuit)</a> pour envoyer des alertes de scores et des annonces aux abonnés — sans serveur. Niveau gratuit : 200 courriels/mois.
                 </div>
@@ -5952,7 +5974,7 @@ function App() {
                         } catch(e) { showToast("Échec : " + e.message, "error"); }
                         finally { setEmailConfigSaving(false); }
                       }}>
-                      {emailConfigSaving ? "Enregistrement…" : "💾 Enregistrer"}
+                      {emailConfigSaving ? "Enregistrement…" : "Enregistrer"}
                     </button>
                     <button style={{ ...btn("#252540"), padding: "9px 20px", fontSize: 13 }}
                       onClick={async () => {
@@ -5967,7 +5989,7 @@ function App() {
                         });
                         showToast(ok ? `✅ Courriel test envoyé à ${testEmail}` : "❌ Échec — vérifie tes identifiants EmailJS", ok ? "success" : "error");
                       }}>
-                      🧪 Envoyer un courriel test
+                      Envoyer un courriel test
                     </button>
                   </div>
                 </div>
@@ -5975,11 +5997,11 @@ function App() {
 
               {/* ── ALL-STAR VOTING ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>🌟 Vote All-Star</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Vote All-Star</div>
                 {(() => {
                   const as = league.allStar || { status: 'closed' };
                   const statusColors = { closed: T2, voting: '#22c55e', pending_owner: '#f59e0b', published: ACC };
-                  const statusLabels = { closed: 'Fermé', voting: '🟢 Vote ouvert', pending_owner: '⏳ En attente', published: '✅ Publié' };
+                  const statusLabels = { closed: 'Fermé', voting: 'Vote ouvert', pending_owner: 'En attente', published: 'Publié' };
                   return (
                     <div>
                       <div style={{ fontSize: 12, color: statusColors[as.status]||T2, fontWeight: 700, marginBottom: 14 }}>
@@ -6005,7 +6027,7 @@ function App() {
                               writeLeagueNow(updated); setDirty(false);
                               showToast('Le vote All-Star est maintenant ouvert !', 'success');
                             }}>
-                            🟢 Ouvrir le vote All-Star
+                            Ouvrir le vote All-Star
                           </button>
                         </div>
                       )}
@@ -6034,7 +6056,7 @@ function App() {
                               writeLeagueNow(updated); setDirty(false);
                               showToast('Vote fermé. Sélectionne ton équipe All-Star officielle.', 'success');
                             }}>
-                            ⏹ Fermer le vote
+                            Fermer le vote
                           </button>
                         </div>
                       )}
@@ -6072,7 +6094,7 @@ function App() {
                               writeLeagueNow(updated); setDirty(false);
                               showToast('Équipe All-Star publiée ! 🌟', 'success');
                             }}>
-                            🌟 Publier l'équipe All-Star
+                            Publier l'équipe All-Star
                           </button>
                         </div>
                       )}
@@ -6100,13 +6122,13 @@ function App() {
 
               {/* ── SEASON AWARDS ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Prix de la saison</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Prix de la saison</div>
                 {[
-                  { key:'mvp',           label:'🏅 Season MVP',      pickBy: p => calcPlayerRP(p, catSchedule, league), desc:'Most RP', fmt: p => `${calcPlayerRP(p,catSchedule,league)} RP` },
-                  { key:'topScorer',     label:'🔥 Top Scorer',       pickBy: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].points||0)),0)/gp; }, desc:'Best PPG', fmt: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return (gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].points||0)),0)/gp).toFixed(1)+' PPG'; } },
-                  { key:'bestPlaymaker', label:'📊 Best Playmaker',   pickBy: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].assists||0)),0)/gp; }, desc:'Best APG', fmt: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return (gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].assists||0)),0)/gp).toFixed(1)+' APG'; } },
-                  { key:'bestDefender',  label:'🛡️ Best Defender',    pickBy: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return (gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].steals||0)),0)+gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].blocks||0)),0))/gp; }, desc:'Best STL+BLK/g', fmt: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return ((gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].steals||0)),0)+gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].blocks||0)),0))/gp).toFixed(1)+' STL+BLK/g'; } },
-                  { key:'ironMan',       label:'💪 Iron Man',         pickBy: p => catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined).length, desc:'Most games played', fmt: p => catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined).length+' GP' },
+                  { key:'mvp',           label:'Season MVP',      pickBy: p => calcPlayerRP(p, catSchedule, league), desc:'Most RP', fmt: p => `${calcPlayerRP(p,catSchedule,league)} RP` },
+                  { key:'topScorer',     label:'Top Scorer',      pickBy: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].points||0)),0)/gp; }, desc:'Best PPG', fmt: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return (gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].points||0)),0)/gp).toFixed(1)+' PPG'; } },
+                  { key:'bestPlaymaker', label:'Best Playmaker',  pickBy: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].assists||0)),0)/gp; }, desc:'Best APG', fmt: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return (gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].assists||0)),0)/gp).toFixed(1)+' APG'; } },
+                  { key:'bestDefender',  label:'Best Defender',   pickBy: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return (gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].steals||0)),0)+gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].blocks||0)),0))/gp; }, desc:'Best STL+BLK/g', fmt: p => { const gs=catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined); const gp=gs.length||1; return ((gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].steals||0)),0)+gs.reduce((s,g)=>s+(+(g.playerStats[String(p.id)].blocks||0)),0))/gp).toFixed(1)+' STL+BLK/g'; } },
+                  { key:'ironMan',       label:'Iron Man',        pickBy: p => catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined).length, desc:'Most games played', fmt: p => catSchedule.filter(g=>g.playerStats&&g.playerStats[String(p.id)]!==undefined).length+' GP' },
                 ].map(({ key, label, pickBy, desc, fmt }) => {
                   const published = (league.awards||{})[key];
                   const suggested = catPlayers.length ? catPlayers.slice().sort((a,b)=>pickBy(b)-pickBy(a))[0] : null;
@@ -6116,7 +6138,7 @@ function App() {
                     <div key={key} style={{ marginBottom: 18, paddingBottom: 18, borderBottom: `1px solid ${BORDER}` }}>
                       <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8 }}>
                         <div style={{ fontSize:13,fontWeight:700 }}>{label}</div>
-                        {published?.publishedAt && <span style={{fontSize:11,color:'#22c55e',fontWeight:600}}>✅ Publié</span>}
+                        {published?.publishedAt && <span style={{fontSize:11,color:'#22c55e',fontWeight:600}}>Publié</span>}
                       </div>
                       {published?.publishedAt ? (
                         <div style={{ fontSize:13,color:T2 }}>Gagnant : <strong style={{color:T1}}>{catPlayers.find(p=>String(p.id)===published.playerId)?.name||'—'}</strong></div>
@@ -6143,7 +6165,7 @@ function App() {
                               showToast(`Prix ${label} publié !`, 'success');
                             }}
                             disabled={publishingAward===key}>
-                            {publishingAward===key ? 'Publication…' : '🏆 Publier'}
+                            {publishingAward===key ? 'Publication…' : 'Publier'}
                           </button>
                         </div>
                       )}
@@ -6156,7 +6178,7 @@ function App() {
               <div style={{ ...card, marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>👥 Abonnés</div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>Abonnés</div>
                     <div style={{ fontSize: 12, color: T2, marginTop: 3 }}>
                       {subsLoading ? "Chargement…" : `${subscribers.filter(s=>s.active).length} abonné${subscribers.filter(s=>s.active).length!==1?'s':''} actif${subscribers.filter(s=>s.active).length!==1?'s':''}`}
                     </div>
@@ -6173,17 +6195,17 @@ function App() {
                         a.download = `subscribers-${league?.name||'league'}.csv`;
                         a.click();
                       }}>
-                      ⬇ Exporter CSV
+                      Exporter CSV
                     </button>
                     <button style={{ ...btn(league?.notificationsPaused ? "#22c55e" : "#f59e0b"), padding: "6px 14px", fontSize: 12 }}
                       onClick={() => upd({ ...league, notificationsPaused: !league?.notificationsPaused })}>
-                      {league?.notificationsPaused ? "▶ Reprendre les notifications" : "⏸ Suspendre les notifications"}
+                      {league?.notificationsPaused ? "Reprendre les notifications" : "Suspendre les notifications"}
                     </button>
                   </div>
                 </div>
                 {league?.notificationsPaused && (
                   <div style={{ background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#f59e0b", marginBottom: 12 }}>
-                    ⚠️ Les notifications sont suspendues — aucun courriel ne sera envoyé tant que tu ne reprends pas.
+                    Les notifications sont suspendues — aucun courriel ne sera envoyé tant que tu ne reprends pas.
                   </div>
                 )}
                 {subscribers.length === 0 && !subsLoading && (
@@ -6203,9 +6225,9 @@ function App() {
                         {subscribers.map((s, i) => (
                           <tr key={i} style={{ borderBottom: `1px solid ${BORDER}`, opacity: s.active ? 1 : 0.45 }}>
                             <td style={{ padding: "9px 12px", fontWeight: 500 }}>{s.email}{!s.active&&<span style={{color:T2,fontSize:11,marginLeft:6}}>(désabonné)</span>}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "center" }}>{s.preferences?.scores ? "✅" : "—"}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "center" }}>{s.preferences?.potw   ? "✅" : "—"}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "center" }}>{s.preferences?.recap  ? "✅" : "—"}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "center" }}>{s.preferences?.scores ? "✓" : "—"}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "center" }}>{s.preferences?.potw   ? "✓" : "—"}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "center" }}>{s.preferences?.recap  ? "✓" : "—"}</td>
                             <td style={{ padding: "9px 12px", color: T2 }}>{(s.subscribedAt||'').slice(0,10)}</td>
                             <td style={{ padding: "9px 12px" }}>
                               <button onClick={async () => {
@@ -6291,10 +6313,10 @@ function App() {
                   return (
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                       <button onClick={cleanOrphanedPlayers} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
-                        🧹 Nettoyer les joueurs orphelins
+                        Nettoyer les joueurs orphelins
                       </button>
                       {orphanCount > 0
-                        ? <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>⚠️ {orphanCount} joueur{orphanCount !== 1 ? "s" : ""} orphelin{orphanCount !== 1 ? "s" : ""} détecté{orphanCount !== 1 ? "s" : ""}</span>
+                        ? <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>{orphanCount} joueur{orphanCount !== 1 ? "s" : ""} orphelin{orphanCount !== 1 ? "s" : ""} détecté{orphanCount !== 1 ? "s" : ""}</span>
                         : <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Aucun orphelin détecté</span>
                       }
                     </div>
@@ -6314,7 +6336,7 @@ function App() {
                 const pct = Math.min(100, Math.round((gameCount / 1000) * 100));
                 return (
                   <div style={{ ...card, background: SURF, marginTop: 20 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📦 Moniteur de stockage</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Moniteur de stockage</div>
                     <div style={{ fontSize: 12, color: T2, marginBottom: 14, lineHeight: 1.6 }}>
                       Les matchs sont le plus grand contributeur au stockage Firestore. Chaque match est stocké comme document séparé dans la sous-collection, donc les limites sont bien plus élevées qu'avant.
                     </div>
@@ -6437,7 +6459,7 @@ function App() {
                             <div style={{ fontWeight: 700, color: "#f59e0b" }}>{displayPlayer.name}</div>
                             <div style={{ fontSize: 11, color: T2 }}>{displayPlayer.team}</div>
                           </div>
-                          <span style={{ marginLeft: "auto", fontSize: 22 }}>🏆</span>
+                          <span style={{ marginLeft: "auto", color: "#f59e0b", display: "flex" }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="10"/><path d="M7 4H3v3c0 3.3 2.7 6 6 6"/><path d="M17 4h4v3c0 3.3-2.7 6-6 6"/><path d="M7 4h10v5c0 3.3-2.7 6-6 6s-6-2.7-6-6V4"/></svg></span>
                         </div>
                       )}
                     </div>
@@ -6446,10 +6468,10 @@ function App() {
 
                 return (
                   <div style={{ marginTop: 20 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>🏆 Player Awards</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Player Awards</div>
                     <div style={{ fontSize: 12, color: T2, marginBottom: 14, lineHeight: 1.6 }}>Highlight top performers. Awards appear as gold banners on the public site.</div>
-                    <AwardCard awardKey="playerOfWeek" label="Player of the Week" icon="⭐" />
-                    <AwardCard awardKey="playerOfMonth" label="Player of the Month" icon="🥇" />
+                    <AwardCard awardKey="playerOfWeek" label="Player of the Week" icon="★" />
+                    <AwardCard awardKey="playerOfMonth" label="Player of the Month" icon="1" />
                   </div>
                 );
               })()}
@@ -6461,7 +6483,7 @@ function App() {
                     <div style={{ fontSize: 13, color: T2, marginBottom: 8, lineHeight: 1.6 }}>Reset all player rankings and start a new season. Cannot be undone.</div>
                     <button onClick={() => setShowResetConfirm(true)}
                       style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
-                      🔄 Reset Season
+                      Reset Season
                     </button>
                   </div>
                   {activeCatId && (league.categories || []).length > 1 && (
@@ -6469,7 +6491,7 @@ function App() {
                       <div style={{ fontSize: 13, color: T2, marginBottom: 8, lineHeight: 1.6 }}>Delete the current category and all its teams, players, and games. Cannot be undone.</div>
                       <button onClick={() => setDeleteCatId(activeCatId)}
                         style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
-                        🗑 Delete Category
+                        Delete Category
                       </button>
                     </div>
                   )}
@@ -6555,8 +6577,8 @@ service cloud.firestore {
 
                     {/* Action buttons */}
                     <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-                      <button onClick={copyPublicSnippet} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>📋 Copy Public Site Snippet</button>
-                      <button onClick={forceSync} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>⚡ Force Sync</button>
+                      <button onClick={copyPublicSnippet} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px", display: "flex", alignItems: "center", gap: 6 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Public Site Snippet</button>
+                      <button onClick={forceSync} style={{ ...btn("#252540"), fontSize: 13, padding: "9px 16px" }}>Force Sync</button>
                     </div>
                     {lastUpdated && <div style={{ fontSize: 11, color: T2, marginTop: -14, marginBottom: 16 }}>Last sync: {new Date(parseInt(lastUpdated)).toLocaleTimeString()}</div>}
 
@@ -6572,7 +6594,7 @@ service cloud.firestore {
                             ["2. Enable Firestore", "In the Firebase console → Build → Firestore Database → Create database → Start in test mode."],
                             ["3. Get your config", "Project Settings → Your apps → Add app (Web) → Copy the firebaseConfig object."],
                             ["4. Paste config into index.html", `Find the Firebase module script near the top of index.html and replace all six REPLACE_ME values with your real config values.`],
-                            ["5. Connect your public site", `In Website X → Settings → Connection, click 📋 Copy Public Site Snippet. Paste it into the <head> of your public HTML file (basketball-public.html or any custom site). It auto-fills your Firebase config and this league's ID (${selId}).`],
+                            ["5. Connect your public site", `In Website X → Settings → Connection, click "Copy Public Site Snippet". Paste it into the <head> of your public HTML file (basketball-public.html or any custom site). It auto-fills your Firebase config and this league's ID (${selId}).`],
                             ["6. Deploy security rules", "In Firebase console → Firestore → Rules, paste the production rules shown below. This lets public sites read league data while keeping writes server-side."],
                           ].map(([title, body]) => (
                             <div key={title} style={{ background: SURF, borderRadius: 8, padding: "12px 14px" }}>
@@ -6607,7 +6629,7 @@ service cloud.firestore {
           {/* ── ALERTES TAB ── */}
           {tab==="alertes" && (
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>✉️ Alertes courriel</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Alertes courriel</div>
               <div style={{ fontSize: 13, color: T2, marginBottom: 28, lineHeight: 1.6 }}>Gère les abonnés aux alertes NLS. Les courriels sont envoyés via Cloud Functions + Resend. Le switch ci-dessous active ou désactive tous les envois automatiques.</div>
 
               {/* ── Alertes actives switch ── */}
@@ -6639,7 +6661,7 @@ service cloud.firestore {
                   </div>
                   <div style={{ display:"flex", gap:8 }}>
                     <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsLoadSubs}>↻ Charger</button>
-                    <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsExportCsv}>⬇ CSV</button>
+                    <button style={{ ...btn("#252540"), padding:"6px 14px", fontSize:12 }} onClick={nlsExportCsv}>CSV</button>
                   </div>
                 </div>
                 {nlsSubs.length === 0 && !nlsSubsLoading && (
@@ -6682,7 +6704,7 @@ service cloud.firestore {
 
               {/* ── Envoyer une annonce ── */}
               <div style={{ ...card, marginBottom: 20 }}>
-                <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>📢 Envoyer une annonce</div>
+                <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>Envoyer une annonce</div>
                 <div style={{ fontSize:12, color:T2, marginBottom:16, lineHeight:1.6 }}>Envoie un courriel à tous les abonnés actifs, ou à une adresse de test d'abord.</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
                   <div>
@@ -6700,14 +6722,14 @@ service cloud.firestore {
                   <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                     <button style={{ ...btn("#252540"), fontSize:13, padding:"9px 18px" }} disabled={nlsSending}
                       onClick={()=>nlsSendAnnouncement(true)}>
-                      {nlsSending ? "Envoi…" : "🧪 Envoyer test"}
+                      {nlsSending ? "Envoi…" : "Envoyer test"}
                     </button>
                     <button style={{ ...btn(), fontSize:13, padding:"9px 18px" }} disabled={nlsSending || !nlsAlertsActive}
                       onClick={()=>nlsSendAnnouncement(false)}
                       title={!nlsAlertsActive?"Activez les alertes d'abord":""}>
-                      {nlsSending ? "Envoi…" : "📢 Envoyer à tous"}
+                      {nlsSending ? "Envoi…" : "Envoyer à tous"}
                     </button>
-                    {!nlsAlertsActive && <span style={{ fontSize:12, color:"#f59e0b", alignSelf:"center" }}>⚠️ Alertes désactivées</span>}
+                    {!nlsAlertsActive && <span style={{ fontSize:12, color:"#f59e0b", alignSelf:"center" }}>Alertes désactivées</span>}
                   </div>
                 </div>
               </div>
@@ -6730,7 +6752,7 @@ service cloud.firestore {
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={discardDirty} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "9px 18px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>Annuler</button>
-              <button onClick={handleSave} style={{ ...btn("#22c55e"), padding: "9px 20px", fontSize: 14 }}>💾 Enregistrer</button>
+              <button onClick={handleSave} style={{ ...btn("#22c55e"), padding: "9px 20px", fontSize: 14 }}>Enregistrer</button>
             </div>
           </div>
         )}
@@ -6978,7 +7000,7 @@ service cloud.firestore {
                                   : <span style={{ color: ACC, fontWeight: 700, fontSize: 12 }}>#{p.number}</span>
                                 }
                                 {p.name}
-                                {isGoalie(p) && sport === "Hockey" && <span style={{ fontSize: 11, color: T2 }}>🥅</span>}
+                                {isGoalie(p) && sport === "Hockey" && <span style={{ fontSize: 11, color: T2 }}> — G</span>}
                               </div>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
                                 {activeStats.map(({ key, label, isPct, madeKey, attKey, madeLabel, attLabel }) => {
@@ -7156,7 +7178,7 @@ service cloud.firestore {
                     ) : (
                       <>
                         <span style={{ fontSize: 14, fontWeight: 600, color: T1, flex: 1 }}>{c.name}</span>
-                        <button onClick={() => { setEditCatId(c.id); setEditCatVal(c.name); }} title="Renommer" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>✏️ Modifier</button>
+                        <button onClick={() => { setEditCatId(c.id); setEditCatVal(c.name); }} title="Renommer" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>Modifier</button>
                       </>
                     )}
                   </div>
@@ -7383,7 +7405,7 @@ service cloud.firestore {
           return (
             <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350, padding: 20 }}>
               <div style={{ width: 460, ...card, padding: 32 }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+                <div style={{ marginBottom: 12, color: "#f59e0b", display: "flex", justifyContent: "center" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
                 <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
                   {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score
                 </div>
@@ -7420,7 +7442,7 @@ service cloud.firestore {
         {pendingNavTab && (
           <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350 }}>
             <div style={{ width: 420, ...card, padding: 36, textAlign: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+              <div style={{ marginBottom: 16, color: "#f59e0b", display: "flex", justifyContent: "center" }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
               <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 10 }}>Modifications non sauvegardées</div>
               <div style={{ fontSize: 14, color: T2, marginBottom: 28, lineHeight: 1.6 }}>Tu as des modifications non sauvegardées. Quitter sans sauvegarder effacera toutes les modifications sur cet onglet.</div>
               <div style={{ display: "flex", gap: 12 }}>
