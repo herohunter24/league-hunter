@@ -189,7 +189,7 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
               <span className="pc-season-text">2026</span>
             </div>
             <div className="pc-tier-block">
-              <div className="pc-tier">{tier.label}</div>
+              <div className="pc-tier">{lang === 'fr' ? tier.labelFr : tier.label}</div>
               <div className="pc-arch">{(p.arch[lang] || '').toUpperCase()}</div>
             </div>
           </div>

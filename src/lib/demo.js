@@ -8,20 +8,20 @@ export const DEMO_TEAMS = [
 ];
 
 export const DEMO_PLAYERS = [
-  { id: 1,  name: 'Marcus Bélanger',   team: 'Dynastie MTL',     pos: 'Meneur',  tier: 'legend',   arch: { fr: 'ICÔNE',      en: 'ICON' },      ppg: 28.4, rpg: 5.2,  apg: 9.1, spg: 2.1, bpg: 0.4, rp: 9650, gp: 18 },
-  { id: 2,  name: 'David Tremblay',    team: 'Vipères Laval',    pos: 'Ailier',  tier: 'champion', arch: { fr: 'FINISSEUR',  en: 'CLOSER' },    ppg: 24.7, rpg: 7.8,  apg: 4.3, spg: 1.4, bpg: 1.1, rp: 6200, gp: 18 },
-  { id: 3,  name: 'Kevin Nzeza',       team: 'Dynastie MTL',     pos: 'Centre',  tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 22.1, rpg: 11.4, apg: 2.2, spg: 0.8, bpg: 2.3, rp: 3150, gp: 17 },
-  { id: 4,  name: 'Jean-Phil Roy',     team: 'Tonnerre Québec',  pos: 'Arrière', tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 21.8, rpg: 3.6,  apg: 5.5, spg: 1.7, bpg: 0.3, rp: 2580, gp: 16 },
-  { id: 5,  name: 'Samuel Okafor',     team: 'Vipères Laval',    pos: 'Centre',  tier: 'platinum', arch: { fr: 'PILIER',     en: 'ANCHOR' },    ppg: 16.2, rpg: 12.7, apg: 1.8, spg: 0.6, bpg: 2.8, rp: 1480, gp: 18 },
-  { id: 6,  name: 'Alex Gagné',        team: 'Phénix Longueuil', pos: 'Meneur',  tier: 'platinum', arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 15.9, rpg: 4.1,  apg: 8.4, spg: 1.9, bpg: 0.2, rp: 1180, gp: 17 },
-  { id: 7,  name: 'Thierry Lavoie',    team: 'Dynastie MTL',     pos: 'Ailier',  tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 14.6, rpg: 6.3,  apg: 3.1, spg: 1.1, bpg: 0.7, rp: 760,  gp: 16 },
-  { id: 8,  name: 'Mathieu Côté',      team: 'Tonnerre Québec',  pos: 'Ailier',  tier: 'gold',     arch: { fr: 'REBONDEUR',  en: 'REBOUNDER' }, ppg: 12.8, rpg: 9.6,  apg: 2.4, spg: 0.9, bpg: 1.2, rp: 620,  gp: 18 },
-  { id: 9,  name: 'Ibrahim Diallo',    team: 'Loups du Nord',    pos: 'Arrière', tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 13.5, rpg: 3.2,  apg: 4.7, spg: 1.5, bpg: 0.3, rp: 510,  gp: 15 },
-  { id: 10, name: 'Olivier Fortin',    team: 'Phénix Longueuil', pos: 'Centre',  tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 9.4,  rpg: 8.1,  apg: 1.2, spg: 0.7, bpg: 1.6, rp: 320,  gp: 17 },
-  { id: 11, name: 'William Lessard',   team: 'Royaux Verdun',    pos: 'Meneur',  tier: 'silver',   arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 10.2, rpg: 2.8,  apg: 6.3, spg: 1.3, bpg: 0.1, rp: 250,  gp: 16 },
-  { id: 12, name: 'Nathan Bouchard',   team: 'Loups du Nord',    pos: 'Ailier',  tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 6.7,  rpg: 4.5,  apg: 1.9, spg: 0.8, bpg: 0.5, rp: 95,   gp: 14 },
-  { id: 13, name: 'Émile Sanon',       team: 'Royaux Verdun',    pos: 'Arrière', tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 5.9,  rpg: 2.1,  apg: 2.6, spg: 0.6, bpg: 0.2, rp: 60,   gp: 13 },
-  { id: 14, name: 'Lucas Pelletier',   team: 'Vipères Laval',    pos: 'Arrière', tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 8.8,  rpg: 3.4,  apg: 3.8, spg: 1.0, bpg: 0.4, rp: 210,  gp: 16 },
+  { id: 1,  name: 'Marcus Bélanger',   team: 'Dynastie MTL',     pos: 'Meneur',  tier: 'legend',   arch: { fr: 'ICÔNE',      en: 'ICON' },      ppg: 28.4, rpg: 5.2,  apg: 9.1, spg: 2.1, bpg: 0.4, rp: 9650, gp: 18, pctRank: 99.5 },
+  { id: 2,  name: 'David Tremblay',    team: 'Vipères Laval',    pos: 'Ailier',  tier: 'champion', arch: { fr: 'FINISSEUR',  en: 'CLOSER' },    ppg: 24.7, rpg: 7.8,  apg: 4.3, spg: 1.4, bpg: 1.1, rp: 6200, gp: 18, pctRank: 97.8 },
+  { id: 3,  name: 'Kevin Nzeza',       team: 'Dynastie MTL',     pos: 'Centre',  tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 22.1, rpg: 11.4, apg: 2.2, spg: 0.8, bpg: 2.3, rp: 3150, gp: 17, pctRank: 94.5 },
+  { id: 4,  name: 'Jean-Phil Roy',     team: 'Tonnerre Québec',  pos: 'Arrière', tier: 'diamond',  arch: { fr: 'SNIPER',     en: 'SNIPER' },    ppg: 21.8, rpg: 3.6,  apg: 5.5, spg: 1.7, bpg: 0.3, rp: 2580, gp: 16, pctRank: 93.2 },
+  { id: 5,  name: 'Samuel Okafor',     team: 'Vipères Laval',    pos: 'Centre',  tier: 'platinum', arch: { fr: 'PILIER',     en: 'ANCHOR' },    ppg: 16.2, rpg: 12.7, apg: 1.8, spg: 0.6, bpg: 2.8, rp: 1480, gp: 18, pctRank: 87.3 },
+  { id: 6,  name: 'Alex Gagné',        team: 'Phénix Longueuil', pos: 'Meneur',  tier: 'platinum', arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 15.9, rpg: 4.1,  apg: 8.4, spg: 1.9, bpg: 0.2, rp: 1180, gp: 17, pctRank: 85.4 },
+  { id: 7,  name: 'Thierry Lavoie',    team: 'Dynastie MTL',     pos: 'Ailier',  tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 14.6, rpg: 6.3,  apg: 3.1, spg: 1.1, bpg: 0.7, rp: 760,  gp: 16, pctRank: 76.2 },
+  { id: 8,  name: 'Mathieu Côté',      team: 'Tonnerre Québec',  pos: 'Ailier',  tier: 'gold',     arch: { fr: 'REBONDEUR',  en: 'REBOUNDER' }, ppg: 12.8, rpg: 9.6,  apg: 2.4, spg: 0.9, bpg: 1.2, rp: 620,  gp: 18, pctRank: 72.5 },
+  { id: 9,  name: 'Ibrahim Diallo',    team: 'Loups du Nord',    pos: 'Arrière', tier: 'gold',     arch: { fr: 'MARQUEUR',   en: 'SCORER' },    ppg: 13.5, rpg: 3.2,  apg: 4.7, spg: 1.5, bpg: 0.3, rp: 510,  gp: 15, pctRank: 70.3 },
+  { id: 10, name: 'Olivier Fortin',    team: 'Phénix Longueuil', pos: 'Centre',  tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 9.4,  rpg: 8.1,  apg: 1.2, spg: 0.7, bpg: 1.6, rp: 320,  gp: 17, pctRank: 58.1 },
+  { id: 11, name: 'William Lessard',   team: 'Royaux Verdun',    pos: 'Meneur',  tier: 'silver',   arch: { fr: 'CRÉATEUR',   en: 'PLAYMAKER' }, ppg: 10.2, rpg: 2.8,  apg: 6.3, spg: 1.3, bpg: 0.1, rp: 250,  gp: 16, pctRank: 53.6 },
+  { id: 12, name: 'Nathan Bouchard',   team: 'Loups du Nord',    pos: 'Ailier',  tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 6.7,  rpg: 4.5,  apg: 1.9, spg: 0.8, bpg: 0.5, rp: 95,   gp: 14, pctRank: 35.0 },
+  { id: 13, name: 'Émile Sanon',       team: 'Royaux Verdun',    pos: 'Arrière', tier: 'bronze',   arch: { fr: 'BATAILLEUR', en: 'GRINDER' },   ppg: 5.9,  rpg: 2.1,  apg: 2.6, spg: 0.6, bpg: 0.2, rp: 60,   gp: 13, pctRank: 18.0 },
+  { id: 14, name: 'Lucas Pelletier',   team: 'Vipères Laval',    pos: 'Arrière', tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 8.8,  rpg: 3.4,  apg: 3.8, spg: 1.0, bpg: 0.4, rp: 210,  gp: 16, pctRank: 50.8 },
 ];
 
 export const DEMO_GAMES = [

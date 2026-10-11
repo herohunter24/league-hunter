@@ -1,5 +1,5 @@
 import { TIER_ORDER } from './tiers.js';
-import { getTierIdByPct, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD } from '../config/cardTiers.js';
+import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD } from '../config/cardTiers.js';
 import { getScoreFn } from '../config/sportScores.js';
 
 export function formatHeight(height, units) {
@@ -39,17 +39,22 @@ export function deriveArchetype(tierId, ppg, rpg, apg) {
  * scoreFn(player, allGames, leagueLike) → Number
  *   Pass the appropriate function from src/config/sportScores.js.
  *
+ * teamCatMap — { teamName: categoryId } to derive categoryId from team when
+ *   the player document does not carry it directly.
+ *
  * Returns an array of { id, score, gp, pctRank, tier } parallel to rawPlayers.
  *
  * Future hook: per-league tier overrides live in getTierIdByPct (cardTiers.js).
  */
-function assignTiers(rawPlayers, games, leagueLike, scoreFn) {
+function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap) {
   // Step 1 — compute raw score and games-played for every player
   const scored = rawPlayers.map(p => {
     const pid = String(p.id);
     const gp  = games.filter(g => g.playerStats && g.playerStats[pid] !== undefined).length;
     const score = scoreFn({ ...p, id: pid }, games, leagueLike);
-    return { id: pid, score, gp, categoryId: p.categoryId != null ? String(p.categoryId) : '' };
+    const catFromPlayer = p.categoryId != null && p.categoryId !== '' ? String(p.categoryId) : '';
+    const categoryId = catFromPlayer || (teamCatMap && teamCatMap[p.team]) || '';
+    return { id: pid, score, gp, categoryId };
   });
 
   // Step 2 — split into per-category groups; bucket players with no categoryId as ''
@@ -59,9 +64,6 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn) {
     if (!groups[key]) groups[key] = [];
     groups[key].push(s);
   });
-
-  // Step 3 — build the whole-league eligible pool (for small-group fallback)
-  const leaguePool = scored.filter(s => s.gp >= MIN_GAMES_FOR_TIER);
 
   /**
    * Given an eligible pool (already filtered to gp >= MIN_GAMES_FOR_TIER),
@@ -74,16 +76,19 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn) {
     return (below / pool.length) * 100;
   }
 
-  // Step 4 — assign tier per player
+  // Step 3 — assign tier per player
   return scored.map(s => {
-    if (s.gp < MIN_GAMES_FOR_TIER) {
-      return { ...s, pctRank: 0, tier: 'bronze' };
-    }
+    // Players with 0 games get Bronze; 1–2 games get at most Silver (not yet ranked)
+    if (s.gp === 0) return { ...s, pctRank: 0, tier: 'bronze' };
+    if (s.gp < MIN_GAMES_FOR_TIER) return { ...s, pctRank: 0, tier: 'silver' };
 
-    const catGroup   = (groups[s.categoryId] || []).filter(x => x.gp >= MIN_GAMES_FOR_TIER);
-    const pool       = catGroup.length >= SMALL_GROUP_THRESHOLD ? catGroup : leaguePool;
-    const pctRank    = pctRankInPool(s.score, pool);
-    const tier       = getTierIdByPct(pctRank);
+    const catGroup = (groups[s.categoryId] || []).filter(x => x.gp >= MIN_GAMES_FOR_TIER);
+    if (catGroup.length < SMALL_GROUP_THRESHOLD) {
+      // Too few peers for percentile comparison — use absolute score thresholds
+      return { ...s, pctRank: 0, tier: getTierIdByScore(s.score) };
+    }
+    const pctRank = pctRankInPool(s.score, catGroup);
+    const tier    = getTierIdByPct(pctRank);
     return { ...s, pctRank, tier };
   });
 }
@@ -126,9 +131,17 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
     };
   });
 
+  // Build categoryId lookup from teams (fallback when player doc lacks categoryId)
+  const teamCatMap = Object.fromEntries(
+    (rawTeams || []).map(tm => [
+      tm.name || '',
+      tm.categoryId != null && tm.categoryId !== '' ? String(tm.categoryId) : '',
+    ])
+  );
+
   // Compute percentile tiers for all players in one pass
   const tierMap = Object.fromEntries(
-    assignTiers(rawPlayers || [], games, leagueLike, scoreFn)
+    assignTiers(rawPlayers || [], games, leagueLike, scoreFn, teamCatMap)
       .map(t => [t.id, t])
   );
 

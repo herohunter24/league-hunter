@@ -603,6 +603,12 @@ export default function App() {
   }
 
   const showcasePlayers = useMemo(() => {
+    if (!live) {
+      // Demo: show one card per key tier to illustrate the range
+      return ['bronze', 'gold', 'diamond', 'legend']
+        .map(t => PLAYERS.find(p => p.tier === t))
+        .filter(Boolean);
+    }
     const ranked = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0));
     const byCat = new Map();
     ranked.forEach(p => { const c = p.categoryId || '__none__'; if (!byCat.has(c)) byCat.set(c, p); });
@@ -610,7 +616,7 @@ export default function App() {
     const ids = new Set(picks.map(p => p.id));
     for (const p of ranked) { if (picks.length >= 4) break; if (!ids.has(p.id)) { picks.push(p); ids.add(p.id); } }
     return picks;
-  }, [PLAYERS]);
+  }, [PLAYERS, live]);
 
   // Before html2canvas: replace any broken <img> that's visible and failed to load
   // with the silhouette PNG so the photo zone is never empty in the export.

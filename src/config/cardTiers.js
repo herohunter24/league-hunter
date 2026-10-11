@@ -43,7 +43,7 @@ export const CARD_TIERS = [
   },
   {
     id: 'champion',
-    labelFr: 'CHAMPION', labelEn: 'CHAMPION',
+    labelFr: 'ÉLITE',   labelEn: 'ELITE',
     color:   '#ffd24a',  glow: true,
     pctMin: 97,  // top 3 %
   },
@@ -69,6 +69,31 @@ export const TIER_ICON = {
   bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '🏅',
   diamond: '💎', champion: '🏆', legend: '👑',
 };
+
+/**
+ * Fixed absolute score thresholds — used when a category group is too small
+ * for meaningful percentile comparison (< SMALL_GROUP_THRESHOLD eligible players).
+ * Calibrated for the basketball RP formula; other sports use the same values
+ * until sport-specific formulas are implemented.
+ */
+export const FIXED_TIER_THRESHOLDS = [
+  { id: 'bronze',   minScore: 0     },
+  { id: 'silver',   minScore: 150   },
+  { id: 'gold',     minScore: 450   },
+  { id: 'platinum', minScore: 1000  },
+  { id: 'diamond',  minScore: 2200  },
+  { id: 'champion', minScore: 4500  },
+  { id: 'legend',   minScore: 9000  },
+];
+
+/** Return tier id for a raw score using absolute thresholds. */
+export function getTierIdByScore(score) {
+  let tier = FIXED_TIER_THRESHOLDS[0];
+  for (const t of FIXED_TIER_THRESHOLDS) {
+    if (score >= t.minScore) tier = t;
+  }
+  return tier.id;
+}
 
 /**
  * Return the tier id for a given percentile rank (0–100).
