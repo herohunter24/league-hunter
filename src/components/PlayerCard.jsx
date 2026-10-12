@@ -200,23 +200,25 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId,
             />
           </div>
 
-          {/* Top bar — card logo left, tier + archetype right */}
+          {/* Card logo — outside filter context so mix-blend-mode works against card bg */}
+          <div className="pc-logo-wrap">
+            {(!showLogoText && logoSrc)
+              ? <img
+                  key={logoStep}
+                  src={logoSrc}
+                  alt={leagueName || ''}
+                  className="pc-logo-img"
+                  crossOrigin="anonymous"
+                  onError={() => setLogoStep(s => s + 1)}
+                />
+              : leagueName
+                ? <span className="pc-league-text">{leagueName}</span>
+                : null
+            }
+          </div>
+
+          {/* Top bar — tier + archetype right; filter for text readability */}
           <div className="pc-top">
-            <div className="pc-league-badge">
-              {(!showLogoText && logoSrc)
-                ? <img
-                    key={logoStep}
-                    src={logoSrc}
-                    alt={leagueName || ''}
-                    className="pc-logo-img"
-                    crossOrigin="anonymous"
-                    onError={() => setLogoStep(s => s + 1)}
-                  />
-                : leagueName
-                  ? <span className="pc-league-text">{leagueName}</span>
-                  : null
-              }
-            </div>
             <div className="pc-tier-block">
               <div className="pc-tier">{lang === 'fr' ? tier.labelFr : tier.label}</div>
               <div className="pc-arch">{(p.arch[lang] || '').toUpperCase()}</div>
