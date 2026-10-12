@@ -75,7 +75,7 @@ export default function App() {
           {DEMO_ALL_TIERS_PLAYERS.map(p => (
             <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 160 }}>
-                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" />
+                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueName={leagueName} season={season} />
               </div>
               <div style={{ color: '#aaa', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
                 {lang === 'fr' ? p.arch.fr || p.tier : p.arch.en || p.tier}
@@ -94,6 +94,8 @@ export default function App() {
     : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
     [live, data.meta, data.teams, data.players, data.games]);
   const TEAMS = view.teams, GAMES = view.games;
+  const leagueName = (view.meta?.name || view.meta?.shortName || 'NLS').toUpperCase().replace(/\s+/g, ' ').trim();
+  const season = view.meta?.season ? String(view.meta.season) : String(new Date().getFullYear());
   // Filter out internal test players from all public-facing views
   const PLAYERS = view.players.filter(p => p.name !== 'Player Mini 1' && p.name !== 'Player Mini 2');
   const ps = {
@@ -832,8 +834,7 @@ export default function App() {
                       onOpen={isShowcaseDemo ? undefined : openPlayerModal}
                       teams={TEAMS} units={view.units}
                       isDemo={isShowcaseDemo}
-                      cardNumber={isShowcaseDemo ? undefined : cardIndexMap.get(p.id)}
-                      cardTotal={isShowcaseDemo ? undefined : cardTotal}
+                      leagueName={leagueName} season={season}
                     />
                   </div>
                 ))}
@@ -1176,7 +1177,7 @@ export default function App() {
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div className="potm-card-wrap">
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueName={leagueName} season={season} />
               </div>
             </div>
           );
@@ -1207,7 +1208,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueName={leagueName} season={season} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>

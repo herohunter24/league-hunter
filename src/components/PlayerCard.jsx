@@ -3,9 +3,9 @@ import { TIERS } from '../lib/tiers.js';
 import { SafeImage, PlayerSilhouette, isLegacyOrange } from './SafeImage.jsx';
 import { NLS_LOGO_WHITE } from '../config/league.js';
 import { formatHeight, formatWeight } from '../lib/data.js';
+import lhMark from '../assets/league-hunter-mark-white.svg';
 
 const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const pad3 = n => String(n || 0).padStart(3, '0');
 
 // Inline badge — always renders as initials circle with inline styles (survives html2canvas)
 const LEGACY_RE = /^#?(ff6b1a|ff8d4d|e84e00)$/i;
@@ -144,7 +144,15 @@ function useHolo(tierId) {
   return ref;
 }
 
-export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardTotal, isDemo }) {
+/* Season display: number < 100 → "02", otherwise show as-is */
+function formatSeason(season) {
+  if (!season) return String(new Date().getFullYear());
+  const n = Number(season);
+  if (!isNaN(n) && n > 0 && n < 100) return String(n).padStart(2, '0');
+  return String(season);
+}
+
+export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueName = 'NLS', season }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const teamColor = (team && team.color && !isLegacyOrange(team.color)) ? team.color : 'var(--gold)';
@@ -152,13 +160,8 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
   const [logoOk, setLogoOk] = useState(true);
 
   const hw = [formatHeight(p.height, units), formatWeight(p.weight, units)].filter(Boolean).join(' · ');
-
-  const fullLine = cardNumber && cardTotal
-    ? `NLS · ${lang === 'fr' ? 'SAISON' : 'SEASON'} 2026 · ${pad3(cardNumber)}/${pad3(cardTotal)}`
-    : `NLS · 2026`;
-  const shortLine = cardNumber && cardTotal
-    ? `NLS · 2026 · ${pad3(cardNumber)}/${pad3(cardTotal)}`
-    : `NLS · 2026`;
+  const seasonLabel = formatSeason(season);
+  const footerLine1 = `${leagueName} · ${lang === 'fr' ? 'Saison' : 'Season'} ${seasonLabel}`;
 
   return (
     <div
@@ -173,9 +176,8 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
         <div className="pc-holo" aria-hidden="true" />
         {isDemo && <div className="pc-exemple-pill" aria-hidden="true">EXEMPLE</div>}
 
-        {/* ── PHOTO ZONE — top 65% ── */}
+        {/* ── PHOTO ZONE — clean, photo only ── */}
         <div className="pc-photo-zone">
-          {/* Player photo / silhouette fallback */}
           <div className="pc-photo">
             <SafeImage
               src={p.photoUrl}
@@ -193,7 +195,6 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
                 ? <img src={NLS_LOGO_WHITE} alt="NLS" className="pc-logo-img" crossOrigin="anonymous" onError={() => setLogoOk(false)} />
                 : <span className="pc-league-text">NLS</span>
               }
-              <span className="pc-season-text">2026</span>
             </div>
             <div className="pc-tier-block">
               <div className="pc-tier">{lang === 'fr' ? tier.labelFr : tier.label}</div>
@@ -201,24 +202,13 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
             </div>
           </div>
 
-          {/* Crystal spikes rising from bottom — amethyst only */}
-          {(p.tier === 'amethyst' || p.tier === 'champion') && (
-            <svg className="pc-crystal-spikes" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
-              <polygon points="3,55 12,16 21,55"  fill="rgba(160,70,255,0.28)" />
-              <polygon points="22,55 33,4 44,55"  fill="rgba(200,110,255,0.42)" />
-              <polygon points="43,55 53,20 63,55" fill="rgba(150,55,240,0.36)" />
-              <polygon points="60,55 71,7 82,55"  fill="rgba(210,120,255,0.4)" />
-              <polygon points="80,55 88,24 96,55" fill="rgba(165,75,255,0.27)" />
-            </svg>
-          )}
-
           {/* Jersey number — outlined, bottom-left corner, partly cropped */}
           {p.number && (
             <div className="pc-jersey-corner" aria-hidden="true">{p.number}</div>
           )}
         </div>
 
-        {/* ── INFO BAND — bottom 35% ── */}
+        {/* ── INFO BAND — bottom 38% ── */}
         <div className="pc-info-band">
           <div className="pc-accent-line" style={{ background: teamColor }} />
           <div className="pc-bottom">
@@ -245,9 +235,13 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
               <div className="pc-stat-k">{t.apg}</div>
             </div>
           </div>
-          <div className="pc-setline">
-            <span className="pc-setline-long">{fullLine}</span>
-            <span className="pc-setline-short">{shortLine}</span>
+          <div className="pc-footer">
+            <div className="pc-footer-league">{footerLine1}</div>
+            <div className="pc-footer-brand">
+              <span>Powered by</span>
+              <img src={lhMark} className="pc-lh-mark" alt="" aria-hidden="true" />
+              <span>League Hunter</span>
+            </div>
           </div>
         </div>
       </div>
