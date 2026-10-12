@@ -57,14 +57,53 @@ const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-C
 const displayCatName = (name, t) => (t.catNames && t.catNames[name]) || name;
 const normalize = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+function computeLeagueName(meta) {
+  if (!meta) return '';
+  const sn = meta.shortName || meta.abbreviation;
+  if (sn) return String(sn).toUpperCase().trim();
+  const name = (meta.name || '').trim();
+  if (!name) return '';
+  const words = name.split(/\s+/);
+  const first = words[0] || '';
+  if (first.length >= 2 && first.length <= 5 && /^[A-Z]+$/.test(first)) return first;
+  const initials = words.filter(w => /^[A-Z]/.test(w)).map(w => w[0]).join('');
+  return initials.toUpperCase() || '';
+}
+
+function computeSeason(meta) {
+  const raw = meta?.season;
+  if (typeof raw === 'number' && raw > 0 && raw < 1000) return String(raw);
+  if (typeof raw === 'string' && raw.trim()) {
+    const n = Number(raw.trim());
+    if (!isNaN(n) && n > 0 && n < 1000) return String(n);
+    return raw.trim();
+  }
+  const name = meta?.name || '';
+  const m = name.match(/(?:[Ss]aison|[Ss]eason)\s+(\d+)|S(\d{2,})/);
+  if (m) return String(Number(m[1] || m[2]));
+  return String(new Date().getFullYear());
+}
+
 export default function App() {
   const [lang, setLang] = useState(() => {
     try { return localStorage.getItem('nls_lang') || DEFAULT_LANG; } catch { return DEFAULT_LANG; }
   });
   const t = STR[lang];
 
-  // Hidden dev page: ?tiers=preview — shows all 9 tier cards side by side, not linked publicly
+  // All hooks must run unconditionally before any early return
   const tiersPreview = useMemo(() => new URLSearchParams(window.location.search).get('tiers') === 'preview', []);
+  const data = useLeagueData();
+  const live = data.live;
+  const view = useMemo(() => live
+    ? buildLiveViewData(data.meta, data.teams, data.players, data.games)
+    : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
+    [live, data.meta, data.teams, data.players, data.games]);
+
+  const leagueId = LEAGUE_ID ? String(LEAGUE_ID) : '';
+  const leagueName = computeLeagueName(view.meta);
+  const season = computeSeason(view.meta);
+
+  // Hidden dev page: ?tiers=preview — shows all 9 tier cards side by side, not linked publicly
   if (tiersPreview) {
     return (
       <div style={{ background: '#09090d', minHeight: '100vh', padding: '40px 20px', fontFamily: 'var(--ff-display)' }}>
@@ -75,7 +114,7 @@ export default function App() {
           {DEMO_ALL_TIERS_PLAYERS.map(p => (
             <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 160 }}>
-                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueName="NLS" season={String(new Date().getFullYear())} />
+                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueId={leagueId} leagueName={leagueName} season={season} />
               </div>
               <div style={{ color: '#aaa', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
                 {lang === 'fr' ? p.arch.fr || p.tier : p.arch.en || p.tier}
@@ -87,18 +126,7 @@ export default function App() {
     );
   }
 
-  const data = useLeagueData();
-  const live = data.live;
-  const view = useMemo(() => live
-    ? buildLiveViewData(data.meta, data.teams, data.players, data.games)
-    : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
-    [live, data.meta, data.teams, data.players, data.games]);
   const TEAMS = view.teams, GAMES = view.games;
-  const _rawLeagueName = view.meta?.shortName || view.meta?.abbreviation || (view.meta?.name || '').split(/\s+/)[0] || 'NLS';
-  const leagueName = _rawLeagueName.toUpperCase().trim();
-  const _rawSeason = view.meta?.season;
-  const season = (typeof _rawSeason === 'number' || typeof _rawSeason === 'string') && _rawSeason
-    ? String(_rawSeason) : String(new Date().getFullYear());
   // Filter out internal test players from all public-facing views
   const PLAYERS = view.players.filter(p => p.name !== 'Player Mini 1' && p.name !== 'Player Mini 2');
   const ps = {
@@ -837,7 +865,7 @@ export default function App() {
                       onOpen={isShowcaseDemo ? undefined : openPlayerModal}
                       teams={TEAMS} units={view.units}
                       isDemo={isShowcaseDemo}
-                      leagueName={leagueName} season={season}
+                      leagueId={leagueId} leagueName={leagueName} season={season}
                     />
                   </div>
                 ))}
@@ -1180,7 +1208,7 @@ export default function App() {
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div className="potm-card-wrap">
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueName={leagueName} season={season} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueName={leagueName} season={season} />
               </div>
             </div>
           );
@@ -1211,7 +1239,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueName={leagueName} season={season} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueName={leagueName} season={season} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>

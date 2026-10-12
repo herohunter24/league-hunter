@@ -152,16 +152,29 @@ function formatSeason(season) {
   return String(season);
 }
 
-export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueName = 'NLS', season }) {
+// 0 = try card-logo.png, 1 = try card-logo.svg, 2 = try league logo, 3 = text only
+function cardLogoSrc(leagueId, step) {
+  if (leagueId && step === 0) return `/leagues/${leagueId}/card-logo.png`;
+  if (leagueId && step === 1) return `/leagues/${leagueId}/card-logo.svg`;
+  if (step <= 2) return NLS_LOGO_WHITE;
+  return null;
+}
+
+export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId, leagueName = '', season }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const teamColor = (team && team.color && !isLegacyOrange(team.color)) ? team.color : 'var(--gold)';
   const holoRef = useHolo(p.tier);
-  const [logoOk, setLogoOk] = useState(true);
+  const [logoStep, setLogoStep] = useState(0);
+
+  const logoSrc = cardLogoSrc(leagueId, logoStep);
+  const showLogoText = logoStep >= 3 || (!leagueId && logoStep >= 2 && !NLS_LOGO_WHITE);
 
   const hw = [formatHeight(p.height, units), formatWeight(p.weight, units)].filter(Boolean).join(' · ');
   const seasonLabel = formatSeason(season);
-  const footerLine1 = `${leagueName} · ${lang === 'fr' ? 'Saison' : 'Season'} ${seasonLabel}`;
+  const footerLine1 = leagueName
+    ? `${leagueName} · ${lang === 'fr' ? 'Saison' : 'Season'} ${seasonLabel}`
+    : '';
 
   return (
     <div
@@ -188,12 +201,21 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueNam
             />
           </div>
 
-          {/* Top bar — NLS logo left, tier + archetype right */}
+          {/* Top bar — card logo left, tier + archetype right */}
           <div className="pc-top">
             <div className="pc-league-badge">
-              {logoOk
-                ? <img src={NLS_LOGO_WHITE} alt="NLS" className="pc-logo-img" crossOrigin="anonymous" onError={() => setLogoOk(false)} />
-                : <span className="pc-league-text">NLS</span>
+              {(!showLogoText && logoSrc)
+                ? <img
+                    key={logoStep}
+                    src={logoSrc}
+                    alt={leagueName || ''}
+                    className="pc-logo-img"
+                    crossOrigin="anonymous"
+                    onError={() => setLogoStep(s => s + 1)}
+                  />
+                : leagueName
+                  ? <span className="pc-league-text">{leagueName}</span>
+                  : null
               }
             </div>
             <div className="pc-tier-block">

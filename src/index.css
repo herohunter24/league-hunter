@@ -396,7 +396,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   filter: drop-shadow(0 1px 4px rgba(0,0,0,0.9));
 }
 .pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
-.pc-logo-img { height: clamp(14px, 8cqi, 20px); width: auto; object-fit: contain; }
+.pc-logo-img { width: clamp(38px, 22cqi, 50px); height: auto; max-height: clamp(42px, 26cqi, 56px); object-fit: contain; }
 .pc-league-text { font-family: var(--ff-display); font-size: clamp(11px, 6cqi, 15px); font-weight: 900; letter-spacing: 0.15em; line-height: 1; }
 .pc-tier-block { text-align: right; flex: 1; }
 .pc-tier { font-family: var(--ff-display); font-size: clamp(10px, 6cqi, 14px); letter-spacing: 0.1em; line-height: 1; }
