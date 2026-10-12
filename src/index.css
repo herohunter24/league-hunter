@@ -378,11 +378,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .pc-photo-zone {
   position: relative; overflow: hidden;
 }
-/* Thin dark gradient at top only — just enough for logo readability */
-.pc-photo-zone::before {
-  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.18) 28%, rgba(0,0,0,0) 48%);
-}
+/* No scrim over photo — logo/tier text readable via drop-shadow on .pc-top */
+.pc-photo-zone::before { display: none; }
 
 /* Photo fills the zone */
 .pc-photo {
@@ -391,11 +388,12 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   display: flex; align-items: center; justify-content: center;
 }
 
-/* Top bar — inside photo zone, corners only, above gradient */
+/* Top bar — inside photo zone, corners only; drop-shadow ensures readability on any photo */
 .pc-top {
   position: absolute; top: 0; left: 0; right: 0; z-index: 3;
   display: flex; justify-content: space-between; align-items: flex-start;
   padding: clamp(6px, 4cqi, 12px) clamp(6px, 4.5cqi, 13px) 4px; gap: 4px;
+  filter: drop-shadow(0 1px 4px rgba(0,0,0,0.9));
 }
 .pc-league-badge { display: flex; flex-direction: column; gap: 2px; }
 .pc-logo-img { height: clamp(14px, 8cqi, 20px); width: auto; object-fit: contain; }

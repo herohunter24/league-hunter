@@ -75,7 +75,7 @@ export default function App() {
           {DEMO_ALL_TIERS_PLAYERS.map(p => (
             <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 160 }}>
-                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueName={leagueName} season={season} />
+                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueName="NLS" season={String(new Date().getFullYear())} />
               </div>
               <div style={{ color: '#aaa', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
                 {lang === 'fr' ? p.arch.fr || p.tier : p.arch.en || p.tier}
@@ -94,8 +94,11 @@ export default function App() {
     : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
     [live, data.meta, data.teams, data.players, data.games]);
   const TEAMS = view.teams, GAMES = view.games;
-  const leagueName = (view.meta?.name || view.meta?.shortName || 'NLS').toUpperCase().replace(/\s+/g, ' ').trim();
-  const season = view.meta?.season ? String(view.meta.season) : String(new Date().getFullYear());
+  const _rawLeagueName = view.meta?.shortName || view.meta?.abbreviation || (view.meta?.name || '').split(/\s+/)[0] || 'NLS';
+  const leagueName = _rawLeagueName.toUpperCase().trim();
+  const _rawSeason = view.meta?.season;
+  const season = (typeof _rawSeason === 'number' || typeof _rawSeason === 'string') && _rawSeason
+    ? String(_rawSeason) : String(new Date().getFullYear());
   // Filter out internal test players from all public-facing views
   const PLAYERS = view.players.filter(p => p.name !== 'Player Mini 1' && p.name !== 'Player Mini 2');
   const ps = {
