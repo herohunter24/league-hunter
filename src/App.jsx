@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas';
 import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
 import { STR } from './i18n/strings.js';
 import { TIERS, TIER_ORDER, TIER_COLOR, TIER_GLOW } from './lib/tiers.js';
-import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES, DEMO_SHOWCASE_PLAYERS } from './lib/demo.js';
+import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES, DEMO_SHOWCASE_PLAYERS, DEMO_ALL_TIERS_PLAYERS } from './lib/demo.js';
 import { buildLiveViewData } from './lib/data.js';
 import { getAnalyticsSessionId } from './lib/analytics.js';
 import { useLeagueData } from './hooks/useLeagueData.js';
@@ -62,6 +62,30 @@ export default function App() {
     try { return localStorage.getItem('nls_lang') || DEFAULT_LANG; } catch { return DEFAULT_LANG; }
   });
   const t = STR[lang];
+
+  // Hidden dev page: ?tiers=preview — shows all 9 tier cards side by side, not linked publicly
+  const tiersPreview = useMemo(() => new URLSearchParams(window.location.search).get('tiers') === 'preview', []);
+  if (tiersPreview) {
+    return (
+      <div style={{ background: '#09090d', minHeight: '100vh', padding: '40px 20px', fontFamily: 'var(--ff-display)' }}>
+        <div style={{ textAlign: 'center', color: '#888', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 32 }}>
+          Tier Preview — dev only — not linked publicly
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, justifyContent: 'center', maxWidth: 1320, margin: '0 auto' }}>
+          {DEMO_ALL_TIERS_PLAYERS.map(p => (
+            <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 160 }}>
+                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" />
+              </div>
+              <div style={{ color: '#aaa', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+                {lang === 'fr' ? p.arch.fr || p.tier : p.arch.en || p.tier}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const data = useLeagueData();
   const live = data.live;

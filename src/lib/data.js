@@ -17,7 +17,7 @@ export function formatWeight(weight, units) {
 
 export function deriveArchetype(tierId, ppg, rpg, apg) {
   if (tierId === 'legend')   return { fr: 'ICÔNE',     en: 'ICON' };
-  if (tierId === 'champion') return { fr: 'FINISSEUR', en: 'CLOSER' };
+  if (tierId === 'amethyst' || tierId === 'champion') return { fr: 'FINISSEUR', en: 'CLOSER' };
   const best = Math.max(ppg, rpg, apg);
   if (best === apg && apg > 0) return { fr: 'CRÉATEUR',  en: 'PLAYMAKER' };
   if (best === rpg && rpg > 0) return { fr: 'REBONDEUR', en: 'REBOUNDER' };

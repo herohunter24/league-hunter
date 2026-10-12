@@ -23,3 +23,6 @@ export const TIER_GLOW  = Object.fromEntries(
 
 // Re-export helpers so legacy call-sites still work
 export { getTierIdByPct, getPlayerProgression, CARD_TIERS, TIER_ICON } from '../config/cardTiers.js';
+
+// Backwards compat: 'champion' tier id was renamed to 'amethyst'
+TIERS.champion = TIERS.amethyst;

@@ -22,7 +22,7 @@ function CardBadge({ team, size = 11 }) {
   );
 }
 
-const HOLO_OP = { bronze: 0.25, silver: 0.4, gold: 0.72, platinum: 1, diamond: 1, champion: 1, legend: 1 };
+const HOLO_OP = { bronze: 0, silver: 0.28, gold: 0.52, emerald: 0.55, sapphire: 0.58, ruby: 0.58, amethyst: 0.68, diamond: 1, legend: 1 };
 
 let orientationPermission = 'unknown';
 
