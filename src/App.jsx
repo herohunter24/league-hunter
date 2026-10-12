@@ -71,6 +71,10 @@ function computeLeagueName(meta) {
 }
 
 function computeSeason(meta) {
+  // Admin-set display label takes priority
+  const display = (meta?.seasonDisplay || '').trim();
+  if (display) return display;
+  // Fall back to meta.season if it's a plain number or string (not the RP object)
   const raw = meta?.season;
   if (typeof raw === 'number' && raw > 0 && raw < 1000) return String(raw);
   if (typeof raw === 'string' && raw.trim()) {

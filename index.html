@@ -2411,6 +2411,7 @@ function App() {
       ops.push({ type: 'set', ref: doc(_db, "leagues", lid), data: {
         id:               updated.id,
         name:             updated.name             || "",
+        seasonDisplay:    updated.seasonDisplay    || "",
         sport:            updated.sport            || "",
         color:            updated.color            || "#6366f1",
         domain:           updated.domain           || "",
@@ -5624,6 +5625,11 @@ function App() {
                       </div>
                       <span style={{ fontSize: 12, color: T2 }}>Le sport ne peut pas être changé après la création</span>
                     </div>
+                  </div>
+                  <div>
+                    <label style={lbl}>Saison</label>
+                    <input style={{ ...inp, maxWidth: 120 }} value={league.seasonDisplay || ""} onChange={e => upd({ ...league, seasonDisplay: e.target.value })} placeholder="ex. 02" maxLength={10} />
+                    <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Numéro ou code de la saison affiché sur les cartes de joueurs (ex. « 02 »).</div>
                   </div>
                   <div>
                     <label style={lbl}>Unités de mesure</label>
