@@ -1609,6 +1609,16 @@ function App() {
   const [searchFocusIdx, setSearchFocusIdx] = useState(0);
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+  // Roster editor
+  const [rosterTeam, setRosterTeam] = useState(null);
+  const [rosterRows, setRosterRows] = useState([]);
+  const [rosterSaving, setRosterSaving] = useState(false);
+  const [rosterPasteOpen, setRosterPasteOpen] = useState(false);
+  const [rosterPasteRaw, setRosterPasteRaw] = useState("");
+  // Delete team confirmation
+  const [delTeamTarget, setDelTeamTarget] = useState(null);
+  const [delTeamTyped, setDelTeamTyped] = useState("");
+  const [delTeamDeletePlayers, setDelTeamDeletePlayers] = useState(true);
   // Calendrier filters
   const [calFilter, setCalFilter] = useState({ team: "", venue: "", status: "" });
   const [calSearch, setCalSearch] = useState("");
@@ -1728,14 +1738,30 @@ function App() {
     }
   }, [selId, league?.id]);
 
-  // Ctrl+K global search shortcut
+  // Ctrl+K global search shortcut + Escape closes all popovers/modals
   useEffect(() => {
     function onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(v => !v); setSearchQuery(""); }
-      if (e.key === 'Escape') { setSearchOpen(false); setCatDropdownOpen(false); setMoreSheetOpen(false); }
+      if (e.key === 'Escape') {
+        setSearchOpen(false); setCatDropdownOpen(false); setMoreSheetOpen(false);
+        setOpenTeamMenuId(null); setOpenGameMenuId(null);
+        setRosterTeam(null); setRosterRows([]); setRosterPasteOpen(false);
+        setDelTeamTarget(null); setDelTeamTyped("");
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Click-outside: close catDropdown and team ⋯ menus
+  useEffect(() => {
+    function onMouseDown(e) {
+      const target = e.target;
+      if (!target.closest('.wx-cat-dropdown') && !target.closest('.wx-cat-btn')) setCatDropdownOpen(false);
+      if (!target.closest('[data-team-menu]')) setOpenTeamMenuId(null);
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
   }, []);
 
   // Keep ref in sync so async functions always write the latest state
@@ -2807,6 +2833,143 @@ function App() {
     const updated = { ...league, teams: remainingTeams, players: remainingPlayers, schedule: remainingSchedule };
     await writeLeagueNow(updated);
     setDirty(false);
+  }
+
+  // ── Roster editor helpers ──
+  function openRosterEditor(team) {
+    const teamPlayers = (league?.players || []).filter(p => p.team === team.name || String(p.teamId) === String(team.id));
+    const rows = teamPlayers.map(p => {
+      const nameParts = (p.name || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ');
+      return { _key: String(p.id), id: p.id, firstName, lastName, number: p.number || '', position: p.position || '', _del: false, _new: false };
+    });
+    setRosterTeam(team);
+    setRosterRows(rows);
+    setRosterPasteOpen(false);
+    setRosterPasteRaw('');
+  }
+
+  function rosterAddRow() {
+    setRosterRows(rows => [...rows, { _key: 'new_' + Date.now(), id: null, firstName: '', lastName: '', number: '', position: '', _del: false, _new: true }]);
+  }
+
+  function rosterUpdateRow(key, field, value) {
+    setRosterRows(rows => rows.map(r => r._key === key ? { ...r, [field]: value } : r));
+  }
+
+  function rosterToggleDel(key) {
+    setRosterRows(rows => rows.map(r => r._key === key ? { ...r, _del: !r._del } : r));
+  }
+
+  function parsePaste(raw) {
+    const lines = raw.trim().split(/\r?\n/).filter(Boolean);
+    return lines.map(line => {
+      const cols = line.split(/\t/);
+      const number = (cols[0] || '').trim().replace(/^#/, '');
+      const firstName = (cols[1] || '').trim();
+      const lastName = (cols[2] || '').trim();
+      const position = (cols[3] || '').trim();
+      return { number, firstName, lastName, position };
+    }).filter(r => r.firstName || r.lastName);
+  }
+
+  function applyPaste() {
+    const parsed = parsePaste(rosterPasteRaw);
+    if (!parsed.length) return;
+    const newRows = parsed.map(r => ({ _key: 'new_' + Date.now() + Math.random(), id: null, firstName: r.firstName, lastName: r.lastName, number: r.number, position: r.position, _del: false, _new: true }));
+    setRosterRows(rows => [...rows, ...newRows]);
+    setRosterPasteOpen(false);
+    setRosterPasteRaw('');
+  }
+
+  async function saveRoster() {
+    if (!rosterTeam || !league) return;
+    const team = rosterTeam;
+    const catId = team.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
+    const units = league.units || 'imperial';
+
+    // Validate: no duplicate jersey numbers among active rows
+    const activeRows = rosterRows.filter(r => !r._del);
+    const nums = activeRows.map(r => r.number).filter(Boolean);
+    const dupes = nums.filter((n, i) => nums.indexOf(n) !== i);
+    if (dupes.length) { showToast(`Numéros en double : ${[...new Set(dupes)].join(', ')}`); return; }
+
+    setRosterSaving(true);
+    try {
+      let updatedPlayers = [...league.players];
+      let updatedSchedule = [...(league.schedule || [])];
+
+      for (const row of rosterRows) {
+        const fullName = [row.firstName, row.lastName].filter(Boolean).join(' ').trim();
+        if (row._new && !row._del) {
+          if (!fullName) continue;
+          const newP = { id: Date.now() + Math.random(), name: fullName, number: row.number, position: row.position, team: team.name, teamId: team.id, categoryId: catId };
+          updatedPlayers.push(newP);
+        } else if (!row._new && row._del) {
+          // Remove from stats
+          updatedSchedule = updatedSchedule.map(g => {
+            if (!g.playerStats) return g;
+            const ps = { ...g.playerStats };
+            delete ps[row.id]; delete ps[String(row.id)];
+            return { ...g, playerStats: ps };
+          });
+          if (__fbReady && _db) {
+            try { const { deleteDoc, doc } = _FS; await deleteDoc(doc(_db, 'leagues', String(league.id), 'players', String(row.id))); } catch(e) {}
+          }
+          updatedPlayers = updatedPlayers.filter(p => p.id !== row.id);
+        } else if (!row._new && !row._del) {
+          // Update existing
+          updatedPlayers = updatedPlayers.map(p => {
+            if (p.id !== row.id) return p;
+            return { ...p, name: fullName || p.name, number: row.number, position: row.position };
+          });
+        }
+      }
+
+      const updated = { ...league, players: updatedPlayers, schedule: updatedSchedule };
+      await writeLeagueNow(updated);
+      setDirty(false);
+      setRosterTeam(null);
+      setRosterRows([]);
+      showToast('Alignement sauvegardé.');
+    } finally {
+      setRosterSaving(false);
+    }
+  }
+
+  // ── Delete team (with game block) ──
+  function openDelTeamModal(team) {
+    const gameCount = (league?.schedule || []).filter(g => g.home === team.name || g.away === team.name).length;
+    setDelTeamTarget({ team, gameCount });
+    setDelTeamTyped('');
+    setDelTeamDeletePlayers(true);
+  }
+
+  async function confirmDelTeam() {
+    if (!delTeamTarget || !league) return;
+    const { team } = delTeamTarget;
+    const remainingTeams = league.teams.filter(t => t.id !== team.id);
+    let remainingPlayers = league.players;
+    if (delTeamDeletePlayers) {
+      remainingPlayers = league.players.filter(p => p.team !== team.name && String(p.teamId) !== String(team.id));
+    }
+    if (__fbReady && _db) {
+      try {
+        const { deleteDoc, doc } = _FS;
+        await deleteDoc(doc(_db, 'leagues', String(league.id), 'teams', String(team.id)));
+        if (delTeamDeletePlayers) {
+          const toRemove = league.players.filter(p => p.team === team.name || String(p.teamId) === String(team.id));
+          for (const p of toRemove) await deleteDoc(doc(_db, 'leagues', String(league.id), 'players', String(p.id)));
+        }
+      } catch(e) { console.error('[League Hunter] confirmDelTeam direct delete failed:', e); }
+    }
+    const updated = { ...league, teams: remainingTeams, players: remainingPlayers };
+    await writeLeagueNow(updated);
+    setDirty(false);
+    setDelTeamTarget(null);
+    setDelTeamTyped('');
+    showToast(`Équipe "${team.name}" supprimée.`);
   }
 
   async function cleanOrphanedPlayers() {
@@ -4381,34 +4544,20 @@ function App() {
                               <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} disabled={!!uploadingId} onChange={e => { const f = e.target.files?.[0]; if (f) uploadTeamLogo(t.id, f); e.target.value = ""; }} />
                             </label>
                           )}
-                          <button title="Modifier" onClick={() => { setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`, color: T2, cursor: "pointer", background: "none" }}>
+                          {/* Modifier le nom */}
+                          <button title="Modifier le nom" onClick={() => { setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`, color: T2, cursor: "pointer", background: "none" }}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
-                          {/* ⋯ overflow menu */}
-                          <div style={{ position: "relative" }}>
-                            <button onClick={e => { e.stopPropagation(); setOpenTeamMenuId(openTeamMenuId === t.id ? null : t.id); }} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 14, cursor: "pointer", lineHeight: 1, height: 32, display: "flex", alignItems: "center" }}>⋯</button>
-                            {openTeamMenuId === t.id && (
-                              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, boxShadow: "0 4px 16px #00000060", zIndex: 50, minWidth: 150 }}>
-                                <button onClick={() => { setOpenTeamMenuId(null); setEditTeam({ id: t.id, name: t.name, emoji: t.emoji }); setEditEmojiErr(""); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", padding: "10px 14px", fontSize: 13, color: T1, cursor: "pointer", textAlign: "left" }}>
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier
-                                </button>
-                                <button onClick={() => { setOpenTeamMenuId(null); deleteConfirm.ask({
-                                    actionType: 'delete', entityType: 'team', entityLabel: t.name,
-                                    summary: `Supprimer définitivement l'équipe "${t.name}". Tous les joueurs et matchs associés seront aussi supprimés.`,
-                                    details: [
-                                      { label: 'Équipe', value: t.name },
-                                      { label: 'Joueurs', value: String(league.players.filter(p => p.team === t.name || String(p.teamId) === String(t.id)).length) },
-                                      { label: 'Matchs', value: String(league.schedule.filter(g => g.home === t.name || g.away === t.name).length) },
-                                    ],
-                                    requiresTypedConfirm: true, confirmWord: 'DELETE',
-                                    confirmLabel: 'Oui, supprimer', dangerStyle: true,
-                                    onConfirm: () => delTeam(t.id),
-                                  }); }} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", borderTop: `1px solid ${BORDER}`, padding: "10px 14px", fontSize: 13, color: "#ef4444", cursor: "pointer", textAlign: "left" }}>
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg> Supprimer
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          {/* Alignement (roster editor) */}
+                          <button title="Alignement" onClick={() => openRosterEditor(t)} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`, color: T2, cursor: "pointer", background: "none" }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                          </button>
+                          {/* Supprimer */}
+                          <button title="Supprimer" onClick={() => openDelTeamModal(t)} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`, color: "#ef4444", cursor: "pointer", background: "none" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#ef444420"}
+                            onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                          </button>
                         </div>
                         {uploadStatus && uploadStatus.key === `team_${t.id}` && (
                           <div style={{ position: "absolute", left: 0, right: 0 }}><UploadStatus statusKey={`team_${t.id}`} /></div>
@@ -7313,6 +7462,167 @@ service cloud.firestore {
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setEditTeam(null); setEditEmojiErr(""); }}>Annuler</button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ROSTER EDITOR MODAL ── */}
+        {rosterTeam && (
+          <div className="modal-overlay" style={{ zIndex: 200 }} onMouseDown={e => { if (e.target === e.currentTarget) { setRosterTeam(null); setRosterRows([]); } }}>
+            <div className="modal-box" style={{ width: "min(96vw, 680px)", ...card, padding: 28, display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Alignement — {rosterTeam.name}</div>
+                <button onClick={() => { setRosterTeam(null); setRosterRows([]); }} style={{ background: "none", border: "none", color: T2, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
+              </div>
+
+              {/* Roster table */}
+              <div style={{ overflowY: "auto", flex: 1, marginBottom: 16 }}>
+                {rosterRows.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "32px 0", color: T2, fontSize: 13 }}>Aucun joueur. Clique sur « + Ajouter » pour commencer.</div>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ fontSize: 11, color: T2 }}>
+                        <th style={{ padding: "4px 6px", textAlign: "left", width: 52 }}>#</th>
+                        <th style={{ padding: "4px 6px", textAlign: "left" }}>Prénom</th>
+                        <th style={{ padding: "4px 6px", textAlign: "left" }}>Nom</th>
+                        <th style={{ padding: "4px 6px", textAlign: "left", minWidth: 90 }}>Position</th>
+                        <th style={{ width: 32 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rosterRows.map((row, ri) => (
+                        <tr key={row._key} style={{ opacity: row._del ? 0.4 : 1, background: ri % 2 === 0 ? CARD : SURF }}>
+                          <td style={{ padding: "4px 6px" }}>
+                            <input value={row.number} onChange={e => rosterUpdateRow(row._key, 'number', e.target.value)}
+                              disabled={row._del} placeholder="#"
+                              style={{ ...inp, padding: "5px 8px", width: 44, textAlign: "center", fontSize: 13, opacity: row._del ? 0.5 : 1 }}
+                              onKeyDown={e => { if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); const next = document.querySelector(`[data-rr="${ri}-fn"]`); if (next) next.focus(); } }}
+                            />
+                          </td>
+                          <td style={{ padding: "4px 6px" }}>
+                            <input value={row.firstName} onChange={e => rosterUpdateRow(row._key, 'firstName', e.target.value)}
+                              disabled={row._del} placeholder="Prénom" data-rr={`${ri}-fn`}
+                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13 }}
+                              onKeyDown={e => { if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); const next = document.querySelector(`[data-rr="${ri}-ln"]`); if (next) next.focus(); } }}
+                            />
+                          </td>
+                          <td style={{ padding: "4px 6px" }}>
+                            <input value={row.lastName} onChange={e => rosterUpdateRow(row._key, 'lastName', e.target.value)}
+                              disabled={row._del} placeholder="Nom" data-rr={`${ri}-ln`}
+                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13 }}
+                              onKeyDown={e => { if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); const next = document.querySelector(`[data-rr="${ri}-pos"]`); if (next) next.focus(); } }}
+                            />
+                          </td>
+                          <td style={{ padding: "4px 6px" }}>
+                            <input value={row.position} onChange={e => rosterUpdateRow(row._key, 'position', e.target.value)}
+                              disabled={row._del} placeholder="Position" data-rr={`${ri}-pos`}
+                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13 }}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (ri === rosterRows.length - 1) rosterAddRow(); else { const next = document.querySelector(`[data-rr="${ri+1}-fn"]`); if (next) next.focus(); } } }}
+                            />
+                          </td>
+                          <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                            <button onClick={() => { if (row._new) setRosterRows(rows => rows.filter(r => r._key !== row._key)); else rosterToggleDel(row._key); }}
+                              title={row._del ? "Restaurer" : "Retirer"}
+                              style={{ background: "none", border: "none", color: row._del ? T2 : "#ef4444", cursor: "pointer", fontSize: 16, padding: 4 }}>
+                              {row._del ? "↩" : "✕"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Paste panel */}
+              {rosterPasteOpen && (
+                <div style={{ marginBottom: 12, background: SURF, borderRadius: 8, padding: 12, border: `1px solid ${BORDER}` }}>
+                  <div style={{ fontSize: 12, color: T2, marginBottom: 6 }}>Colle depuis Excel — colonnes : # · Prénom · Nom · Position</div>
+                  <textarea value={rosterPasteRaw} onChange={e => setRosterPasteRaw(e.target.value)} rows={5}
+                    placeholder={"10\tAlexandre\tTremblay\tMeneur\n23\tMarc\tBélair\tAilier"}
+                    style={{ ...inp, width: "100%", fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button style={{ ...btn(), flex: 1 }} onClick={applyPaste}>Importer</button>
+                    <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => { setRosterPasteOpen(false); setRosterPasteRaw(''); }}>Annuler</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Summary of changes */}
+              {(() => {
+                const toAdd = rosterRows.filter(r => r._new && !r._del).length;
+                const toDel = rosterRows.filter(r => !r._new && r._del).length;
+                const toEdit = rosterRows.filter(r => !r._new && !r._del).length;
+                if (!toAdd && !toDel) return null;
+                return (
+                  <div style={{ fontSize: 12, color: T2, marginBottom: 10 }}>
+                    {toAdd > 0 && <span style={{ color: "#4ade80", marginRight: 12 }}>+{toAdd} joueur{toAdd !== 1 ? 's' : ''}</span>}
+                    {toDel > 0 && <span style={{ color: "#ef4444" }}>−{toDel} supprimé{toDel !== 1 ? 's' : ''}</span>}
+                  </div>
+                );
+              })()}
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button onClick={rosterAddRow} style={{ ...btn("#252540") }}>+ Ajouter</button>
+                {!rosterPasteOpen && <button onClick={() => setRosterPasteOpen(true)} style={{ ...btn("#252540") }}>Coller depuis Excel</button>}
+                <div style={{ flex: 1 }} />
+                <button onClick={() => { setRosterTeam(null); setRosterRows([]); }} style={{ ...btn("#252540") }}>Annuler</button>
+                <button onClick={saveRoster} disabled={rosterSaving} style={{ ...btn(), opacity: rosterSaving ? 0.6 : 1 }}>
+                  {rosterSaving ? "Sauvegarde…" : "Enregistrer"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── DELETE TEAM MODAL ── */}
+        {delTeamTarget && (
+          <div className="modal-overlay" style={{ zIndex: 200 }} onMouseDown={e => { if (e.target === e.currentTarget) { setDelTeamTarget(null); setDelTeamTyped(''); } }}>
+            <div className="modal-box" style={{ width: "min(96vw, 440px)", ...card, padding: 28 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Supprimer l'équipe</div>
+              {(() => {
+                const { team, gameCount } = delTeamTarget;
+                if (gameCount > 0) {
+                  return (
+                    <>
+                      <div style={{ fontSize: 14, color: "#ef4444", marginBottom: 16, lineHeight: 1.5 }}>
+                        Impossible de supprimer : cette équipe a <strong>{gameCount} match{gameCount !== 1 ? 's' : ''}</strong>.<br />
+                        Retire-la des matchs d'abord, puis supprime-la.
+                      </div>
+                      <button onClick={() => { setDelTeamTarget(null); setDelTeamTyped(''); }} style={{ ...btn("#252540"), width: "100%" }}>Fermer</button>
+                    </>
+                  );
+                }
+                const playerCount = (league?.players || []).filter(p => p.team === team.name || String(p.teamId) === String(team.id)).length;
+                const canConfirm = delTeamTyped.trim().toLowerCase() === team.name.trim().toLowerCase();
+                return (
+                  <>
+                    <div style={{ fontSize: 13, color: T2, marginBottom: 16, lineHeight: 1.6 }}>
+                      Tu es sur le point de supprimer définitivement <strong style={{ color: T1 }}>{team.name}</strong>.
+                      {playerCount > 0 && <> Cette équipe a <strong style={{ color: T1 }}>{playerCount} joueur{playerCount !== 1 ? 's' : ''}</strong>.</>}
+                    </div>
+                    {playerCount > 0 && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontSize: 13, cursor: "pointer" }}>
+                        <input type="checkbox" checked={delTeamDeletePlayers} onChange={e => setDelTeamDeletePlayers(e.target.checked)} />
+                        Supprimer aussi les {playerCount} joueur{playerCount !== 1 ? 's' : ''} de cette équipe
+                      </label>
+                    )}
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={lbl}>Saisis le nom de l'équipe pour confirmer</label>
+                      <input style={inp} value={delTeamTyped} onChange={e => setDelTeamTyped(e.target.value)} placeholder={team.name} autoFocus />
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button onClick={confirmDelTeam} disabled={!canConfirm}
+                        style={{ ...btn(), flex: 1, background: canConfirm ? "#ef4444" : "#333", cursor: canConfirm ? "pointer" : "not-allowed" }}>
+                        Supprimer
+                      </button>
+                      <button onClick={() => { setDelTeamTarget(null); setDelTeamTyped(''); }} style={{ ...btn("#252540"), flex: 1 }}>Annuler</button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
