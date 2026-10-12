@@ -24,14 +24,18 @@ function CardBadge({ team, size = 11 }) {
 
 const HOLO_OP = { bronze: 0, silver: 0.28, gold: 0.52, emerald: 0.55, sapphire: 0.58, ruby: 0.58, amethyst: 0.68, diamond: 1, legend: 1 };
 
+/* Tiers that get 3D tilt (±8°). Bronze/silver/gold stay flat per spec. */
+const TILT_TIERS = new Set(['emerald','sapphire','ruby','amethyst','champion','diamond','legend','platinum']);
+
 let orientationPermission = 'unknown';
 
-function useHolo() {
+function useHolo(tierId) {
   const ref = useRef(null);
   const rafId = useRef(null);
   const reduce = useRef(false);
   const hovered = useRef(false);
   const tiltCleanup = useRef(null);
+  const hasTilt = TILT_TIERS.has(tierId);
 
   const apply = useCallback((x, y) => {
     const el = ref.current;
@@ -39,13 +43,15 @@ function useHolo() {
     if (rafId.current) cancelAnimationFrame(rafId.current);
     rafId.current = requestAnimationFrame(() => {
       rafId.current = null;
-      const rx = (y - 0.5) * 22;
-      const ry = (x - 0.5) * -22;
       el.style.setProperty('--holo-x', `${x * 100}%`);
       el.style.setProperty('--holo-y', `${y * 100}%`);
-      el.style.transform = `perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+      if (hasTilt) {
+        const rx = (y - 0.5) * 16;  /* ±8° */
+        const ry = (x - 0.5) * -16;
+        el.style.transform = `perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-10px) scale(1.02)`;
+      }
     });
-  }, []);
+  }, [hasTilt]);
 
   const reset = useCallback(() => {
     const el = ref.current;
@@ -142,7 +148,7 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const teamColor = (team && team.color && !isLegacyOrange(team.color)) ? team.color : 'var(--gold)';
-  const holoRef = useHolo();
+  const holoRef = useHolo(p.tier);
   const [logoOk, setLogoOk] = useState(true);
 
   const hw = [formatHeight(p.height, units), formatWeight(p.weight, units)].filter(Boolean).join(' · ');
@@ -194,6 +200,17 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
               <div className="pc-arch">{(p.arch[lang] || '').toUpperCase()}</div>
             </div>
           </div>
+
+          {/* Crystal spikes rising from bottom — amethyst only */}
+          {(p.tier === 'amethyst' || p.tier === 'champion') && (
+            <svg className="pc-crystal-spikes" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
+              <polygon points="3,55 12,16 21,55"  fill="rgba(160,70,255,0.28)" />
+              <polygon points="22,55 33,4 44,55"  fill="rgba(200,110,255,0.42)" />
+              <polygon points="43,55 53,20 63,55" fill="rgba(150,55,240,0.36)" />
+              <polygon points="60,55 71,7 82,55"  fill="rgba(210,120,255,0.4)" />
+              <polygon points="80,55 88,24 96,55" fill="rgba(165,75,255,0.27)" />
+            </svg>
+          )}
 
           {/* Jersey number — outlined, bottom-left corner, partly cropped */}
           {p.number && (
