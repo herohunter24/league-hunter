@@ -2419,11 +2419,15 @@ function App() {
       const lid = String(updated.id);
       const { doc, collection, writeBatch } = _FS;
 
-      // RISK 1 — Cold-start detection: if no tracked state exists for this league,
-      // treat it as a full write (skip diff entirely — write every doc unconditionally).
-      // This protects against a new device/session where subcolData is empty.
-      const isFirstWrite = !subcolData.current[lid];
-      const prev = subcolData.current[lid] || { teams: {}, players: {}, games: {}, stats: {}, playersPrivate: {} };
+      // Guard: subcolData must be seeded before we can diff correctly.
+      // It is seeded from the Firestore snapshot on page load (line ~1993) and immediately
+      // for newly created leagues. If it's missing, Firestore data hasn't arrived yet —
+      // bail rather than doing a blind full-rewrite.
+      if (!subcolData.current[lid]) {
+        showToast("Données en cours de chargement, réessaie dans un instant.");
+        return;
+      }
+      const prev = subcolData.current[lid];
 
       // Build new state maps (keyed by string id for easy diff)
       const newTeams   = Object.fromEntries((updated.teams   || []).map(t => [String(t.id), t]));
@@ -2433,7 +2437,7 @@ function App() {
       // Collect all Firestore operations
       const ops = [];
 
-      // Root meta doc — ALWAYS written (RISK 2: keeps _updatedAt current so public
+      // Root meta doc — ALWAYS written (keeps _updatedAt current so public
       // site's onSnapshot detects every write). No arrays — sub-collections handle data.
       ops.push({ type: 'set', ref: doc(_db, "leagues", lid), data: {
         id:               updated.id,
@@ -2460,9 +2464,9 @@ function App() {
         _updatedAt:  ts,  // ← always bumped so public onSnapshot always detects this write
       }});
 
-      // Teams: write changed docs (or all on cold start), delete removed docs
+      // Teams: write changed docs, delete removed docs
       for (const [tid, team] of Object.entries(newTeams)) {
-        if (isFirstWrite || JSON.stringify(team) !== JSON.stringify(prev.teams[tid])) {
+        if (JSON.stringify(team) !== JSON.stringify(prev.teams[tid])) {
           ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "teams", tid), data: team });
         }
       }
@@ -2474,11 +2478,11 @@ function App() {
       // Email is a personal field — public site reads players but never needs email.
       for (const [pid, player] of Object.entries(newPlayers)) {
         const { email: playerEmail, ...publicPlayer } = player;
-        if (isFirstWrite || JSON.stringify(publicPlayer) !== JSON.stringify(prev.players[pid])) {
+        if (JSON.stringify(publicPlayer) !== JSON.stringify(prev.players[pid])) {
           ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "players", pid), data: publicPlayer });
         }
-        const prevPriv = (prev.playersPrivate || {})[pid];
-        if (playerEmail && (isFirstWrite || playerEmail !== prevPriv?.email)) {
+        const prevPriv = prev.playersPrivate[pid];
+        if (playerEmail && playerEmail !== prevPriv?.email) {
           ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "playersPrivate", pid), data: { email: playerEmail } });
         } else if (!playerEmail && prevPriv) {
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "playersPrivate", pid) });
@@ -2495,14 +2499,14 @@ function App() {
       for (const [gid, game] of Object.entries(newGames)) {
         const { playerStats, ...gameWithoutStats } = game;
         const prevGame = prev.games[gid] || {};
-        if (isFirstWrite || JSON.stringify(gameWithoutStats) !== JSON.stringify(prevGame)) {
+        if (JSON.stringify(gameWithoutStats) !== JSON.stringify(prevGame)) {
           ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "games", gid), data: gameWithoutStats });
         }
         // PlayerStats sub-collection
         const newStats  = playerStats || {};
         const prevStats = prev.stats[gid] || {};
         for (const [pid, stats] of Object.entries(newStats)) {
-          if (isFirstWrite || JSON.stringify(stats) !== JSON.stringify(prevStats[pid])) {
+          if (JSON.stringify(stats) !== JSON.stringify(prevStats[pid])) {
             ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)), data: stats });
           }
         }
