@@ -60,9 +60,10 @@ export const MIN_GAMES_FOR_TIER = 3;
 
 /**
  * If a same-category group has fewer than this many eligible players,
- * fall back to comparing against the whole league pool.
+ * fall back to fixed per-game average score thresholds instead of
+ * comparing against the whole league pool (which would mix age categories).
  */
-export const SMALL_GROUP_THRESHOLD = 5;
+export const SMALL_GROUP_THRESHOLD = 10;
 
 /** Icon per tier id (used in progression bar). */
 export const TIER_ICON = {
@@ -71,26 +72,26 @@ export const TIER_ICON = {
 };
 
 /**
- * Fixed absolute score thresholds — used when a category group is too small
+ * Fixed per-game average score thresholds — used when a category group is too small
  * for meaningful percentile comparison (< SMALL_GROUP_THRESHOLD eligible players).
- * Calibrated for the basketball RP formula; other sports use the same values
- * until sport-specific formulas are implemented.
+ * Values are calibrated for basketball (pts×1+reb×0.7+ast×1.2+stl×1.5+blk×1.5-to×1.0).
+ * Tune these values here; they propagate everywhere automatically.
  */
 export const FIXED_TIER_THRESHOLDS = [
-  { id: 'bronze',   minScore: 0     },
-  { id: 'silver',   minScore: 150   },
-  { id: 'gold',     minScore: 450   },
-  { id: 'platinum', minScore: 1000  },
-  { id: 'diamond',  minScore: 2200  },
-  { id: 'champion', minScore: 4500  },
-  { id: 'legend',   minScore: 9000  },
+  { id: 'bronze',   minScore: 0  },
+  { id: 'silver',   minScore: 4  },
+  { id: 'gold',     minScore: 8  },
+  { id: 'platinum', minScore: 12 },
+  { id: 'diamond',  minScore: 17 },
+  { id: 'champion', minScore: 23 },
+  { id: 'legend',   minScore: 30 },
 ];
 
-/** Return tier id for a raw score using absolute thresholds. */
-export function getTierIdByScore(score) {
+/** Return tier id for a per-game average score using absolute thresholds. */
+export function getTierIdByScore(avgScore) {
   let tier = FIXED_TIER_THRESHOLDS[0];
   for (const t of FIXED_TIER_THRESHOLDS) {
-    if (score >= t.minScore) tier = t;
+    if (avgScore >= t.minScore) tier = t;
   }
   return tier.id;
 }

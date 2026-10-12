@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas';
 import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
 import { STR } from './i18n/strings.js';
 import { TIERS, TIER_ORDER, TIER_COLOR, TIER_GLOW } from './lib/tiers.js';
-import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES } from './lib/demo.js';
+import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES, DEMO_SHOWCASE_PLAYERS } from './lib/demo.js';
 import { buildLiveViewData } from './lib/data.js';
 import { getAnalyticsSessionId } from './lib/analytics.js';
 import { useLeagueData } from './hooks/useLeagueData.js';
@@ -69,7 +69,9 @@ export default function App() {
     ? buildLiveViewData(data.meta, data.teams, data.players, data.games)
     : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
     [live, data.meta, data.teams, data.players, data.games]);
-  const TEAMS = view.teams, PLAYERS = view.players, GAMES = view.games;
+  const TEAMS = view.teams, GAMES = view.games;
+  // Filter out internal test players from all public-facing views
+  const PLAYERS = view.players.filter(p => p.name !== 'Player Mini 1' && p.name !== 'Player Mini 2');
   const ps = {
     showStandings: true, showSchedule: true, showPlayers: true,
     showPlayerCards: true, showStats: true, showLeagueInfo: true,
@@ -602,13 +604,11 @@ export default function App() {
     }
   }
 
+  // Show demo showcase cards when the connected league has no real players yet
+  const isShowcaseDemo = live && PLAYERS.length === 0;
+
   const showcasePlayers = useMemo(() => {
-    if (!live) {
-      // Demo: show one card per key tier to illustrate the range
-      return ['bronze', 'gold', 'diamond', 'legend']
-        .map(t => PLAYERS.find(p => p.tier === t))
-        .filter(Boolean);
-    }
+    if (isShowcaseDemo) return DEMO_SHOWCASE_PLAYERS;
     const ranked = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0));
     const byCat = new Map();
     ranked.forEach(p => { const c = p.categoryId || '__none__'; if (!byCat.has(c)) byCat.set(c, p); });
@@ -616,7 +616,7 @@ export default function App() {
     const ids = new Set(picks.map(p => p.id));
     for (const p of ranked) { if (picks.length >= 4) break; if (!ids.has(p.id)) { picks.push(p); ids.add(p.id); } }
     return picks;
-  }, [PLAYERS, live]);
+  }, [PLAYERS, live, isShowcaseDemo]);
 
   // Before html2canvas: replace any broken <img> that's visible and failed to load
   // with the silhouette PNG so the photo zone is never empty in the export.
@@ -803,10 +803,20 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
+                    <PlayerCard
+                      p={p} lang={lang} t={t}
+                      onOpen={isShowcaseDemo ? undefined : openPlayerModal}
+                      teams={TEAMS} units={view.units}
+                      isDemo={isShowcaseDemo}
+                      cardNumber={isShowcaseDemo ? undefined : cardIndexMap.get(p.id)}
+                      cardTotal={isShowcaseDemo ? undefined : cardTotal}
+                    />
                   </div>
                 ))}
               </div>
+              {isShowcaseDemo && (
+                <div className="demo-preview-note">{t.demoPreview}</div>
+              )}
             </section>
           )}
 

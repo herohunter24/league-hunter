@@ -138,7 +138,7 @@ function useHolo() {
   return ref;
 }
 
-export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardTotal }) {
+export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardTotal, isDemo }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const teamColor = (team && team.color && !isLegacyOrange(team.color)) ? team.color : 'var(--gold)';
@@ -159,12 +159,13 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, cardNumber, cardT
       className={`pcard ${tier.cls}`}
       id={`pcard-${p.id}`}
       ref={holoRef}
-      style={{ '--holo-op': HOLO_OP[p.tier] ?? 0.5 }}
+      style={{ '--holo-op': HOLO_OP[p.tier] ?? 0.5, cursor: onOpen ? 'pointer' : 'default' }}
       onClick={onOpen ? () => onOpen(p) : undefined}
     >
       <div className="pcard-inner">
         {/* Holographic glare — full card, masked lighter over photo zone */}
         <div className="pc-holo" aria-hidden="true" />
+        {isDemo && <div className="pc-exemple-pill" aria-hidden="true">EXEMPLE</div>}
 
         {/* ── PHOTO ZONE — top 65% ── */}
         <div className="pc-photo-zone">

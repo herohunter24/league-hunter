@@ -52,9 +52,12 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap) {
     const pid = String(p.id);
     const gp  = games.filter(g => g.playerStats && g.playerStats[pid] !== undefined).length;
     const score = scoreFn({ ...p, id: pid }, games, leagueLike);
+    // avgScore is the per-game average — used for tier ranking so a longer season
+    // doesn't unfairly inflate a player's tier.
+    const avgScore = gp > 0 ? score / gp : 0;
     const catFromPlayer = p.categoryId != null && p.categoryId !== '' ? String(p.categoryId) : '';
     const categoryId = catFromPlayer || (teamCatMap && teamCatMap[p.team]) || '';
-    return { id: pid, score, gp, categoryId };
+    return { id: pid, score, avgScore, gp, categoryId };
   });
 
   // Step 2 — split into per-category groups; bucket players with no categoryId as ''
@@ -67,16 +70,16 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap) {
 
   /**
    * Given an eligible pool (already filtered to gp >= MIN_GAMES_FOR_TIER),
-   * return a percentile rank (0–100) for a target score.
+   * return a percentile rank (0–100) for a target per-game average.
    * pctRank = (players strictly below) / total × 100
    */
-  function pctRankInPool(targetScore, pool) {
+  function pctRankInPool(targetAvg, pool) {
     if (!pool.length) return 0;
-    const below = pool.filter(s => s.score < targetScore).length;
+    const below = pool.filter(s => s.avgScore < targetAvg).length;
     return (below / pool.length) * 100;
   }
 
-  // Step 3 — assign tier per player
+  // Step 3 — assign tier per player using per-game average score
   return scored.map(s => {
     // Players with 0 games get Bronze; 1–2 games get at most Silver (not yet ranked)
     if (s.gp === 0) return { ...s, pctRank: 0, tier: 'bronze' };
@@ -84,10 +87,10 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap) {
 
     const catGroup = (groups[s.categoryId] || []).filter(x => x.gp >= MIN_GAMES_FOR_TIER);
     if (catGroup.length < SMALL_GROUP_THRESHOLD) {
-      // Too few peers for percentile comparison — use absolute score thresholds
-      return { ...s, pctRank: 0, tier: getTierIdByScore(s.score) };
+      // Too few peers — use fixed per-game average thresholds
+      return { ...s, pctRank: 0, tier: getTierIdByScore(s.avgScore) };
     }
-    const pctRank = pctRankInPool(s.score, catGroup);
+    const pctRank = pctRankInPool(s.avgScore, catGroup);
     const tier    = getTierIdByPct(pctRank);
     return { ...s, pctRank, tier };
   });

@@ -24,6 +24,14 @@ export const DEMO_PLAYERS = [
   { id: 14, name: 'Lucas Pelletier',   team: 'Vipères Laval',    pos: 'Arrière', tier: 'silver',   arch: { fr: 'DÉFENSEUR',  en: 'DEFENDER' },  ppg: 8.8,  rpg: 3.4,  apg: 3.8, spg: 1.0, bpg: 0.4, rp: 210,  gp: 16, pctRank: 50.8 },
 ];
 
+/** Four fictional showcase cards shown when the live league has no real players yet. */
+export const DEMO_SHOWCASE_PLAYERS = [
+  { id: 'demo-bronze',  name: 'Joueur Exemple',  team: 'Équipe Exemple', pos: '', tier: 'bronze',  arch: { fr: '', en: '' }, ppg: 4.2,  rpg: 2.1, apg: 1.0, spg: 0, bpg: 0, rp: 0, gp: 5,  pctRank: 25,   photoUrl: '', number: '', height: null, weight: null },
+  { id: 'demo-gold',    name: 'Joueuse Exemple', team: 'Équipe Exemple', pos: '', tier: 'gold',    arch: { fr: '', en: '' }, ppg: 12.5, rpg: 5.3, apg: 3.2, spg: 0, bpg: 0, rp: 0, gp: 8,  pctRank: 75,   photoUrl: '', number: '', height: null, weight: null },
+  { id: 'demo-diamond', name: 'Joueur Exemple',  team: 'Équipe Exemple', pos: '', tier: 'diamond', arch: { fr: '', en: '' }, ppg: 21.0, rpg: 8.0, apg: 5.0, spg: 0, bpg: 0, rp: 0, gp: 10, pctRank: 94.0, photoUrl: '', number: '', height: null, weight: null },
+  { id: 'demo-legend',  name: 'Joueuse Exemple', team: 'Équipe Exemple', pos: '', tier: 'legend',  arch: { fr: '', en: '' }, ppg: 30.5, rpg: 11.2, apg: 7.5, spg: 0, bpg: 0, rp: 0, gp: 12, pctRank: 99.5, photoUrl: '', number: '', height: null, weight: null },
+];
+
 export const DEMO_GAMES = [
   { id: 1,  date: '2026-06-14', time: '19:00', home: 'Dynastie MTL',     away: 'Vipères Laval',    venue: 'Centre Pierre-Charbonneau',           hs: null, as: null },
   { id: 2,  date: '2026-06-15', time: '14:00', home: 'Tonnerre Québec',  away: 'Phénix Longueuil', venue: 'PEPS Université Laval',               hs: null, as: null },
