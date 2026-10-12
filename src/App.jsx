@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas';
 import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
 import { STR } from './i18n/strings.js';
 import { TIERS, TIER_ORDER, TIER_COLOR, TIER_GLOW } from './lib/tiers.js';
-import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES } from './lib/demo.js';
+import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES, DEMO_SHOWCASE_PLAYERS, DEMO_ALL_TIERS_PLAYERS } from './lib/demo.js';
 import { buildLiveViewData } from './lib/data.js';
 import { getAnalyticsSessionId } from './lib/analytics.js';
 import { useLeagueData } from './hooks/useLeagueData.js';
@@ -57,19 +57,79 @@ const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-C
 const displayCatName = (name, t) => (t.catNames && t.catNames[name]) || name;
 const normalize = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+function computeLeagueName(meta) {
+  if (!meta) return '';
+  const sn = meta.shortName || meta.abbreviation;
+  if (sn) return String(sn).toUpperCase().trim();
+  const name = (meta.name || '').trim();
+  if (!name) return '';
+  const words = name.split(/\s+/);
+  const first = words[0] || '';
+  if (first.length >= 2 && first.length <= 5 && /^[A-Z]+$/.test(first)) return first;
+  const initials = words.filter(w => /^[A-Z]/.test(w)).map(w => w[0]).join('');
+  return initials.toUpperCase() || '';
+}
+
+function computeSeason(meta) {
+  const raw = meta?.season;
+  if (typeof raw === 'number' && raw > 0 && raw < 1000) return String(raw);
+  if (typeof raw === 'string' && raw.trim()) {
+    const n = Number(raw.trim());
+    if (!isNaN(n) && n > 0 && n < 1000) return String(n);
+    return raw.trim();
+  }
+  const name = meta?.name || '';
+  const m = name.match(/(?:[Ss]aison|[Ss]eason)\s+(\d+)|S(\d{2,})/);
+  if (m) return String(Number(m[1] || m[2]));
+  return String(new Date().getFullYear());
+}
+
 export default function App() {
   const [lang, setLang] = useState(() => {
     try { return localStorage.getItem('nls_lang') || DEFAULT_LANG; } catch { return DEFAULT_LANG; }
   });
   const t = STR[lang];
 
+  // All hooks must run unconditionally before any early return
+  const tiersPreview = useMemo(() => new URLSearchParams(window.location.search).get('tiers') === 'preview', []);
   const data = useLeagueData();
   const live = data.live;
   const view = useMemo(() => live
     ? buildLiveViewData(data.meta, data.teams, data.players, data.games)
     : { teams: DEMO_TEAMS, players: DEMO_PLAYERS, games: DEMO_GAMES, units: 'imperial', categories: [], ps: {}, meta: null },
     [live, data.meta, data.teams, data.players, data.games]);
-  const TEAMS = view.teams, PLAYERS = view.players, GAMES = view.games;
+
+  const leagueId = LEAGUE_ID ? String(LEAGUE_ID) : '';
+  const leagueName = computeLeagueName(view.meta);
+  const season = computeSeason(view.meta);
+  const leagueLogoUrl = (view.meta?.logoUrl) || '';
+
+  // Hidden dev page: ?tiers=preview — shows all 9 tier cards side by side, not linked publicly
+  if (tiersPreview) {
+    return (
+      <div style={{ background: '#09090d', minHeight: '100vh', padding: '40px 20px', fontFamily: 'var(--ff-display)' }}>
+        <div style={{ textAlign: 'center', color: '#888', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 32 }}>
+          Tier Preview — dev only — not linked publicly
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, justifyContent: 'center', maxWidth: 1320, margin: '0 auto' }}>
+          {DEMO_ALL_TIERS_PLAYERS.map(p => (
+            <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 160 }}>
+                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
+              </div>
+              <div style={{ color: '#aaa', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+                {lang === 'fr' ? p.arch.fr || p.tier : p.arch.en || p.tier}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const TEAMS = view.teams, GAMES = view.games;
+  // Filter out internal test players from all public-facing views
+  const PLAYERS = view.players.filter(p => p.name !== 'Player Mini 1' && p.name !== 'Player Mini 2');
   const ps = {
     showStandings: true, showSchedule: true, showPlayers: true,
     showPlayerCards: true, showStats: true, showLeagueInfo: true,
@@ -602,7 +662,11 @@ export default function App() {
     }
   }
 
+  // Show demo showcase cards when the connected league has no real players yet
+  const isShowcaseDemo = live && PLAYERS.length === 0;
+
   const showcasePlayers = useMemo(() => {
+    if (isShowcaseDemo) return DEMO_SHOWCASE_PLAYERS;
     const ranked = [...PLAYERS].sort((a, b) => (b.rp || 0) - (a.rp || 0));
     const byCat = new Map();
     ranked.forEach(p => { const c = p.categoryId || '__none__'; if (!byCat.has(c)) byCat.set(c, p); });
@@ -610,7 +674,7 @@ export default function App() {
     const ids = new Set(picks.map(p => p.id));
     for (const p of ranked) { if (picks.length >= 4) break; if (!ids.has(p.id)) { picks.push(p); ids.add(p.id); } }
     return picks;
-  }, [PLAYERS]);
+  }, [PLAYERS, live, isShowcaseDemo]);
 
   // Before html2canvas: replace any broken <img> that's visible and failed to load
   // with the silhouette PNG so the photo zone is never empty in the export.
@@ -797,10 +861,19 @@ export default function App() {
               <div className="arc-row">
                 {showcasePlayers.map(p => (
                   <div key={p.id} className="arc-card">
-                    <PlayerCard p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />
+                    <PlayerCard
+                      p={p} lang={lang} t={t}
+                      onOpen={isShowcaseDemo ? undefined : openPlayerModal}
+                      teams={TEAMS} units={view.units}
+                      isDemo={isShowcaseDemo}
+                      leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
+                    />
                   </div>
                 ))}
               </div>
+              {isShowcaseDemo && (
+                <div className="demo-preview-note">{t.demoPreview}</div>
+              )}
             </section>
           )}
 
@@ -1136,7 +1209,7 @@ export default function App() {
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div className="potm-card-wrap">
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(pmPlayer.id)} cardTotal={cardTotal} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
               </div>
             </div>
           );
@@ -1167,7 +1240,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} cardNumber={cardIndexMap.get(p.id)} cardTotal={cardTotal} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>

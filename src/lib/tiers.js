@@ -1,39 +1,28 @@
-export const TIERS = {
-  bronze:   { label: 'BRONZE',   cls: 't-bronze' },
-  silver:   { label: 'SILVER',   cls: 't-silver' },
-  gold:     { label: 'GOLD',     cls: 't-gold' },
-  platinum: { label: 'PLATINUM', cls: 't-platinum' },
-  diamond:  { label: 'DIAMOND',  cls: 't-diamond' },
-  champion: { label: 'CHAMPION', cls: 't-champion' },
-  legend:   { label: 'LEGEND',   cls: 't-legend' },
-};
+/**
+ * tiers.js — re-exports the card tier system for backwards-compat imports.
+ *
+ * App.jsx, PlayerCard.jsx and PlayerModal.jsx import TIERS/TIER_ORDER/TIER_COLOR/
+ * TIER_GLOW from here. All authoritative definitions now live in
+ * src/config/cardTiers.js.
+ */
+import { CARD_TIERS } from '../config/cardTiers.js';
 
-export const TIER_ORDER = ['legend','champion','diamond','platinum','gold','silver','bronze'];
+// Shape expected by PlayerCard.jsx: { [id]: { label, cls } }
+export const TIERS = Object.fromEntries(
+  CARD_TIERS.map(t => [t.id, { label: t.labelEn, labelFr: t.labelFr, cls: `t-${t.id}` }])
+);
 
-export const TIER_COLOR = {
-  bronze: '#cd9858', silver: '#d7dce2', gold: '#ffd75e',
-  platinum: '#e6ebf1', diamond: '#8ee6ff', champion: '#ffd24a', legend: '#ffcc66',
-};
+// Highest to lowest (used for sorting tiebreaks)
+export const TIER_ORDER = [...CARD_TIERS].reverse().map(t => t.id);
 
-export const TIER_GLOW = { diamond: 1, champion: 1, legend: 1 };
+export const TIER_COLOR = Object.fromEntries(CARD_TIERS.map(t => [t.id, t.color]));
 
-export const RANK_TIERS = [
-  { id: 'bronze',   minRP: 0    },
-  { id: 'silver',   minRP: 150  },
-  { id: 'gold',     minRP: 450  },
-  { id: 'platinum', minRP: 1000 },
-  { id: 'diamond',  minRP: 2200 },
-  { id: 'elite',    minRP: 4500 },
-  { id: 'legend',   minRP: 9000 },
-];
+export const TIER_GLOW  = Object.fromEntries(
+  CARD_TIERS.filter(t => t.glow).map(t => [t.id, 1])
+);
 
-// Platform tier ids → NLS card frames ("elite" wears the CHAMPION frame)
-export const TIER_TO_NLS = {
-  bronze: 'bronze', silver: 'silver', gold: 'gold', platinum: 'platinum',
-  diamond: 'diamond', elite: 'champion', legend: 'legend',
-};
+// Re-export helpers so legacy call-sites still work
+export { getTierIdByPct, getPlayerProgression, CARD_TIERS, TIER_ICON } from '../config/cardTiers.js';
 
-export const NLS_TIER_ICON = {
-  bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '🏅',
-  diamond: '💎', champion: '🏆', legend: '👑',
-};
+// Backwards compat: 'champion' tier id was renamed to 'amethyst'
+TIERS.champion = TIERS.amethyst;

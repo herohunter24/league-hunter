@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LEAGUE_ID } from '../lib/firebase.js';
-import { getPlayerProgression } from '../lib/rp.js';
+import { getPlayerProgression } from '../config/cardTiers.js';
 import { scoutingReport } from '../lib/scouting.js';
 import { PlayerCard } from './PlayerCard.jsx';
 import { TeamBadge } from './TeamBadge.jsx';
@@ -28,7 +28,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
   const ftRaw = sumK('fta') > 0 ? (sumK('ftm') / sumK('fta') * 100) : null;
   const fgPct = fgRaw !== null ? fgRaw.toFixed(1) : null;
   const ftPct = ftRaw !== null ? ftRaw.toFixed(1) : null;
-  const prog = getPlayerProgression(p.rp);
+  const prog = getPlayerProgression(p.tier, p.pctRank ?? 0, p.rp, lang);
   const statCells = [
     [t.ppg, fmtN(p.ppg)], [t.rpg, fmtN(p.rpg)], [t.apg, fmtN(p.apg)],
     [t.spg, fmtN(p.spg || 0)], [t.bpg, fmtN(p.bpg || 0)],
@@ -80,7 +80,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
               {!prog.isMax && <span className="pm-prog-tier" style={{ color: 'var(--ink-soft)' }}>{prog.nextLabel}</span>}
             </div>
             <div className="pm-prog-bar"><div className="pm-prog-fill" style={{ width: prog.pct + '%' }}></div></div>
-            <div className="pm-prog-need">{prog.isMax ? t.maxTier : t.rpToReach(prog.rpNeeded, prog.nextLabel)}</div>
+            <div className="pm-prog-need">{prog.isMax ? t.maxTier : t.pctToReach(Math.ceil(prog.pctNeeded ?? 0), prog.nextLabel)}</div>
 
             <div className="pm-section-t">{t.gameLog}</div>
             {pGames.length > 0 ? (
