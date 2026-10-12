@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TIERS } from '../lib/tiers.js';
 import { SafeImage, PlayerSilhouette, isLegacyOrange } from './SafeImage.jsx';
-import { NLS_LOGO_WHITE } from '../config/league.js';
 import { formatHeight, formatWeight } from '../lib/data.js';
 import lhMark from '../assets/league-hunter-mark-white.svg';
 
@@ -152,23 +151,23 @@ function formatSeason(season) {
   return String(season);
 }
 
-// 0 = try card-logo.png, 1 = try card-logo.svg, 2 = try league logo, 3 = text only
-function cardLogoSrc(leagueId, step) {
+// Steps: 0=card-logo.png, 1=card-logo.svg, 2=league logo from meta, 3=text
+function cardLogoSrc(leagueId, leagueLogoUrl, step) {
   if (leagueId && step === 0) return `/leagues/${leagueId}/card-logo.png`;
   if (leagueId && step === 1) return `/leagues/${leagueId}/card-logo.svg`;
-  if (step <= 2) return NLS_LOGO_WHITE;
+  if (step <= 2 && leagueLogoUrl) return leagueLogoUrl;
   return null;
 }
 
-export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId, leagueName = '', season }) {
+export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId, leagueLogoUrl = '', leagueName = '', season }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
   const teamColor = (team && team.color && !isLegacyOrange(team.color)) ? team.color : 'var(--gold)';
   const holoRef = useHolo(p.tier);
   const [logoStep, setLogoStep] = useState(0);
 
-  const logoSrc = cardLogoSrc(leagueId, logoStep);
-  const showLogoText = logoStep >= 3 || (!leagueId && logoStep >= 2 && !NLS_LOGO_WHITE);
+  const logoSrc = cardLogoSrc(leagueId, leagueLogoUrl, logoStep);
+  const showLogoText = !logoSrc;
 
   const hw = [formatHeight(p.height, units), formatWeight(p.weight, units)].filter(Boolean).join(' · ');
   const seasonLabel = formatSeason(season);

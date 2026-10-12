@@ -102,6 +102,7 @@ export default function App() {
   const leagueId = LEAGUE_ID ? String(LEAGUE_ID) : '';
   const leagueName = computeLeagueName(view.meta);
   const season = computeSeason(view.meta);
+  const leagueLogoUrl = (view.meta?.logoUrl) || '';
 
   // Hidden dev page: ?tiers=preview — shows all 9 tier cards side by side, not linked publicly
   if (tiersPreview) {
@@ -114,7 +115,7 @@ export default function App() {
           {DEMO_ALL_TIERS_PLAYERS.map(p => (
             <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 160 }}>
-                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueId={leagueId} leagueName={leagueName} season={season} />
+                <PlayerCard p={p} lang={lang} t={t} teams={[]} units="imperial" leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
               </div>
               <div style={{ color: '#aaa', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
                 {lang === 'fr' ? p.arch.fr || p.tier : p.arch.en || p.tier}
@@ -865,7 +866,7 @@ export default function App() {
                       onOpen={isShowcaseDemo ? undefined : openPlayerModal}
                       teams={TEAMS} units={view.units}
                       isDemo={isShowcaseDemo}
-                      leagueId={leagueId} leagueName={leagueName} season={season}
+                      leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
                     />
                   </div>
                 ))}
@@ -1208,7 +1209,7 @@ export default function App() {
               <div className="sec-kicker">{t.potmTitle}</div>
               <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
               <div className="potm-card-wrap">
-                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueName={leagueName} season={season} />
+                <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
               </div>
             </div>
           );
@@ -1239,7 +1240,7 @@ export default function App() {
               </div>
               {gridPlayers.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueName={leagueName} season={season} />)}
+                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>
