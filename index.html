@@ -1619,6 +1619,7 @@ function App() {
   const [delTeamTarget, setDelTeamTarget] = useState(null);
   const [delTeamTyped, setDelTeamTyped] = useState("");
   const [delTeamDeletePlayers, setDelTeamDeletePlayers] = useState(true);
+  const [rosterErrors, setRosterErrors] = useState({});  // { [_key]: { firstName?, lastName? } }
   // Calendrier filters
   const [calFilter, setCalFilter] = useState({ team: "", venue: "", status: "" });
   const [calSearch, setCalSearch] = useState("");
@@ -2846,6 +2847,7 @@ function App() {
     });
     setRosterTeam(team);
     setRosterRows(rows);
+    setRosterErrors({});
     setRosterPasteOpen(false);
     setRosterPasteRaw('');
   }
@@ -2887,11 +2889,22 @@ function App() {
     if (!rosterTeam || !league) return;
     const team = rosterTeam;
     const catId = team.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
-    const units = league.units || 'imperial';
 
-    // Validate: no duplicate jersey numbers among active rows
+    // Classify rows: skip fully blank ones, validate partial ones
     const activeRows = rosterRows.filter(r => !r._del);
-    const nums = activeRows.map(r => r.number).filter(Boolean);
+    const newErrs = {};
+    for (const row of activeRows) {
+      const hasAny = row.firstName.trim() || row.lastName.trim() || row.number.trim() || row.position.trim();
+      if (!hasAny) continue; // fully blank → ignore on save
+      if (!row.firstName.trim()) { newErrs[row._key] = { ...newErrs[row._key], firstName: true }; }
+      if (!row.lastName.trim())  { newErrs[row._key] = { ...newErrs[row._key], lastName: true }; }
+    }
+    if (Object.keys(newErrs).length) { setRosterErrors(newErrs); showToast('Prénom et nom requis pour chaque joueur.'); return; }
+    setRosterErrors({});
+
+    // Validate: no duplicate jersey numbers among non-blank active rows
+    const nonBlank = activeRows.filter(r => r.firstName.trim() || r.lastName.trim());
+    const nums = nonBlank.map(r => r.number).filter(Boolean);
     const dupes = nums.filter((n, i) => nums.indexOf(n) !== i);
     if (dupes.length) { showToast(`Numéros en double : ${[...new Set(dupes)].join(', ')}`); return; }
 
@@ -2899,12 +2912,14 @@ function App() {
     try {
       let updatedPlayers = [...league.players];
       let updatedSchedule = [...(league.schedule || [])];
+      let newIdBase = Date.now();
 
       for (const row of rosterRows) {
-        const fullName = [row.firstName, row.lastName].filter(Boolean).join(' ').trim();
+        const fullName = [row.firstName.trim(), row.lastName.trim()].filter(Boolean).join(' ');
         if (row._new && !row._del) {
-          if (!fullName) continue;
-          const newP = { id: Date.now() + Math.random(), name: fullName, number: row.number, position: row.position, team: team.name, teamId: team.id, categoryId: catId };
+          const hasAny = row.firstName.trim() || row.lastName.trim() || row.number.trim() || row.position.trim();
+          if (!hasAny || !fullName) continue; // skip fully blank rows
+          const newP = { id: newIdBase++, name: fullName, number: row.number.trim(), position: row.position.trim(), team: team.name, teamId: team.id, categoryId: catId };
           updatedPlayers.push(newP);
         } else if (!row._new && row._del) {
           // Remove from stats
@@ -2922,7 +2937,7 @@ function App() {
           // Update existing
           updatedPlayers = updatedPlayers.map(p => {
             if (p.id !== row.id) return p;
-            return { ...p, name: fullName || p.name, number: row.number, position: row.position };
+            return { ...p, name: fullName || p.name, number: row.number.trim(), position: row.position.trim() };
           });
         }
       }
@@ -7476,22 +7491,24 @@ service cloud.firestore {
               </div>
 
               {/* Roster table */}
-              <div style={{ overflowY: "auto", flex: 1, marginBottom: 16 }}>
+              <div style={{ overflowY: "auto", overflowX: "auto", flex: 1, marginBottom: 16 }}>
                 {rosterRows.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "32px 0", color: T2, fontSize: 13 }}>Aucun joueur. Clique sur « + Ajouter » pour commencer.</div>
                 ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table style={{ width: "100%", minWidth: 420, borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ fontSize: 11, color: T2 }}>
                         <th style={{ padding: "4px 6px", textAlign: "left", width: 52 }}>#</th>
-                        <th style={{ padding: "4px 6px", textAlign: "left" }}>Prénom</th>
-                        <th style={{ padding: "4px 6px", textAlign: "left" }}>Nom</th>
-                        <th style={{ padding: "4px 6px", textAlign: "left", minWidth: 90 }}>Position</th>
+                        <th style={{ padding: "4px 6px", textAlign: "left", minWidth: 90 }}>Prénom *</th>
+                        <th style={{ padding: "4px 6px", textAlign: "left", minWidth: 90 }}>Nom *</th>
+                        <th style={{ padding: "4px 6px", textAlign: "left", minWidth: 80 }}>Position</th>
                         <th style={{ width: 32 }}></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rosterRows.map((row, ri) => (
+                      {rosterRows.map((row, ri) => {
+                        const errs = rosterErrors[row._key] || {};
+                        return (
                         <tr key={row._key} style={{ opacity: row._del ? 0.4 : 1, background: ri % 2 === 0 ? CARD : SURF }}>
                           <td style={{ padding: "4px 6px" }}>
                             <input value={row.number} onChange={e => rosterUpdateRow(row._key, 'number', e.target.value)}
@@ -7501,16 +7518,16 @@ service cloud.firestore {
                             />
                           </td>
                           <td style={{ padding: "4px 6px" }}>
-                            <input value={row.firstName} onChange={e => rosterUpdateRow(row._key, 'firstName', e.target.value)}
+                            <input value={row.firstName} onChange={e => { rosterUpdateRow(row._key, 'firstName', e.target.value); if (rosterErrors[row._key]?.firstName) setRosterErrors(prev => { const n={...prev}; if(n[row._key]) { delete n[row._key].firstName; if(!Object.keys(n[row._key]).length) delete n[row._key]; } return n; }); }}
                               disabled={row._del} placeholder="Prénom" data-rr={`${ri}-fn`}
-                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13 }}
+                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13, borderColor: errs.firstName ? "#ef4444" : undefined, boxShadow: errs.firstName ? "0 0 0 1px #ef4444" : undefined }}
                               onKeyDown={e => { if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); const next = document.querySelector(`[data-rr="${ri}-ln"]`); if (next) next.focus(); } }}
                             />
                           </td>
                           <td style={{ padding: "4px 6px" }}>
-                            <input value={row.lastName} onChange={e => rosterUpdateRow(row._key, 'lastName', e.target.value)}
+                            <input value={row.lastName} onChange={e => { rosterUpdateRow(row._key, 'lastName', e.target.value); if (rosterErrors[row._key]?.lastName) setRosterErrors(prev => { const n={...prev}; if(n[row._key]) { delete n[row._key].lastName; if(!Object.keys(n[row._key]).length) delete n[row._key]; } return n; }); }}
                               disabled={row._del} placeholder="Nom" data-rr={`${ri}-ln`}
-                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13 }}
+                              style={{ ...inp, padding: "5px 8px", width: "100%", fontSize: 13, borderColor: errs.lastName ? "#ef4444" : undefined, boxShadow: errs.lastName ? "0 0 0 1px #ef4444" : undefined }}
                               onKeyDown={e => { if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); const next = document.querySelector(`[data-rr="${ri}-pos"]`); if (next) next.focus(); } }}
                             />
                           </td>
@@ -7529,7 +7546,8 @@ service cloud.firestore {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -7564,12 +7582,12 @@ service cloud.firestore {
                 );
               })()}
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button onClick={rosterAddRow} style={{ ...btn("#252540") }}>+ Ajouter</button>
-                {!rosterPasteOpen && <button onClick={() => setRosterPasteOpen(true)} style={{ ...btn("#252540") }}>Coller depuis Excel</button>}
-                <div style={{ flex: 1 }} />
-                <button onClick={() => { setRosterTeam(null); setRosterRows([]); }} style={{ ...btn("#252540") }}>Annuler</button>
-                <button onClick={saveRoster} disabled={rosterSaving} style={{ ...btn(), opacity: rosterSaving ? 0.6 : 1 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <button onClick={rosterAddRow} style={{ ...btn("#252540"), minHeight: 36 }}>+ Ajouter</button>
+                {!rosterPasteOpen && <button onClick={() => setRosterPasteOpen(true)} style={{ ...btn("#252540"), minHeight: 36 }}>Coller depuis Excel</button>}
+                <div style={{ flex: 1, minWidth: 8 }} />
+                <button onClick={() => { setRosterTeam(null); setRosterRows([]); setRosterErrors({}); }} style={{ ...btn("#252540"), minHeight: 36 }}>Annuler</button>
+                <button onClick={saveRoster} disabled={rosterSaving} style={{ ...btn(), minHeight: 36, opacity: rosterSaving ? 0.6 : 1 }}>
                   {rosterSaving ? "Sauvegarde…" : "Enregistrer"}
                 </button>
               </div>
