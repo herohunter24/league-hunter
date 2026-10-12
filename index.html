@@ -2524,10 +2524,10 @@ function App() {
       ops.push({ type: 'set', ref: doc(_db, "meta", "sync"), data: { updatedAt: ts } });
 
       // RISK 4 — Batch chunking: Firestore hard limit is 500 ops per batch.
-      // Chunking at 499 means multiple batches are committed sequentially for large leagues.
-      // e.g. 1000 ops → 3 batch commits (499, 499, 2).
-      for (let i = 0; i < ops.length; i += 499) {
-        const chunk = ops.slice(i, i + 499);
+      // Chunking at 450 gives a safety buffer above the 500 limit.
+      // e.g. 1000 ops → 3 batch commits (450, 450, 100).
+      for (let i = 0; i < ops.length; i += 450) {
+        const chunk = ops.slice(i, i + 450);
         const batch = writeBatch(_db);
         for (const op of chunk) {
           if (op.type === 'set') batch.set(op.ref, op.data);
