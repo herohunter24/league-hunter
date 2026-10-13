@@ -315,8 +315,9 @@ describe('users — read / delete', () => {
   it('superadmin can list users', async () => {
     await assertSucceeds(superadminCtx().firestore().collection('users').get());
   });
-  it('owner cannot list users', async () => {
-    await assertFails(ownerCtx().firestore().collection('users').get());
+  it('owner can list users (to query own coordinators)', async () => {
+    // Changed: owner can list so they can query where('leagueId',…).where('role','coordinator')
+    await assertSucceeds(ownerCtx().firestore().collection('users').get());
   });
 });
 
@@ -1109,6 +1110,81 @@ describe('users — owner manages coordinators', () => {
   it('owner cannot delete a coordinator in another league', async () => {
     await assertFails(
       ownerCtx().firestore().doc(`users/${COORD_OTHER_UID}`).delete()
+    );
+  });
+});
+
+// ── Production-shaped game docs (Bug #1) ─────────────────────────────────────
+// Real games in production were created BEFORE the coordinator feature, so
+// they have NO 'locked', NO 'draft', NO 'played' fields.  Rules must NOT
+// throw on missing fields — they must use .get() defaults.
+describe('coordinator — production-shaped docs (no locked/draft fields)', () => {
+  const GAME_PROD = 'game_prod';
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      // Minimal game doc: just id, date, time — no locked, no draft, no played
+      await ctx.firestore().doc(`leagues/${LEAGUE_ID}/games/${GAME_PROD}`).set({
+        id: GAME_PROD, date: '2025-06-01', time: '19:00',
+        home: 'TeamA', away: 'TeamB',
+        // intentionally NO 'locked', 'draft', 'played', 'homeScore', 'awayScore'
+      });
+    });
+  });
+
+  it('coordinator can save draft on a minimal production game doc', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/${GAME_PROD}`).update({
+        draft: { homeScore: 55, awayScore: 48, savedBy: COORD_UID, savedAt: new Date() },
+      })
+    );
+  });
+
+  it('coordinator can write playerStats on a minimal production game doc', async () => {
+    await assertSucceeds(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/${GAME_PROD}/playerStats/player_1`)
+        .set({ points: 18, rebounds: 6, assists: 2, draft: true })
+    );
+  });
+
+  it('coordinator is denied writing extra fields on a production game doc', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/${GAME_PROD}`).update({
+        draft: { homeScore: 55, awayScore: 48 },
+        hackedField: 'bad',
+      })
+    );
+  });
+
+  it('coordinator for other league cannot write to this game', async () => {
+    await assertFails(
+      coordOtherCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/${GAME_PROD}`).update({
+        draft: { homeScore: 55, awayScore: 48, savedBy: COORD_OTHER_UID, savedAt: new Date() },
+      })
+    );
+  });
+});
+
+// ── Owner list users (Bug #3) ────────────────────────────────────────────────
+describe('users — owner list permission', () => {
+  it('owner can list users (to query own coordinators)', async () => {
+    const { getDocs, collection, query, where } = require('@firebase/rules-unit-testing');
+    // The SDK used here doesn't expose query builders — use the Firestore instance directly
+    await assertSucceeds(
+      ownerCtx().firestore().collection('users').where('leagueId', '==', LEAGUE_ID).where('role', '==', 'coordinator').get()
+    );
+  });
+
+  it('coordinator cannot list users', async () => {
+    await assertFails(
+      coordCtx().firestore().collection('users').get()
+    );
+  });
+
+  it('stranger cannot list users', async () => {
+    await assertFails(
+      strangerCtx().firestore().collection('users').get()
     );
   });
 });

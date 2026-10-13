@@ -919,6 +919,7 @@ function isGameAwaiting(game) {
 }
 // "SCORE À ENTRER": game started + 60 min ago, not yet locked/played
 const SCORE_DELAY_MIN = 60;
+const COORDINATOR_ALLOWED_TABS = new Set(["today", "schedule", "scores", "public"]);
 function isNeedingScore(game) {
   if (game.locked || game.played) return false;
   const gdt = getGameDateTime(game);
@@ -1881,7 +1882,7 @@ function App() {
 
   // ── ANALYTICS: real-time visitor count (unique sessions in last 5 min) ──
   useEffect(() => {
-    if (tab !== 'settings' || !selId || !__fbReady || !_db) return;
+    if (tab !== 'settings' || !selId || !__fbReady || !_db || user?.role === 'owner') return;
     const { collection, query, where, onSnapshot } = _FS;
     if (!query || !where || !onSnapshot) return;
     let unsub = null;
@@ -1903,7 +1904,7 @@ function App() {
 
   // ── ANALYTICS: views aggregated by day for the selected range ──
   useEffect(() => {
-    if (tab !== 'settings' || !selId || !__fbReady || !_db) return;
+    if (tab !== 'settings' || !selId || !__fbReady || !_db || user?.role === 'owner') return;
     const { collection, query, where, orderBy, getDocs } = _FS;
     if (!query || !where || !orderBy || !getDocs) return;
     let cancelled = false;
@@ -2106,13 +2107,25 @@ function App() {
   }, []);
 
   // ── USERS LOAD FROM FIRESTORE ──
+  // Coordinator: never loads users (no permission).
+  // Owner: loads only coordinators for their own league.
+  // Superadmin: loads all users.
   useEffect(() => {
-    if (!__fbReady) return;
-    const { getDocs, collection } = _FS;
-    getDocs(collection(_db, "users"))
-      .then(snap => { if (!snap.empty) setUsers(snap.docs.map(d => d.data())); })
+    if (!__fbReady || !user) return;
+    if (user.role === "coordinator") return; // coordinators don't need the users list
+    const { getDocs, collection, query, where } = _FS;
+    let q;
+    if (user.role === "owner" && user.leagueId) {
+      q = query(collection(_db, "users"), where("leagueId", "==", user.leagueId), where("role", "==", "coordinator"));
+    } else if (user.role === "superadmin") {
+      q = collection(_db, "users");
+    } else {
+      return;
+    }
+    getDocs(q)
+      .then(snap => { if (!snap.empty) setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))); })
       .catch(e => console.error("Users load:", e));
-  }, []);
+  }, [user?.uid]);
 
 
   // ── FIREBASE AUTH — restore session across reloads ──
@@ -2474,7 +2487,7 @@ function App() {
   function showToast(msg, type) {
     if (!type) {
       if (msg.includes("⚠️") || msg.toLowerCase().includes("conflict") || msg.toLowerCase().includes("warn")) type = "warning";
-      else if (msg.includes("❌") || msg.toLowerCase().includes("fail") || msg.toLowerCase().includes("error")) type = "error";
+      else if (msg.includes("❌") || msg.toLowerCase().includes("fail") || msg.toLowerCase().includes("error") || msg.toLowerCase().includes("erreur") || msg.toLowerCase().includes("refus") || msg.toLowerCase().includes("insuffi")) type = "error";
       else if (msg.includes("ℹ") || msg.toLowerCase().includes("info")) type = "info";
       else type = "success";
     }
@@ -2483,7 +2496,11 @@ function App() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }
   function dismissToast(id) { setToasts(prev => prev.filter(t => t.id !== id)); }
-  function handleTabSwitch(t) { if (dirty) { setPendingNavTab(t); } else { setTab(t); } }
+  function handleTabSwitch(t) {
+    // Coordinators are restricted to specific tabs — silently redirect anything else to "today"
+    if (user?.role === "coordinator" && !COORDINATOR_ALLOWED_TABS.has(t)) { t = "today"; }
+    if (dirty) { setPendingNavTab(t); } else { setTab(t); }
+  }
   function handleBack() { if (dirty) { setPendingNavTab("__dashboard__"); } else { setPage("dashboard"); setSelId(null); } }
   function handleLogout() { if (dirty) { setPendingNavTab("__logout__"); } else { logout(); } }
   function handleSave() { setPendingSave(true); }
@@ -2907,7 +2924,13 @@ function App() {
         active: true, mustChangePassword: true, createdAt: new Date().toISOString().slice(0, 10),
       };
       const { setDoc, doc } = _FS;
-      await setDoc(doc(_db, "users", newUid), newCoordDoc);
+      try {
+        await setDoc(doc(_db, "users", newUid), newCoordDoc);
+      } catch(fsErr) {
+        // Firestore write failed — delete the orphaned Auth account
+        try { await (authFns.deleteUser ? authFns.deleteUser(cred.user) : cred.user.delete()); } catch {}
+        throw fsErr;
+      }
       setUsers(prev => [...prev, { ...newCoordDoc, id: newUid }]);
       setNewCoord({ username: "", displayName: "", venue: "", tempPassword: "" });
       setCreatedCreds({ username: u, password: tempPassword, leagueName: leagues.find(l => l.id === leagueId)?.name || "Ligue", isReset: false });
@@ -4105,7 +4128,7 @@ function App() {
                           <td style={{ padding: "14px 16px", fontSize: 13, color: T2 }}>{l.sport}</td>
                           <td style={{ padding: "14px 16px", fontSize: 13 }}>
                             {lOwners.length > 0
-                              ? lOwners.map(o => <div key={o.id} style={{ color: T1, fontSize: 13 }}>{o.email}</div>)
+                              ? lOwners.map(o => <div key={o.id} style={{ color: T1, fontSize: 13 }}>{o.username || o.displayName || o.email || o.id}</div>)
                               : <span style={{ color: T2, fontStyle: "italic" }}>Aucun responsable</span>}
                           </td>
                           <td style={{ padding: "14px 16px", fontWeight: 700, fontSize: 15, color: T1 }}>{l.teams.length}</td>
@@ -4249,7 +4272,7 @@ function App() {
                     <div>
                       <label style={lbl}>Nom d'utilisateur</label>
                       <input style={inp} value={newOwner.username}
-                        onChange={e => setNewOwner(o => ({ ...o, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                        onChange={e => setNewOwner(o => ({ ...o, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
                         placeholder="ex: nls_owner" autoCapitalize="none" />
                     </div>
                     <div>
@@ -4281,7 +4304,7 @@ function App() {
                       <div>
                         <label style={lbl}>Nouveau nom d'utilisateur</label>
                         <input style={inp} value={resetAccessForm.newUsername}
-                          onChange={e => setResetAccessForm(f => ({ ...f, newUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                          onChange={e => setResetAccessForm(f => ({ ...f, newUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
                           placeholder={targetOwner?.username} autoCapitalize="none" />
                       </div>
                       <div>
@@ -4593,7 +4616,8 @@ function App() {
             {/* Nav sections */}
             <div style={{ flex: 1, padding: "8px 0" }}>
               {(() => {
-                const scoreNeededCount = (catSchedule || []).filter(g => isNeedingScore(g)).length;
+                const coordAssignedVenue = user?.role === "coordinator" ? (user?.venue || "").trim() : "";
+                const scoreNeededCount = (catSchedule || []).filter(g => isNeedingScore(g) && (!coordAssignedVenue || (g.venue || g.gym || "") === coordAssignedVenue)).length;
                 return visibleTabs.map(([t, label]) => (
                   <button key={t} className={`wx-sidebar-item${tab === t ? " active" : ""}`}
                     onClick={() => { handleTabSwitch(t); setMoreSheetOpen(false); }}>
@@ -4695,7 +4719,8 @@ function App() {
                 const db = getGameDateTime(b) || new Date((b.date||"9999")+"T00:00");
                 return da - db;
               });
-            const todayMissing = catSchedule.filter(g => isGamePast(g) && (g.homeScore === undefined || g.awayScore === undefined));
+            const ownerVenueForCount = coordVenue || "";
+            const todayMissing = catSchedule.filter(g => isNeedingScore(g) && (!ownerVenueForCount || (g.venue || g.gym || "Non précisé") === ownerVenueForCount));
             // Group by gym
             const gymMap = {};
             todayGames.forEach(g => {
@@ -4757,7 +4782,7 @@ function App() {
                   await saveDraft(coordGame.id, hs, as, coordDraft.stats);
                   setCoordLastSaved(new Date().toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" }));
                   showToast("Brouillon sauvegardé ✓");
-                } catch(e) { showToast("Erreur : " + (e.message || "inconnue")); }
+                } catch(e) { showToast("Enregistrement refusé — vérifie ta connexion ou contacte le responsable.", "error"); console.error("[saveDraft]", e); }
                 finally { setCoordSaving(false); }
               };
 
@@ -4785,7 +4810,7 @@ function App() {
                   await lockScore(coordGame.id, hs, as, coordDraft.stats);
                   setCoordGame(null); setCoordLocking(false); setCoordPtsWarning(null);
                   showToast("Match verrouillé ✓");
-                } catch(e) { showToast("Erreur : " + (e.message || "inconnue")); }
+                } catch(e) { showToast("Enregistrement refusé — vérifie ta connexion ou contacte le responsable.", "error"); console.error("[lockScore]", e); }
                 finally { setCoordSaving(false); }
               };
 
@@ -4913,15 +4938,27 @@ function App() {
               return (
                 <div style={{ maxWidth: 480, margin: "0 auto" }}>
                   {/* Title + venue selector */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
-                    {allVenues.length > 0 && (
-                      <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }} value={activeVenue} onChange={e => setCoordVenue(e.target.value)}>
-                        {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
-                        <option value="">Tous les gymnases</option>
-                      </select>
-                    )}
-                  </div>
+                  {(() => {
+                    const assignedVenue = (user?.venue || "").trim();
+                    const isLocked = !!assignedVenue;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
+                        {allVenues.length > 0 && (
+                          isLocked ? (
+                            <span style={{ ...inp, padding: "6px 12px", fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6, cursor: "default", opacity: 0.85 }}>
+                              🏟 {assignedVenue}
+                            </span>
+                          ) : (
+                            <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }} value={activeVenue} onChange={e => setCoordVenue(e.target.value)}>
+                              {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
+                              <option value="">Tous les gymnases</option>
+                            </select>
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
                   {/* Notification CTA */}
                   {!notifGranted && !notifRefused && notifAvailable && (
                     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -4960,12 +4997,19 @@ function App() {
                               {hasDraft && !g.played && <span style={{ marginLeft: 8, fontSize: 11, color: T2, fontWeight: 400 }}>brouillon</span>}
                             </div>
                           )}
-                          {status !== "locked" && (
-                            <button onClick={() => openCoordGame(g)}
-                              style={{ marginTop: 12, width: "100%", ...btn(displayScore ? "#1e293b" : ACC), fontSize: 13, border: displayScore ? `1px solid ${BORDER}` : "none", justifyContent: "center" }}>
-                              {displayScore ? "Modifier" : "Entrer le score"}
-                            </button>
-                          )}
+                          {status !== "locked" && (() => {
+                            // For coordinators, only allow score entry from 15 min before start
+                            const EARLY_MIN = 15;
+                            const gdt = getGameDateTime(g);
+                            const earlyEnough = !gdt || (Date.now() >= gdt.getTime() - EARLY_MIN * 60000);
+                            if (!earlyEnough) return null;
+                            return (
+                              <button onClick={() => openCoordGame(g)}
+                                style={{ marginTop: 12, width: "100%", ...btn(displayScore ? "#1e293b" : ACC), fontSize: 13, border: displayScore ? `1px solid ${BORDER}` : "none", justifyContent: "center" }}>
+                                {displayScore ? "Modifier" : "Entrer le score"}
+                              </button>
+                            );
+                          })()}
                         </div>
                       );
                     })
@@ -6360,7 +6404,7 @@ function App() {
                             <div style={{ flex: 1, minWidth: 140 }}>
                               <label style={lbl}>Nom d'utilisateur</label>
                               <input style={inp} value={newCoord.username}
-                                onChange={e => setNewCoord(c => ({ ...c, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                                onChange={e => setNewCoord(c => ({ ...c, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
                                 placeholder="ex: coord_nls" autoCapitalize="none" />
                             </div>
                             <div style={{ flex: 1, minWidth: 140 }}>
@@ -6408,7 +6452,7 @@ function App() {
                             <div style={{ flex: 1, minWidth: 140 }}>
                               <label style={lbl}>Nouveau nom d'utilisateur</label>
                               <input style={inp} value={resetCoordForm.newUsername}
-                                onChange={e => setResetCoordForm(f => ({ ...f, newUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                                onChange={e => setResetCoordForm(f => ({ ...f, newUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
                                 placeholder={targetCoord?.username} autoCapitalize="none" />
                             </div>
                             <div style={{ flex: 1, minWidth: 140 }}>
@@ -6702,7 +6746,7 @@ function App() {
               </div>
 
               {/* ── ANALYTICS DASHBOARD ── */}
-              {(() => {
+              {user?.role !== 'owner' && (() => {
                 const totalViews = anDays.reduce((s, d) => s + d.total, 0);
                 const maxDay = anDays.reduce((m, d) => Math.max(m, d.total), 0) || 1;
                 const sections = {};
@@ -7637,9 +7681,11 @@ service cloud.firestore {
         {/* ── GLOBAL SEARCH OVERLAY (Ctrl+K) ── */}
         {searchOpen && (() => {
           const q = searchQuery.toLowerCase().trim();
-          const teamResults = q ? catTeams.filter(t => t.name?.toLowerCase().includes(q)).map(t => ({ type: "team", label: t.name, sub: "Équipe", action: () => { handleTabSwitch("teams"); setSearchOpen(false); } })) : [];
-          const playerResults = q ? catPlayers.filter(p => p.name?.toLowerCase().includes(q) || p.number?.toString().includes(q)).map(p => ({ type: "player", label: p.name, sub: `#${p.number || "?"} · ${p.team || ""}`, action: () => { handleTabSwitch("players"); setSearchOpen(false); } })) : [];
-          const results = [...teamResults, ...playerResults].slice(0, 12);
+          const isCoord = user?.role === "coordinator";
+          const teamResults = (!isCoord && q) ? catTeams.filter(t => t.name?.toLowerCase().includes(q)).map(t => ({ type: "team", label: t.name, sub: "Équipe", action: () => { handleTabSwitch("teams"); setSearchOpen(false); } })) : [];
+          const playerResults = (!isCoord && q) ? catPlayers.filter(p => p.name?.toLowerCase().includes(q) || p.number?.toString().includes(q)).map(p => ({ type: "player", label: p.name, sub: `#${p.number || "?"} · ${p.team || ""}`, action: () => { handleTabSwitch("players"); setSearchOpen(false); } })) : [];
+          const gameResults = (isCoord && q) ? (catSchedule || []).filter(g => (g.home + " " + g.away).toLowerCase().includes(q)).slice(0, 8).map(g => ({ type: "game", label: `${g.home} vs ${g.away}`, sub: g.date || "", action: () => { handleTabSwitch("schedule"); setSearchOpen(false); } })) : [];
+          const results = [...teamResults, ...playerResults, ...gameResults].slice(0, 12);
           return (
             <div onClick={() => setSearchOpen(false)} style={{ position: "fixed", inset: 0, background: "#00000085", zIndex: 900, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 80 }}>
               <div onClick={e => e.stopPropagation()} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, width: "100%", maxWidth: 520, boxShadow: "0 24px 60px #00000090", overflow: "hidden" }}>
@@ -7651,7 +7697,7 @@ service cloud.firestore {
                       if (e.key === "ArrowUp")   { e.preventDefault(); setSearchFocusIdx(i => Math.max(i-1, 0)); }
                       if (e.key === "Enter" && results[searchFocusIdx]) results[searchFocusIdx].action();
                     }}
-                    placeholder="Rechercher équipes ou joueurs…"
+                    placeholder={user?.role === "coordinator" ? "Rechercher un match…" : "Rechercher équipes ou joueurs…"}
                     style={{ flex: 1, background: "none", border: "none", outline: "none", color: T1, fontSize: 16 }} />
                   <kbd style={{ fontSize: 10, background: SURF, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "2px 7px", color: T2 }}>Échap</kbd>
                 </div>
@@ -7662,7 +7708,7 @@ service cloud.firestore {
                   <button key={i} onClick={r.action}
                     style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: i === searchFocusIdx ? ACC+"18" : "none", border: "none", padding: "12px 18px", cursor: "pointer", textAlign: "left", borderBottom: i < results.length-1 ? `1px solid ${BORDER}` : "none" }}
                     onMouseEnter={() => setSearchFocusIdx(i)}>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: T2, letterSpacing: 1, width: 44, flexShrink: 0 }}>{r.type === "team" ? "Équipe" : "Joueur"}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: T2, letterSpacing: 1, width: 44, flexShrink: 0 }}>{r.type === "team" ? "Équipe" : r.type === "game" ? "Match" : "Joueur"}</span>
                     <span style={{ flex: 1 }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: T1 }}>{r.label}</span>
                       <span style={{ fontSize: 12, color: T2, marginLeft: 8 }}>{r.sub}</span>

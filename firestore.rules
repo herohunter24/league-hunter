@@ -13,22 +13,22 @@ service cloud.firestore {
     // Superadmin: role field in users/{uid} doc.
     // No email_verified required — internal @websitex.app emails aren't verifiable.
     function isSuperAdmin() {
-      return request.auth != null && callerDoc().role == 'superadmin';
+      return request.auth != null && callerDoc().get('role', '') == 'superadmin';
     }
 
     // League owner: role == 'owner' AND leagueId matches.
     function isLeagueOwner(leagueId) {
       return request.auth != null
-          && callerDoc().role == 'owner'
-          && callerDoc().leagueId == leagueId;
+          && callerDoc().get('role', '') == 'owner'
+          && callerDoc().get('leagueId', '') == leagueId;
     }
 
     // League coordinator: role == 'coordinator' AND leagueId matches AND not deactivated.
     function isLeagueCoordinator(leagueId) {
       return request.auth != null
-          && callerDoc().role == 'coordinator'
-          && callerDoc().leagueId == leagueId
-          && callerDoc().active != false;
+          && callerDoc().get('role', '') == 'coordinator'
+          && callerDoc().get('leagueId', '') == leagueId
+          && callerDoc().get('active', true) != false;
     }
 
     // Any signed-in user (for narrow public-site writes like votes and subscriptions)
@@ -40,9 +40,9 @@ service cloud.firestore {
     // Cannot create owner or superadmin docs (role must be 'coordinator').
     function isOwnerCreatingCoordinator() {
       return request.auth != null
-          && callerDoc().role == 'owner'
-          && request.resource.data.role == 'coordinator'
-          && request.resource.data.leagueId == callerDoc().leagueId
+          && callerDoc().get('role', '') == 'owner'
+          && request.resource.data.get('role', '') == 'coordinator'
+          && request.resource.data.get('leagueId', '') == callerDoc().get('leagueId', '')
           && request.resource.data.keys().hasOnly([
                'role', 'leagueId', 'venue', 'displayName',
                'active', 'mustChangePassword', 'username', 'createdAt'
@@ -53,9 +53,9 @@ service cloud.firestore {
     // The existing doc must have role=='coordinator' and the same leagueId as the owner.
     function isOwnerUpdatingCoordinator() {
       return request.auth != null
-          && callerDoc().role == 'owner'
-          && resource.data.role == 'coordinator'
-          && resource.data.leagueId == callerDoc().leagueId
+          && callerDoc().get('role', '') == 'owner'
+          && resource.data.get('role', '') == 'coordinator'
+          && resource.data.get('leagueId', '') == callerDoc().get('leagueId', '')
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['active', 'mustChangePassword', 'username', 'venue', 'displayName']);
     }
@@ -63,9 +63,9 @@ service cloud.firestore {
     // Owner can delete a coordinator doc in their own league (used by resetCoordAccess).
     function isOwnerDeletingCoordinator() {
       return request.auth != null
-          && callerDoc().role == 'owner'
-          && resource.data.role == 'coordinator'
-          && resource.data.leagueId == callerDoc().leagueId;
+          && callerDoc().get('role', '') == 'owner'
+          && resource.data.get('role', '') == 'coordinator'
+          && resource.data.get('leagueId', '') == callerDoc().get('leagueId', '');
     }
 
 
@@ -87,8 +87,14 @@ service cloud.firestore {
     // Self: may flip mustChangePassword true → false (first-login confirmation).
     // Coordinator: cannot read other users, cannot create/modify any user doc.
     match /users/{userId} {
-      allow get:    if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId);
-      allow list:   if isSuperAdmin();
+      allow get:    if isSuperAdmin()
+                    || (isSignedIn() && request.auth.uid == userId)
+                    || (isSignedIn() && callerDoc().get('role', '') == 'owner'
+                        && resource.data.get('role', '') == 'coordinator'
+                        && resource.data.get('leagueId', '') == callerDoc().get('leagueId', ''));
+      // Owner may list only to query coordinators for their own league.
+      allow list:   if isSuperAdmin()
+                    || (isSignedIn() && callerDoc().get('role', '') == 'owner');
       allow create: if isSuperAdmin() || isOwnerCreatingCoordinator();
       allow update: if isSuperAdmin()
                     || isOwnerUpdatingCoordinator()
