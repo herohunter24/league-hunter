@@ -18,7 +18,8 @@
   import { initializeApp }                                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, doc, getDocs, getDoc, setDoc,
            onSnapshot, deleteDoc, writeBatch, updateDoc,
-           deleteField, query, where, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+           deleteField, query, where, orderBy, arrayUnion, arrayRemove,
+           serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes,
            getDownloadURL }                                         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
@@ -54,7 +55,7 @@
       window.__wxDB      = db;
       window.__wxAuth    = auth;
       window.__wxStorage = storage;
-      window.__wxFS      = { collection, doc, getDocs, getDoc, setDoc, onSnapshot, deleteDoc, writeBatch, updateDoc, deleteField, query, where, orderBy, arrayUnion, arrayRemove };
+      window.__wxFS      = { collection, doc, getDocs, getDoc, setDoc, onSnapshot, deleteDoc, writeBatch, updateDoc, deleteField, query, where, orderBy, arrayUnion, arrayRemove, serverTimestamp };
       window.__wxST      = { storageRef, uploadBytes, getDownloadURL };
       window.__wxAuthFns = { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, onAuthStateChanged, signOut };
       // Mark ready BEFORE the secondary-app await so DOMContentLoaded / Babel always
@@ -1625,6 +1626,12 @@ function App() {
   const [coordError, setCoordError] = useState("");
   const [manageCoordLeagueId, setManageCoordLeagueId] = useState(null);
   const [resetCoordForm, setResetCoordForm] = useState({ coordId: null, newUsername: "", tempPassword: "" });
+  // Coordinator scorekeeping (Phase 3)
+  const [coordGame, setCoordGame] = useState(null);       // game being edited
+  const [coordDraft, setCoordDraft] = useState({ homeScore: "", awayScore: "", stats: {} });
+  const [coordVenue, setCoordVenue] = useState(null);     // selected venue filter
+  const [coordLocking, setCoordLocking] = useState(false); // lock-confirm dialog open
+  const [coordSaving, setCoordSaving] = useState(false);
   // Calendrier filters
   const [calFilter, setCalFilter] = useState({ team: "", venue: "", status: "" });
   const [calSearch, setCalSearch] = useState("");
@@ -1778,6 +1785,8 @@ function App() {
   // Tracks the last-written sub-collection state per league so writeLeagueNow can diff
   // Structure: { [leagueId]: { teams: {id→doc}, players: {id→doc}, games: {id→doc}, stats: {gameId→{playerId→doc}} } }
   const subcolData = useRef({});
+  const coordNotifRef  = useRef(new Set()); // gameIds already notified (60-min alert)
+  const coordTimersRef = useRef([]);        // setTimeout handles for cleanup
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   // Reset add-forms when switching tabs so stale input doesn't persist
@@ -1925,6 +1934,39 @@ function App() {
       setSubsLoading(false);
     });
   }, [tab, selId]);
+
+  // ── Coordinator: 60-min pre-game browser notifications ──
+  useEffect(() => {
+    if (user?.role !== "coordinator") return;
+    const lg = leagues.find(l => l.id === selId);
+    if (!lg) return;
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+    coordTimersRef.current.forEach(clearTimeout);
+    coordTimersRef.current = [];
+    const todayG = (lg.schedule || []).filter(g => isGameToday(g) && !g.locked);
+    todayG.forEach(g => {
+      const gdt = getGameDateTime(g);
+      if (!gdt) return;
+      const delay = gdt.getTime() - 60 * 60 * 1000 - Date.now();
+      if (delay > 0 && !coordNotifRef.current.has(String(g.id))) {
+        const t = setTimeout(() => {
+          coordNotifRef.current.add(String(g.id));
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              new Notification("Match dans 60 minutes", {
+                body: `${g.home || g.homeTeam || ""} vs ${g.away || g.awayTeam || ""} à ${g.time || ""}`,
+                tag: "coord-game-" + g.id,
+              });
+            } catch(e) { console.warn("Notification:", e); }
+          }
+        }, delay);
+        coordTimersRef.current.push(t);
+      }
+    });
+    return () => { coordTimersRef.current.forEach(clearTimeout); coordTimersRef.current = []; };
+  }, [user?.role, selId, leagues]);
 
   // ── INITIAL DATA LOAD ──
   // Returns true if str contains at least one Unicode emoji character.
@@ -2175,7 +2217,9 @@ function App() {
       const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
       if (!userSnap.exists()) {
         console.warn("[Auth] resolveFirebaseUser: no users doc for uid", firebaseUser.uid);
-        setErr("Compte sans accès. Contacte ton administrateur.");
+        const _authRef = window.__wxAuth; const { signOut: _signOut } = window.__wxAuthFns || {};
+        if (_authRef && _signOut) _signOut(_authRef).catch(() => {});
+        setErr("Accès désactivé. Contacte le responsable de ta ligue.");
         setPage("login"); setAuthChecked(true); return;
       }
       const userData = userSnap.data();
@@ -2203,7 +2247,9 @@ function App() {
 
       if (u.role === "coordinator") {
         if (u.active === false) {
-          setErr("Ton compte est désactivé. Contacte ton administrateur.");
+          const _authRef = window.__wxAuth; const { signOut: _signOut } = window.__wxAuthFns || {};
+          if (_authRef && _signOut) _signOut(_authRef).catch(() => {});
+          setErr("Accès désactivé. Contacte le responsable de ta ligue.");
           setPage("login"); setAuthChecked(true); return;
         }
         setUser(u);
@@ -2571,6 +2617,57 @@ function App() {
       };
 
     } catch(e) { console.error("Firestore writeLeagueNow:", e); }
+  }
+
+  // Coordinator-only minimal writer: uses updateDoc so only the listed fields are
+  // touched — an unrelated field difference can never make the whole batch fail.
+  async function writeCoordinatorScore(gameId, scoreFields, statsMap, shouldLock) {
+    if (!__fbReady || !selId || !_db) return;
+    const { doc, updateDoc, setDoc, serverTimestamp } = _FS;
+    if (!doc || !updateDoc || !setDoc || !serverTimestamp) {
+      console.error("writeCoordinatorScore: Firestore helpers not ready"); return;
+    }
+    const lid = String(selId);
+    const gid = String(gameId);
+    const ts  = Date.now();
+
+    const gameUpdate = { ...scoreFields };
+    if (shouldLock) {
+      gameUpdate.locked   = true;
+      gameUpdate.lockedBy = user.uid;
+      gameUpdate.lockedAt = serverTimestamp(); // must be serverTimestamp() for Firestore rules
+    }
+    await updateDoc(doc(_db, "leagues", lid, "games", gid), gameUpdate);
+
+    for (const [pid, stats] of Object.entries(statsMap || {})) {
+      const clean = Object.fromEntries(Object.entries(stats).filter(([, v]) => v !== undefined && v !== ""));
+      if (Object.keys(clean).length > 0)
+        await setDoc(doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)), clean);
+    }
+
+    await updateDoc(doc(_db, "leagues", lid), { _updatedAt: ts });
+    await setDoc(doc(_db, "leagues", lid, "meta", "sync"), { updatedAt: ts });
+
+    // Optimistic local update so the UI reflects the save immediately
+    setLeagues(prev => prev.map(l => {
+      if (l.id !== selId) return l;
+      return {
+        ...l,
+        _updatedAt: ts,
+        schedule: (l.schedule || []).map(g => {
+          if (String(g.id) !== gid) return g;
+          const upd = { ...g, ...scoreFields };
+          if (shouldLock) { upd.locked = true; upd.lockedBy = user.uid; }
+          const newStats = { ...(g.playerStats || {}) };
+          for (const [pid, stats] of Object.entries(statsMap || {})) {
+            const clean = Object.fromEntries(Object.entries(stats).filter(([, v]) => v !== undefined && v !== ""));
+            if (Object.keys(clean).length > 0) newStats[pid] = clean;
+          }
+          upd.playerStats = newStats;
+          return upd;
+        }),
+      };
+    }));
   }
 
   async function confirmSave() {
@@ -4534,6 +4631,243 @@ function App() {
               if (!gymMap[gym]) gymMap[gym] = [];
               gymMap[gym].push(g);
             });
+
+            // ── COORDINATOR BRANCH ──────────────────────────────────────────────
+            if (user?.role === "coordinator") {
+              const activeVenue = coordVenue !== null ? coordVenue : (user?.venue || "");
+              const allVenues = [...new Set(todayGames.map(g => g.venue || g.gym || "Non précisé"))].sort();
+              if (activeVenue && !allVenues.includes(activeVenue)) allVenues.unshift(activeVenue);
+
+              const coordTodayGames = activeVenue
+                ? todayGames.filter(g => (g.venue || g.gym || "Non précisé") === activeVenue)
+                : todayGames;
+
+              const getCoordStatus = (g) => {
+                if (g.locked) return "locked";
+                if (g.homeScore !== undefined && g.awayScore !== undefined) return "final";
+                if (isGameLive(g, sport)) return "live";
+                const gdt = getGameDateTime(g);
+                if (gdt && (gdt - Date.now()) / 60000 <= 60 && (gdt - Date.now()) > 0) return "soon";
+                return "upcoming";
+              };
+
+              const openCoordGame = (g) => {
+                const gamePlayers = (league.players || []).filter(p => p.team === g.home || p.team === g.away);
+                const initStats = {};
+                gamePlayers.forEach(p => { initStats[p.id] = { ...(g.playerStats?.[p.id] || {}) }; });
+                setCoordGame(g);
+                setCoordLocking(false);
+                setCoordDraft({
+                  homeScore: g.homeScore !== undefined ? String(g.homeScore) : "",
+                  awayScore: g.awayScore !== undefined ? String(g.awayScore) : "",
+                  stats: initStats,
+                });
+              };
+
+              const saveCoordDraft = async (shouldLock) => {
+                const hs = parseInt(coordDraft.homeScore);
+                const as = parseInt(coordDraft.awayScore);
+                if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) {
+                  showToast("Scores invalides."); return;
+                }
+                setCoordSaving(true);
+                try {
+                  await writeCoordinatorScore(
+                    coordGame.id,
+                    { homeScore: hs, awayScore: as, played: true },
+                    coordDraft.stats,
+                    shouldLock
+                  );
+                  if (shouldLock) { setCoordGame(null); setCoordLocking(false); showToast("Match verrouillé ✓"); }
+                  else showToast("Brouillon sauvegardé ✓");
+                } catch(e) {
+                  showToast("Erreur : " + (e.message || "inconnue"));
+                } finally { setCoordSaving(false); }
+              };
+
+              // ── GAME DETAIL VIEW ───────────────────────────────────────────────
+              if (coordGame) {
+                const g = coordGame;
+                const gamePlayers = (league.players || []).filter(p => p.team === g.home || p.team === g.away);
+                const homePs = gamePlayers.filter(p => p.team === g.home);
+                const awayPs = gamePlayers.filter(p => p.team === g.away);
+                const statCols = (SPORT_STATS[sport] || []).filter(s => !s.isPct && getToggles(league)[s.key] !== false);
+                const renderStatsTable = (players) => (
+                  <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: "4px 6px", color: T2, fontWeight: 600, minWidth: 80 }}>Joueur</th>
+                          {statCols.map(c => (
+                            <th key={c.key} style={{ padding: "4px 4px", color: T2, fontWeight: 600, minWidth: 44, textAlign: "center" }}>{c.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {players.map(p => (
+                          <tr key={p.id} style={{ borderTop: `1px solid ${BORDER}` }}>
+                            <td style={{ padding: "6px 6px", color: T1, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {(p.firstName ? p.firstName + " " + (p.lastName || "") : p.name || "").trim() || "Joueur"}
+                            </td>
+                            {statCols.map(c => (
+                              <td key={c.key} style={{ padding: "4px 2px", textAlign: "center" }}>
+                                <input type="number" min="0"
+                                  style={{ width: 40, background: SURF, border: `1px solid ${BORDER}`, borderRadius: 5, color: T1, fontSize: 12, padding: "4px 2px", textAlign: "center", outline: "none", MozAppearance: "textfield" }}
+                                  value={coordDraft.stats?.[p.id]?.[c.key] ?? ""}
+                                  onChange={e => {
+                                    const val = e.target.value === "" ? undefined : Math.max(0, parseInt(e.target.value) || 0);
+                                    setCoordDraft(d => ({ ...d, stats: { ...d.stats, [p.id]: { ...(d.stats[p.id] || {}), [c.key]: val } } }));
+                                  }} />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+                return (
+                  <div style={{ maxWidth: 480, margin: "0 auto" }}>
+                    <button onClick={() => setCoordGame(null)} style={{ background: "none", border: "none", color: ACC, fontSize: 13, cursor: "pointer", padding: "0 0 16px", display: "flex", alignItems: "center", gap: 4 }}>
+                      ← Retour
+                    </button>
+                    {/* Game header */}
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
+                      <div style={{ fontSize: 12, color: T2 }}>{g.time || ""}{ g.venue ? " · " + g.venue : ""}</div>
+                      {g.locked && <div style={{ marginTop: 8, fontSize: 11, color: "#f59e0b", fontWeight: 600 }}>🔒 Match verrouillé — lecture seule</div>}
+                    </div>
+                    {/* Score inputs */}
+                    {!g.locked && (
+                      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: T2, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.8 }}>Score</div>
+                        <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, color: T2, marginBottom: 4 }}>{g.home}</div>
+                            <input type="number" min="0"
+                              style={{ ...inp, fontSize: 24, fontWeight: 800, textAlign: "center", padding: "10px 8px" }}
+                              value={coordDraft.homeScore}
+                              onChange={e => setCoordDraft(d => ({ ...d, homeScore: e.target.value }))} />
+                          </div>
+                          <div style={{ paddingBottom: 12, color: T2, fontWeight: 700, fontSize: 18 }}>–</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, color: T2, marginBottom: 4 }}>{g.away}</div>
+                            <input type="number" min="0"
+                              style={{ ...inp, fontSize: 24, fontWeight: 800, textAlign: "center", padding: "10px 8px" }}
+                              value={coordDraft.awayScore}
+                              onChange={e => setCoordDraft(d => ({ ...d, awayScore: e.target.value }))} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {/* Stats tables */}
+                    {!g.locked && statCols.length > 0 && (
+                      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: T2, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.8 }}>Stats joueurs</div>
+                        {homePs.length > 0 && <div style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: ACC, marginBottom: 8 }}>{g.home}</div>
+                          {renderStatsTable(homePs)}
+                        </div>}
+                        {awayPs.length > 0 && <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: ACC, marginBottom: 8 }}>{g.away}</div>
+                          {renderStatsTable(awayPs)}
+                        </div>}
+                        {homePs.length === 0 && awayPs.length === 0 && (
+                          <div style={{ fontSize: 13, color: T2 }}>Aucun joueur inscrit pour ces équipes.</div>
+                        )}
+                      </div>
+                    )}
+                    {/* Action buttons */}
+                    {!g.locked && (coordLocking ? (
+                      <div style={{ background: CARD, border: "1px solid #f59e0b40", borderRadius: 12, padding: "18px", marginBottom: 14 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: "#f59e0b" }}>Confirmer le verrouillage ?</div>
+                        <div style={{ fontSize: 13, color: T2, marginBottom: 14 }}>Le score ne pourra plus être modifié par les coordinateurs. Seul un responsable peut déverrouiller.</div>
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <button style={{ ...btn("#f59e0b"), color: "#000", flex: 1 }} onClick={() => saveCoordDraft(true)} disabled={coordSaving}>
+                            {coordSaving ? "..." : "Confirmer 🔒"}
+                          </button>
+                          <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setCoordLocking(false)}>Annuler</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+                        <button style={{ ...btn("#1e293b"), flex: 1, border: `1px solid ${BORDER}` }} onClick={() => saveCoordDraft(false)} disabled={coordSaving}>
+                          {coordSaving ? "..." : "Sauvegarder"}
+                        </button>
+                        <button style={{ ...btn(), flex: 1 }} onClick={() => setCoordLocking(true)} disabled={coordSaving}>
+                          Verrouiller 🔒
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+
+              // ── LIST VIEW ──────────────────────────────────────────────────────
+              const STATUS_INFO = {
+                locked:   { label: "VERROUILLÉ", bg: "#ffffff12", color: T2 },
+                final:    { label: "FINAL",      bg: "#22c55e20", color: "#22c55e" },
+                live:     { label: "EN DIRECT",  bg: ACC+"25",    color: ACC },
+                soon:     { label: "BIENTÔT",    bg: "#f59e0b20", color: "#f59e0b" },
+                upcoming: { label: "À VENIR",    bg: "#ffffff0d", color: T2 },
+              };
+              return (
+                <div style={{ maxWidth: 480, margin: "0 auto" }}>
+                  {/* Title + venue selector */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
+                    {allVenues.length > 0 && (
+                      <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }}
+                        value={activeVenue}
+                        onChange={e => setCoordVenue(e.target.value)}>
+                        {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
+                        <option value="">Tous les gymnases</option>
+                      </select>
+                    )}
+                  </div>
+                  {coordTodayGames.length === 0 ? (
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "32px 24px", textAlign: "center" }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>
+                        {activeVenue ? `Aucun match à "${activeVenue}" aujourd'hui` : "Aucun match aujourd'hui"}
+                      </div>
+                      <div style={{ fontSize: 13, color: T2 }}>Les matchs du jour apparaîtront ici.</div>
+                    </div>
+                  ) : (
+                    coordTodayGames.map(g => {
+                      const status = getCoordStatus(g);
+                      const si = STATUS_INFO[status];
+                      const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
+                      return (
+                        <div key={g.id} style={{ background: CARD, border: `1px solid ${status === "live" ? ACC+"60" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
+                              <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}{g.venue ? " · " + g.venue : ""}</div>
+                            </div>
+                            <span style={{ background: si.bg, color: si.color, borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>{si.label}</span>
+                          </div>
+                          {hasScore && (
+                            <div style={{ fontSize: 20, fontWeight: 800, marginTop: 10, letterSpacing: 1 }}>
+                              {g.homeScore} <span style={{ color: T2, fontSize: 14, fontWeight: 400 }}>–</span> {g.awayScore}
+                              {g.locked && <span style={{ marginLeft: 8, fontSize: 13 }}>🔒</span>}
+                            </div>
+                          )}
+                          {status !== "locked" && (
+                            <button
+                              onClick={() => openCoordGame(g)}
+                              style={{ marginTop: 12, width: "100%", ...btn(hasScore ? "#1e293b" : ACC), fontSize: 13, border: hasScore ? `1px solid ${BORDER}` : "none", justifyContent: "center" }}>
+                              {hasScore ? "Modifier" : "Entrer le score"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            }
+            // ── END COORDINATOR BRANCH ──────────────────────────────────────────
+
             return (
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Aujourd'hui</div>
