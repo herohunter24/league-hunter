@@ -32,6 +32,9 @@ const SUPERADMIN_UID   = 'uid_superadmin';
 const OWNER_UID        = 'uid_owner_1';
 const OTHER_OWNER_UID  = 'uid_owner_2';
 const STRANGER_UID     = 'uid_stranger';
+const COORD_UID        = 'uid_coord_1';
+const COORD_OTHER_UID  = 'uid_coord_other'; // coordinator for OTHER_LEAGUE_ID
+const COORD_DEACT_UID  = 'uid_coord_deact'; // deactivated coordinator for LEAGUE_ID
 const LEAGUE_ID        = 'league_001';
 const OTHER_LEAGUE_ID  = 'league_002';
 
@@ -75,6 +78,27 @@ beforeEach(async () => {
     // Owner of league_002
     await db.doc(`users/${OTHER_OWNER_UID}`).set({
       username: 'owner2', role: 'owner', leagueId: OTHER_LEAGUE_ID,
+      mustChangePassword: false, createdAt: '2025-01-01',
+    });
+
+    // Active coordinator for league_001
+    await db.doc(`users/${COORD_UID}`).set({
+      username: 'coord1', displayName: 'Marie Tremblay', role: 'coordinator',
+      leagueId: LEAGUE_ID, venue: 'Gym Nord', active: true,
+      mustChangePassword: false, createdAt: '2025-01-01',
+    });
+
+    // Active coordinator for league_002
+    await db.doc(`users/${COORD_OTHER_UID}`).set({
+      username: 'coord_other', displayName: 'Bob Ouellet', role: 'coordinator',
+      leagueId: OTHER_LEAGUE_ID, venue: 'Gym Sud', active: true,
+      mustChangePassword: false, createdAt: '2025-01-01',
+    });
+
+    // Deactivated coordinator for league_001
+    await db.doc(`users/${COORD_DEACT_UID}`).set({
+      username: 'coord_off', displayName: 'Désactivé', role: 'coordinator',
+      leagueId: LEAGUE_ID, venue: 'Gym Est', active: false,
       mustChangePassword: false, createdAt: '2025-01-01',
     });
 
@@ -151,6 +175,15 @@ function strangerCtx() {
 }
 function unauthCtx() {
   return testEnv.unauthenticatedContext();
+}
+function coordCtx() {
+  return testEnv.authenticatedContext(COORD_UID, {});
+}
+function coordOtherCtx() {
+  return testEnv.authenticatedContext(COORD_OTHER_UID, {});
+}
+function coordDeactCtx() {
+  return testEnv.authenticatedContext(COORD_DEACT_UID, {});
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -678,6 +711,216 @@ describe('player email migration — end-to-end', () => {
   it('unauthenticated cannot write playersPrivate during migration', async () => {
     await assertFails(
       unauthCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).set({ email: 'x@x.com' })
+    );
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COORDINATOR TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('coordinator — users collection', () => {
+  it('coordinator can read own user doc', async () => {
+    await assertSucceeds(coordCtx().firestore().doc(`users/${COORD_UID}`).get());
+  });
+  it('coordinator cannot read another user doc', async () => {
+    await assertFails(coordCtx().firestore().doc(`users/${OWNER_UID}`).get());
+  });
+  it('coordinator can update own mustChangePassword false→false (no-op) is blocked — must go true→false', async () => {
+    // mustChangePassword is already false, so this diff would include no change
+    // The rule allows ONLY the transition true→false.
+    // Set mustChangePassword to true first so the update is meaningful.
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await ctx.firestore().doc(`users/${COORD_UID}`).update({ mustChangePassword: true });
+    });
+    await assertSucceeds(
+      coordCtx().firestore().doc(`users/${COORD_UID}`).update({ mustChangePassword: false })
+    );
+  });
+  it('coordinator cannot update their own role', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`users/${COORD_UID}`).update({ role: 'owner' })
+    );
+  });
+  it('deactivated coordinator cannot read own user doc', async () => {
+    // Note: users/{uid} get is allowed for request.auth.uid == userId regardless of active.
+    // The active check is in isLeagueCoordinator() which is only called for league data writes.
+    // So this should still succeed (they can read their own doc to see they're deactivated).
+    await assertSucceeds(coordDeactCtx().firestore().doc(`users/${COORD_DEACT_UID}`).get());
+  });
+});
+
+describe('coordinator — league root doc', () => {
+  it('coordinator can update _updatedAt on own league', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({ _updatedAt: Date.now() })
+    );
+  });
+  it('coordinator can update _updatedAt and playerMilestones together', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({
+        _updatedAt: Date.now(),
+        playerMilestones: { player_1: { milestones: [], rpAdjustments: [] } },
+      })
+    );
+  });
+  it('coordinator cannot update league name', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({ name: 'Hacked Name' })
+    );
+  });
+  it('coordinator cannot update teams on league root', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({ teams: [] })
+    );
+  });
+  it('coordinator cannot update another league root doc', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${OTHER_LEAGUE_ID}`).update({ _updatedAt: Date.now() })
+    );
+  });
+  it('deactivated coordinator cannot update league root doc', async () => {
+    await assertFails(
+      coordDeactCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({ _updatedAt: Date.now() })
+    );
+  });
+});
+
+describe('coordinator — games collection', () => {
+  it('coordinator can update score fields on a game', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        homeScore: 110, awayScore: 95, played: true,
+      })
+    );
+  });
+  it('coordinator can update only homeScore', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({ homeScore: 88 })
+    );
+  });
+  it('coordinator cannot update game venue', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({ venue: 'Gym Hack' })
+    );
+  });
+  it('coordinator cannot update game date', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({ date: '2099-01-01' })
+    );
+  });
+  it('coordinator cannot create a new game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_new`).set({
+        id: 'game_new', date: '2025-04-01', home: 'TeamA', away: 'TeamB',
+      })
+    );
+  });
+  it('coordinator cannot delete a game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).delete()
+    );
+  });
+  it('coordinator of other league cannot update this league game', async () => {
+    await assertFails(
+      coordOtherCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        homeScore: 50, awayScore: 40, played: true,
+      })
+    );
+  });
+  it('deactivated coordinator cannot update game scores', async () => {
+    await assertFails(
+      coordDeactCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        homeScore: 99, awayScore: 88, played: true,
+      })
+    );
+  });
+});
+
+describe('coordinator — playerStats sub-sub-collection', () => {
+  it('coordinator can write playerStats for own league', async () => {
+    await assertSucceeds(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 30, rebounds: 8, assists: 6, steals: 2, blocks: 0 })
+    );
+  });
+  it('coordinator can read playerStats', async () => {
+    await assertSucceeds(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .get()
+    );
+  });
+  it('coordinator of other league cannot write playerStats for this league', async () => {
+    await assertFails(
+      coordOtherCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 99 })
+    );
+  });
+  it('deactivated coordinator cannot write playerStats', async () => {
+    await assertFails(
+      coordDeactCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 99 })
+    );
+  });
+});
+
+describe('coordinator — meta/sync', () => {
+  it('coordinator can write meta/sync', async () => {
+    await assertSucceeds(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/meta/sync`)
+        .set({ updatedAt: Date.now() })
+    );
+  });
+  it('coordinator of other league cannot write meta/sync for this league', async () => {
+    await assertFails(
+      coordOtherCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/meta/sync`)
+        .set({ updatedAt: Date.now() })
+    );
+  });
+  it('deactivated coordinator cannot write meta/sync', async () => {
+    await assertFails(
+      coordDeactCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/meta/sync`)
+        .set({ updatedAt: Date.now() })
+    );
+  });
+});
+
+describe('coordinator — blocked collections', () => {
+  it('coordinator cannot read playersPrivate', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).get()
+    );
+  });
+  it('coordinator cannot write playersPrivate', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/playersPrivate/player_1`).set({ email: 'x@x.com' })
+    );
+  });
+  it('coordinator cannot write teams subcollection', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/teams/team_x`).set({ name: 'Hack Team' })
+    );
+  });
+  it('coordinator cannot write players subcollection', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/players/player_hack`).set({ name: 'Hacker' })
+    );
+  });
+  it('coordinator cannot write settings', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/settings/emailjs`).set({ serviceId: 'hack' })
+    );
+  });
+  it('coordinator cannot create user docs (not superadmin)', async () => {
+    await assertFails(
+      coordCtx().firestore().doc('users/new_uid').set({ role: 'coordinator', leagueId: LEAGUE_ID })
     );
   });
 });

@@ -23,6 +23,14 @@ service cloud.firestore {
           && callerDoc().leagueId == leagueId;
     }
 
+    // League coordinator: role == 'coordinator' AND leagueId matches AND not deactivated.
+    function isLeagueCoordinator(leagueId) {
+      return request.auth != null
+          && callerDoc().role == 'coordinator'
+          && callerDoc().leagueId == leagueId
+          && callerDoc().active != false;
+    }
+
     // Any signed-in user (for narrow public-site writes like votes and subscriptions)
     function isSignedIn() {
       return request.auth != null;
@@ -65,12 +73,20 @@ service cloud.firestore {
       // Root league doc — publicly readable (public site depends on this).
       allow read:  if true;
       allow write: if isSuperAdmin() || isLeagueOwner(leagueId)
-                   || isValidFanVoteUpdate();
+                   || isValidFanVoteUpdate()
+                   || isValidCoordinatorLeagueUpdate(leagueId);
 
       // ── Narrow public update: fan vote counter on leagues/{id} ────────────
       function isValidFanVoteUpdate() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allStar'])
             && request.resource.data.allStar.diff(resource.data.allStar).affectedKeys().hasOnly(['fanVotes']);
+      }
+
+      // ── Narrow coordinator update: only _updatedAt and playerMilestones ──────
+      function isValidCoordinatorLeagueUpdate(leagueId) {
+        return isLeagueCoordinator(leagueId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['_updatedAt', 'playerMilestones']);
       }
 
       match /teams/{doc} {
@@ -83,18 +99,25 @@ service cloud.firestore {
       }
       match /games/{gameId} {
         allow read:  if true;
-        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+        // Owner/superadmin: full write. Coordinator: update score fields only (no create/delete).
+        allow create, delete: if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow update: if isSuperAdmin() || isLeagueOwner(leagueId)
+                      || (isLeagueCoordinator(leagueId)
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['homeScore', 'awayScore', 'played']));
 
         // Per-game player stats — sub-sub-collection.
         // Both the admin panel and the public site read this path.
         match /playerStats/{pid} {
           allow read:  if true;
-          allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+          allow write: if isSuperAdmin() || isLeagueOwner(leagueId)
+                       || isLeagueCoordinator(leagueId);
         }
       }
       match /meta/{doc} {
         allow read:  if true;
-        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId)
+                     || isLeagueCoordinator(leagueId);
       }
 
       // Personal player contact info (email) — kept out of public players docs.
