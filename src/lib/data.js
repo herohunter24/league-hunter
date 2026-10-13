@@ -150,7 +150,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
 
   const players = (rawPlayers || []).map(p => {
     const pid  = String(p.id);
-    const pGames = games.filter(g => g.playerStats && g.playerStats[pid] !== undefined);
+    const pGames = played.filter(g => g.playerStats && g.playerStats[pid] !== undefined);
     const gp   = pGames.length;
     const sum  = k => pGames.reduce((s, g) => s + (+((g.playerStats[pid] || {})[k] || 0)), 0);
     const ppg  = gp ? sum('points')   / gp : 0;

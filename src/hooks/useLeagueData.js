@@ -49,7 +49,7 @@ export function useLeagueData() {
             psUnsubs.set(gid, onSnapshot(collection(db, 'leagues', lid, 'games', gid, 'playerStats'),
               psSnap => {
                 const stats = {};
-                psSnap.docs.forEach(ps => { stats[ps.id] = ps.data(); });
+                psSnap.docs.forEach(ps => { const d = ps.data(); if (!d.draft) stats[ps.id] = d; });
                 setGames(prev => prev.map(g => String(g.id) === gid ? { ...g, playerStats: stats } : g));
               },
               err => console.error(`[NLS] PlayerStats listen error for game ${gid}:`, err)

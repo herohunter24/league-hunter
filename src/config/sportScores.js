@@ -22,7 +22,7 @@ function basketballScore(player, allGames, leagueLike) {
 
   const games = [...(allGames || [])]
     .filter(g => {
-      if (!g.playerStats || g.playerStats[pid] === undefined) return false;
+      if (!g.playerStats || g.playerStats[pid] === undefined || g.playerStats[pid].draft) return false;
       if (resetAt) {
         const gt = new Date((g.date || '9999') + 'T00:00').getTime();
         if (gt < resetAt) return false;
@@ -101,7 +101,7 @@ function basketballScore(player, allGames, leagueLike) {
 // TODO: replace with sport-specific formulas (hockey, soccer, volleyball, tennis).
 function genericScore(player, allGames) {
   const pid = String(player.id);
-  const pGames = (allGames || []).filter(g => g.playerStats && g.playerStats[pid] !== undefined);
+  const pGames = (allGames || []).filter(g => g.playerStats && g.playerStats[pid] !== undefined && !g.playerStats[pid].draft);
   if (!pGames.length) return 0;
   const sum = k => pGames.reduce((s, g) => s + (+(g.playerStats[pid]?.[k] || 0)), 0);
   // Try the most common scoring keys in order

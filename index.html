@@ -370,7 +370,7 @@ async function loadFullLeague(leagueId) {
       const statsSnap = await getDocs(collection(_db, "leagues", lid, "games", gDoc.id, "playerStats"));
       if (statsSnap.empty) return game;
       const playerStats = {};
-      statsSnap.docs.forEach(s => { playerStats[s.id] = s.data(); });
+      statsSnap.docs.forEach(s => { const d = s.data(); if (!d.draft) playerStats[s.id] = d; });
       return { ...game, playerStats };
     }));
     return { ...meta, teams, players, schedule: games };
@@ -465,7 +465,7 @@ function calcPlayerRP(player, allGames, league) {
   const achieved = new Set(milData.milestones || []);
   const games = [...(allGames || [])]
     .filter(g => {
-      if (!g.playerStats || g.playerStats[pid] === undefined) return false;
+      if (!g.playerStats || g.playerStats[pid] === undefined || g.playerStats[pid].draft) return false;
       if (resetAt) { const gt = new Date((g.date||'9999')+'T00:00').getTime(); if (gt < resetAt) return false; }
       return true;
     })
@@ -524,7 +524,7 @@ function calcNewMilestones(player, allGames, league) {
   const newOnes = [];
   const chk = key => { if (!achieved.has(key)) { newOnes.push(key); achieved.add(key); } };
   const games = [...(allGames||[])].filter(g=>{
-    if (!g.playerStats||g.playerStats[pid]===undefined) return false;
+    if (!g.playerStats||g.playerStats[pid]===undefined||g.playerStats[pid].draft) return false;
     if (resetAt){const gt=new Date((g.date||'9999')+'T00:00').getTime();if(gt<resetAt)return false;}
     return true;
   }).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
@@ -998,7 +998,7 @@ function getActiveStats(sport, player, toggles) {
 function getPlayerSeasonStats(player, schedule, sport) {
   const statDef = getSportStats(sport, player);
   const playedGames = schedule.filter(g =>
-    isGamePast(g) && g.playerStats && g.playerStats[player.id] !== undefined
+    isGamePast(g) && g.playerStats && g.playerStats[player.id] !== undefined && !g.playerStats[player.id]?.draft
   );
   const totals = {}, averages = {};
   statDef.forEach(({ key, madeKey, attKey }) => {
@@ -3426,8 +3426,8 @@ function App() {
     if (!league) return;
     const p = league.players.find(pl => pl.id === id);
     if (!p) return;
-    const gamesCount = (league.schedule || []).filter(g => g.playerStats && (g.playerStats[id] !== undefined || g.playerStats[String(id)] !== undefined)).length;
-    const totalPts   = (league.schedule || []).reduce((sum, g) => sum + (+(g.playerStats?.[id]?.points || g.playerStats?.[String(id)]?.points || 0)), 0);
+    const gamesCount = (league.schedule || []).filter(g => { const ps = g.playerStats && (g.playerStats[id] || g.playerStats[String(id)]); return ps && !ps.draft; }).length;
+    const totalPts   = (league.schedule || []).reduce((sum, g) => { const ps = g.playerStats && (g.playerStats[id] || g.playerStats[String(id)]); return sum + (ps && !ps.draft ? +(ps.points || 0) : 0); }, 0);
     deleteConfirm.ask({
       actionType: 'delete',
       entityType: 'player',
@@ -5233,7 +5233,7 @@ function App() {
                         const isExpanded = expandedPlayerId === p.id;
                         // Games this player has stats recorded for, newest first
                         const playerGames = catSchedule
-                          .filter(g => isGamePast(g) && g.playerStats && g.playerStats[p.id] !== undefined && (g.home === p.team || g.away === p.team))
+                          .filter(g => isGamePast(g) && g.playerStats && g.playerStats[p.id] !== undefined && !g.playerStats[p.id]?.draft && (g.home === p.team || g.away === p.team))
                           .sort((a, b) => new Date(`${b.date}T${b.time || '00:00'}`) - new Date(`${a.date}T${a.time || '00:00'}`));
                         // Active stats for this player's sport/position (respects toggles)
                         const activeStatDef = getActiveStats(sport, p, toggles);
