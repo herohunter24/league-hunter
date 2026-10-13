@@ -140,6 +140,19 @@ beforeEach(async () => {
       fgMade: 8, fgAtt: 15, threeMade: 2, threeAtt: 5, ftMade: 4, ftAtt: 4,
     });
 
+    // A locked game (coordinator has already saved + locked it)
+    await db.doc(`leagues/${LEAGUE_ID}/games/game_locked`).set({
+      id: 'game_locked', date: '2025-03-10', time: '18:00',
+      homeTeam: 'TeamA', awayTeam: 'TeamB',
+      homeScore: 100, awayScore: 90, played: true,
+      locked: true, lockedBy: COORD_UID, lockedAt: new Date(),
+    });
+
+    // playerStats under the locked game
+    await db.doc(`leagues/${LEAGUE_ID}/games/game_locked/playerStats/player_1`).set({
+      points: 25, rebounds: 7, assists: 3,
+    });
+
     // A recap doc
     await db.doc(`leagues/${LEAGUE_ID}/recaps/1`).set({
       num: 1, text: 'Great game!', date: '2025-03-15', author: 'admin',
@@ -771,7 +784,7 @@ describe('coordinator — league root doc', () => {
   });
   it('coordinator cannot update teams on league root', async () => {
     await assertFails(
-      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({ teams: [] })
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}`).update({ teams: ['team_hack'] })
     );
   });
   it('coordinator cannot update another league root doc', async () => {
@@ -921,6 +934,133 @@ describe('coordinator — blocked collections', () => {
   it('coordinator cannot create user docs (not superadmin)', async () => {
     await assertFails(
       coordCtx().firestore().doc('users/new_uid').set({ role: 'coordinator', leagueId: LEAGUE_ID })
+    );
+  });
+});
+
+// ── Phase 2 fix tests ─────────────────────────────────────────────────────────
+
+describe('coordinator — lock mechanism', () => {
+  it('coordinator cannot edit score on a locked game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_locked`).update({
+        homeScore: 110, awayScore: 95,
+      })
+    );
+  });
+  it('coordinator cannot set locked=false on an unlocked game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        locked: false,
+      })
+    );
+  });
+  it('coordinator cannot write playerStats on a locked game', async () => {
+    await assertFails(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_locked/playerStats/player_1`)
+        .set({ points: 30, rebounds: 8 })
+    );
+  });
+  it('coordinator cannot delete playerStats', async () => {
+    await assertFails(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .delete()
+    );
+  });
+  it('coordinator cannot write meta/categories', async () => {
+    await assertFails(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/meta/categories`)
+        .set({ updatedAt: Date.now() })
+    );
+  });
+  it('coordinator cannot write meta/sync with extra keys', async () => {
+    await assertFails(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/meta/sync`)
+        .set({ updatedAt: Date.now(), hack: 'data' })
+    );
+  });
+  it('coordinator of league A cannot write league B game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${OTHER_LEAGUE_ID}/games/game_001`).update({
+        homeScore: 50,
+      })
+    );
+  });
+  it('owner can overwrite a locked game (unlock is owner/superadmin only)', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_locked`).update({
+        homeScore: 105, locked: false,
+      })
+    );
+  });
+});
+
+describe('users — owner manages coordinators', () => {
+  it('owner can create a coordinator doc for own league', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc('users/new_coord_uid').set({
+        username: 'coord_new', displayName: 'Jean Leblanc', role: 'coordinator',
+        leagueId: LEAGUE_ID, venue: 'Gym Ouest', active: true,
+        mustChangePassword: true, createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('owner cannot create a coordinator for another league', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc('users/new_coord_uid').set({
+        username: 'coord_cross', displayName: 'Pierre Martin', role: 'coordinator',
+        leagueId: OTHER_LEAGUE_ID, venue: 'Gym', active: true,
+        mustChangePassword: true, createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('owner cannot create an owner doc (no self-promotion)', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc('users/new_owner_uid').set({
+        username: 'new_owner', role: 'owner', leagueId: LEAGUE_ID,
+        mustChangePassword: true, createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('owner cannot create a superadmin doc', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc('users/super_attempt').set({
+        username: 'god_mode', role: 'superadmin', createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('owner cannot create coordinator doc with extra fields', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc('users/coord_extra').set({
+        username: 'coord_extra', displayName: 'Test', role: 'coordinator',
+        leagueId: LEAGUE_ID, venue: 'Gym', active: true,
+        mustChangePassword: true, createdAt: '2025-01-01',
+        adminNote: 'sneaky extra field',
+      })
+    );
+  });
+  it('owner can deactivate a coordinator in own league', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc(`users/${COORD_UID}`).update({ active: false })
+    );
+  });
+  it('owner cannot deactivate a coordinator in another league', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc(`users/${COORD_OTHER_UID}`).update({ active: false })
+    );
+  });
+  it('owner can delete a coordinator doc in own league', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc(`users/${COORD_UID}`).delete()
+    );
+  });
+  it('owner cannot delete a coordinator in another league', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc(`users/${COORD_OTHER_UID}`).delete()
     );
   });
 });
