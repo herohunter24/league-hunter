@@ -999,6 +999,54 @@ describe('coordinator — lock mechanism', () => {
   });
 });
 
+describe('coordinator — draft system', () => {
+  it('coordinator can save draft field on an unlocked game', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        draft: { homeScore: 72, awayScore: 68, savedBy: COORD_UID, savedAt: new Date() },
+      })
+    );
+  });
+  it('coordinator can save playerStats with draft:true on an unlocked game', async () => {
+    await assertSucceeds(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 20, rebounds: 5, draft: true })
+    );
+  });
+  it('coordinator cannot save draft on a locked game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_locked`).update({
+        draft: { homeScore: 50, awayScore: 40, savedBy: COORD_UID, savedAt: new Date() },
+      })
+    );
+  });
+  it('coordinator cannot save playerStats with extra unknown keys', async () => {
+    await assertFails(
+      coordCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/games/game_001/playerStats/player_1`)
+        .set({ points: 20, hack: 'bad', draft: true })
+    );
+  });
+});
+
+describe('owner — unlock a locked game', () => {
+  it('owner can set locked=false (unlock) on a locked game', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_locked`).update({
+        locked: false, unlockedBy: 'uid_owner_1', unlockedAt: new Date(),
+      })
+    );
+  });
+  it('coordinator cannot unlock a locked game', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_locked`).update({
+        locked: false,
+      })
+    );
+  });
+});
+
 describe('users — owner manages coordinators', () => {
   it('owner can create a coordinator doc for own league', async () => {
     await assertSucceeds(

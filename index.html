@@ -917,6 +917,13 @@ function isGameToday(game) {
 function isGameAwaiting(game) {
   return isGamePast(game) && (game.homeScore === undefined || game.awayScore === undefined);
 }
+// "SCORE À ENTRER": game started + 60 min ago, not yet locked/played
+const SCORE_DELAY_MIN = 60;
+function isNeedingScore(game) {
+  if (game.locked || game.played) return false;
+  const gdt = getGameDateTime(game);
+  return gdt ? gdt.getTime() + SCORE_DELAY_MIN * 60000 < Date.now() : false;
+}
 function getGameStatus(game, sport) {
   if (isGameLive(game, sport))                            return "LIVE";
   if (game.homeScore !== undefined && game.awayScore !== undefined) return "FINAL";
@@ -1629,9 +1636,12 @@ function App() {
   // Coordinator scorekeeping (Phase 3)
   const [coordGame, setCoordGame] = useState(null);       // game being edited
   const [coordDraft, setCoordDraft] = useState({ homeScore: "", awayScore: "", stats: {} });
-  const [coordVenue, setCoordVenue] = useState(null);     // selected venue filter
+  const [coordVenue, setCoordVenue] = useState(null);     // selected venue filter (coordinator + owner)
   const [coordLocking, setCoordLocking] = useState(false); // lock-confirm dialog open
   const [coordSaving, setCoordSaving] = useState(false);
+  const [coordLastSaved, setCoordLastSaved] = useState(null); // "HH:MM" of last draft autosave
+  const [coordPtsWarning, setCoordPtsWarning] = useState(null); // { homeTeam, homeCalc, homeScore, awayTeam, awayCalc, awayScore }
+  const [coordUnlockGame, setCoordUnlockGame] = useState(null); // locked game owner wants to unlock
   // Calendrier filters
   const [calFilter, setCalFilter] = useState({ team: "", venue: "", status: "" });
   const [calSearch, setCalSearch] = useState("");
@@ -1787,7 +1797,9 @@ function App() {
   const subcolData = useRef({});
   const coordNotifRef  = useRef(new Set()); // gameIds already notified (60-min alert)
   const coordTimersRef = useRef([]);        // setTimeout handles for cleanup
+  const coordDraftRef  = useRef({ homeScore: "", awayScore: "", stats: {} }); // stable ref for autosave
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => { coordDraftRef.current = coordDraft; }, [coordDraft]);
 
   // Reset add-forms when switching tabs so stale input doesn't persist
   useEffect(() => {
@@ -1940,9 +1952,7 @@ function App() {
     if (user?.role !== "coordinator") return;
     const lg = leagues.find(l => l.id === selId);
     if (!lg) return;
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {});
-    }
+    // Permission is only requested when the user clicks "Activer les rappels" — not here.
     coordTimersRef.current.forEach(clearTimeout);
     coordTimersRef.current = [];
     const todayG = (lg.schedule || []).filter(g => isGameToday(g) && !g.locked);
@@ -1967,6 +1977,21 @@ function App() {
     });
     return () => { coordTimersRef.current.forEach(clearTimeout); coordTimersRef.current = []; };
   }, [user?.role, selId, leagues]);
+
+  // ── Coordinator: 30-second autosave while score screen is open ──
+  useEffect(() => {
+    if (!coordGame) return;
+    const iv = setInterval(async () => {
+      const { homeScore, awayScore, stats } = coordDraftRef.current;
+      const hs = parseInt(homeScore), as = parseInt(awayScore);
+      if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) return;
+      try {
+        await saveDraft(coordGame.id, hs, as, stats);
+        setCoordLastSaved(new Date().toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" }));
+      } catch(e) { console.warn("autosave:", e); }
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [coordGame?.id]);
 
   // ── INITIAL DATA LOAD ──
   // Returns true if str contains at least one Unicode emoji character.
@@ -2619,54 +2644,95 @@ function App() {
     } catch(e) { console.error("Firestore writeLeagueNow:", e); }
   }
 
-  // Coordinator-only minimal writer: uses updateDoc so only the listed fields are
-  // touched — an unrelated field difference can never make the whole batch fail.
-  async function writeCoordinatorScore(gameId, scoreFields, statsMap, shouldLock) {
+  // Strip undefined/"" from a stats object; also removes the `draft` metadata flag.
+  function cleanStats(raw) {
+    return Object.fromEntries(
+      Object.entries(raw || {}).filter(([k, v]) => k !== "draft" && v !== undefined && v !== "")
+    );
+  }
+
+  // Coordinator draft save: writes game.draft + playerStats with draft:true flag.
+  // Does NOT set played/homeScore/awayScore — scores stay hidden from the public site.
+  async function saveDraft(gameId, homeScore, awayScore, statsMap) {
     if (!__fbReady || !selId || !_db) return;
     const { doc, updateDoc, setDoc, serverTimestamp } = _FS;
-    if (!doc || !updateDoc || !setDoc || !serverTimestamp) {
-      console.error("writeCoordinatorScore: Firestore helpers not ready"); return;
-    }
-    const lid = String(selId);
-    const gid = String(gameId);
-    const ts  = Date.now();
+    if (!doc || !updateDoc || !setDoc || !serverTimestamp) return;
+    const lid = String(selId), gid = String(gameId);
 
-    const gameUpdate = { ...scoreFields };
-    if (shouldLock) {
-      gameUpdate.locked   = true;
-      gameUpdate.lockedBy = user.uid;
-      gameUpdate.lockedAt = serverTimestamp(); // must be serverTimestamp() for Firestore rules
-    }
-    await updateDoc(doc(_db, "leagues", lid, "games", gid), gameUpdate);
+    const draftPayload = { homeScore: Number(homeScore), awayScore: Number(awayScore), savedBy: user.uid, savedAt: serverTimestamp() };
+    await updateDoc(doc(_db, "leagues", lid, "games", gid), { draft: draftPayload });
 
     for (const [pid, stats] of Object.entries(statsMap || {})) {
-      const clean = Object.fromEntries(Object.entries(stats).filter(([, v]) => v !== undefined && v !== ""));
+      const clean = cleanStats(stats);
+      if (Object.keys(clean).length > 0)
+        await setDoc(doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)), { ...clean, draft: true });
+    }
+
+    // Optimistic update — store draft in game.draft; real score fields unchanged
+    setLeagues(prev => prev.map(l => {
+      if (l.id !== selId) return l;
+      return { ...l, schedule: (l.schedule || []).map(g => {
+        if (String(g.id) !== gid) return g;
+        const newStats = { ...(g.playerStats || {}) };
+        for (const [pid, stats] of Object.entries(statsMap || {})) {
+          const clean = cleanStats(stats);
+          if (Object.keys(clean).length > 0) newStats[pid] = { ...clean, draft: true };
+        }
+        return { ...g, draft: { homeScore: Number(homeScore), awayScore: Number(awayScore) }, playerStats: newStats };
+      })};
+    }));
+  }
+
+  // Coordinator lock: publishes the score (played:true + locked:true), removes draft flag.
+  async function lockScore(gameId, homeScore, awayScore, statsMap) {
+    if (!__fbReady || !selId || !_db) return;
+    const { doc, updateDoc, setDoc, deleteField, serverTimestamp } = _FS;
+    if (!doc || !updateDoc || !setDoc || !deleteField || !serverTimestamp) return;
+    const lid = String(selId), gid = String(gameId);
+    const ts = Date.now();
+
+    await updateDoc(doc(_db, "leagues", lid, "games", gid), {
+      homeScore: Number(homeScore), awayScore: Number(awayScore),
+      played: true, locked: true, lockedBy: user.uid, lockedAt: serverTimestamp(),
+      draft: deleteField(),
+    });
+    for (const [pid, stats] of Object.entries(statsMap || {})) {
+      const clean = cleanStats(stats);
       if (Object.keys(clean).length > 0)
         await setDoc(doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)), clean);
     }
-
     await updateDoc(doc(_db, "leagues", lid), { _updatedAt: ts });
     await setDoc(doc(_db, "leagues", lid, "meta", "sync"), { updatedAt: ts });
 
-    // Optimistic local update so the UI reflects the save immediately
     setLeagues(prev => prev.map(l => {
       if (l.id !== selId) return l;
-      return {
-        ...l,
-        _updatedAt: ts,
-        schedule: (l.schedule || []).map(g => {
-          if (String(g.id) !== gid) return g;
-          const upd = { ...g, ...scoreFields };
-          if (shouldLock) { upd.locked = true; upd.lockedBy = user.uid; }
-          const newStats = { ...(g.playerStats || {}) };
-          for (const [pid, stats] of Object.entries(statsMap || {})) {
-            const clean = Object.fromEntries(Object.entries(stats).filter(([, v]) => v !== undefined && v !== ""));
-            if (Object.keys(clean).length > 0) newStats[pid] = clean;
-          }
-          upd.playerStats = newStats;
-          return upd;
-        }),
-      };
+      return { ...l, _updatedAt: ts, schedule: (l.schedule || []).map(g => {
+        if (String(g.id) !== gid) return g;
+        const newStats = { ...(g.playerStats || {}) };
+        for (const [pid, stats] of Object.entries(statsMap || {})) {
+          const clean = cleanStats(stats);
+          if (Object.keys(clean).length > 0) newStats[pid] = clean;
+        }
+        const { draft: _d, ...rest } = g;
+        return { ...rest, homeScore: Number(homeScore), awayScore: Number(awayScore), played: true, locked: true, lockedBy: user.uid, playerStats: newStats };
+      })};
+    }));
+  }
+
+  // Owner/superadmin unlock: clears locked flag, logs who unlocked.
+  async function unlockScore(gameId) {
+    if (!__fbReady || !selId || !_db || !user) return;
+    const { doc, updateDoc, serverTimestamp } = _FS;
+    if (!doc || !updateDoc || !serverTimestamp) return;
+    const lid = String(selId), gid = String(gameId);
+    await updateDoc(doc(_db, "leagues", lid, "games", gid), {
+      locked: false, unlockedBy: user.uid, unlockedAt: serverTimestamp(),
+    });
+    setLeagues(prev => prev.map(l => {
+      if (l.id !== selId) return l;
+      return { ...l, schedule: (l.schedule || []).map(g =>
+        String(g.id) !== gid ? g : { ...g, locked: false, unlockedBy: user.uid }
+      )};
     }));
   }
 
@@ -4526,13 +4592,19 @@ function App() {
 
             {/* Nav sections */}
             <div style={{ flex: 1, padding: "8px 0" }}>
-              {visibleTabs.map(([t, label]) => (
-                <button key={t} className={`wx-sidebar-item${tab === t ? " active" : ""}`}
-                  onClick={() => { handleTabSwitch(t); setMoreSheetOpen(false); }}>
-                  {TAB_ICONS[t]}
-                  {label}
-                </button>
-              ))}
+              {(() => {
+                const scoreNeededCount = (catSchedule || []).filter(g => isNeedingScore(g)).length;
+                return visibleTabs.map(([t, label]) => (
+                  <button key={t} className={`wx-sidebar-item${tab === t ? " active" : ""}`}
+                    onClick={() => { handleTabSwitch(t); setMoreSheetOpen(false); }}>
+                    {TAB_ICONS[t]}
+                    <span style={{ flex: 1, textAlign: "left" }}>{label}</span>
+                    {t === "today" && scoreNeededCount > 0 && (
+                      <span style={{ background: "#f59e0b", color: "#000", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{scoreNeededCount}</span>
+                    )}
+                  </button>
+                ));
+              })()}
             </div>
 
             {/* Bottom: user + logout */}
@@ -4632,57 +4704,89 @@ function App() {
               gymMap[gym].push(g);
             });
 
+            // ── SHARED STATUS FUNCTION (coordinator + owner) ───────────────────
+            const getGameStatus = (g) => {
+              if (g.locked) return "locked";
+              if (g.played && g.homeScore !== undefined) return "final";
+              if (isNeedingScore(g)) return "needs_score";
+              if (isGameLive(g, sport)) return "live";
+              const msLeft = (getGameDateTime(g) || 0) - Date.now();
+              if (msLeft > 0 && msLeft < 60 * 60000) return "soon";
+              return "upcoming";
+            };
+            const STATUS_INFO = {
+              locked:      { label: "VERROUILLÉ",      bg: "#ffffff12", color: T2 },
+              final:       { label: "FINAL",            bg: "#22c55e20", color: "#22c55e" },
+              needs_score: { label: "SCORE À ENTRER",   bg: "#f59e0b20", color: "#f59e0b" },
+              live:        { label: "EN DIRECT",        bg: ACC+"25",    color: ACC },
+              soon:        { label: "BIENTÔT",          bg: "#f59e0b15", color: "#f59e0b" },
+              upcoming:    { label: "À VENIR",          bg: "#ffffff0d", color: T2 },
+            };
+
             // ── COORDINATOR BRANCH ──────────────────────────────────────────────
             if (user?.role === "coordinator") {
               const activeVenue = coordVenue !== null ? coordVenue : (user?.venue || "");
               const allVenues = [...new Set(todayGames.map(g => g.venue || g.gym || "Non précisé"))].sort();
               if (activeVenue && !allVenues.includes(activeVenue)) allVenues.unshift(activeVenue);
-
               const coordTodayGames = activeVenue
                 ? todayGames.filter(g => (g.venue || g.gym || "Non précisé") === activeVenue)
                 : todayGames;
 
-              const getCoordStatus = (g) => {
-                if (g.locked) return "locked";
-                if (g.homeScore !== undefined && g.awayScore !== undefined) return "final";
-                if (isGameLive(g, sport)) return "live";
-                const gdt = getGameDateTime(g);
-                if (gdt && (gdt - Date.now()) / 60000 <= 60 && (gdt - Date.now()) > 0) return "soon";
-                return "upcoming";
-              };
-
               const openCoordGame = (g) => {
                 const gamePlayers = (league.players || []).filter(p => p.team === g.home || p.team === g.away);
                 const initStats = {};
-                gamePlayers.forEach(p => { initStats[p.id] = { ...(g.playerStats?.[p.id] || {}) }; });
-                setCoordGame(g);
-                setCoordLocking(false);
-                setCoordDraft({
-                  homeScore: g.homeScore !== undefined ? String(g.homeScore) : "",
-                  awayScore: g.awayScore !== undefined ? String(g.awayScore) : "",
-                  stats: initStats,
+                gamePlayers.forEach(p => {
+                  const ps = g.playerStats?.[p.id] || {};
+                  const { draft: _d, ...cleanPs } = ps; // strip the draft metadata flag
+                  initStats[p.id] = cleanPs;
                 });
+                // Prefer draft scores if available, else real scores if locked
+                const initHS = g.draft?.homeScore !== undefined ? String(g.draft.homeScore)
+                             : g.homeScore !== undefined ? String(g.homeScore) : "";
+                const initAS = g.draft?.awayScore !== undefined ? String(g.draft.awayScore)
+                             : g.awayScore !== undefined ? String(g.awayScore) : "";
+                setCoordGame(g); setCoordLocking(false); setCoordLastSaved(null); setCoordPtsWarning(null);
+                setCoordDraft({ homeScore: initHS, awayScore: initAS, stats: initStats });
               };
 
-              const saveCoordDraft = async (shouldLock) => {
-                const hs = parseInt(coordDraft.homeScore);
-                const as = parseInt(coordDraft.awayScore);
-                if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) {
-                  showToast("Scores invalides."); return;
-                }
+              const doSaveDraft = async () => {
+                const hs = parseInt(coordDraft.homeScore), as = parseInt(coordDraft.awayScore);
+                if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) { showToast("Scores invalides."); return; }
                 setCoordSaving(true);
                 try {
-                  await writeCoordinatorScore(
-                    coordGame.id,
-                    { homeScore: hs, awayScore: as, played: true },
-                    coordDraft.stats,
-                    shouldLock
-                  );
-                  if (shouldLock) { setCoordGame(null); setCoordLocking(false); showToast("Match verrouillé ✓"); }
-                  else showToast("Brouillon sauvegardé ✓");
-                } catch(e) {
-                  showToast("Erreur : " + (e.message || "inconnue"));
-                } finally { setCoordSaving(false); }
+                  await saveDraft(coordGame.id, hs, as, coordDraft.stats);
+                  setCoordLastSaved(new Date().toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" }));
+                  showToast("Brouillon sauvegardé ✓");
+                } catch(e) { showToast("Erreur : " + (e.message || "inconnue")); }
+                finally { setCoordSaving(false); }
+              };
+
+              const checkPtsAndLock = () => {
+                const hs = parseInt(coordDraft.homeScore), as = parseInt(coordDraft.awayScore);
+                if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) { showToast("Scores invalides."); return; }
+                if (sport === "Basketball" && coordGame) {
+                  const gp = (league.players || []).filter(p => p.team === coordGame.home || p.team === coordGame.away);
+                  const sum = (team) => gp.filter(p => p.team === team).reduce((s, p) => {
+                    const v = parseInt(coordDraft.stats?.[p.id]?.points); return s + (isNaN(v) ? 0 : v);
+                  }, 0);
+                  const hPts = sum(coordGame.home), aPts = sum(coordGame.away);
+                  if (hPts !== hs || aPts !== as) {
+                    setCoordPtsWarning({ homeTeam: coordGame.home, homeCalc: hPts, homeScore: hs, awayTeam: coordGame.away, awayCalc: aPts, awayScore: as });
+                    return;
+                  }
+                }
+                setCoordLocking(true);
+              };
+
+              const doLock = async () => {
+                const hs = parseInt(coordDraft.homeScore), as = parseInt(coordDraft.awayScore);
+                setCoordSaving(true);
+                try {
+                  await lockScore(coordGame.id, hs, as, coordDraft.stats);
+                  setCoordGame(null); setCoordLocking(false); setCoordPtsWarning(null);
+                  showToast("Match verrouillé ✓");
+                } catch(e) { showToast("Erreur : " + (e.message || "inconnue")); }
+                finally { setCoordSaving(false); }
               };
 
               // ── GAME DETAIL VIEW ───────────────────────────────────────────────
@@ -4695,14 +4799,10 @@ function App() {
                 const renderStatsTable = (players) => (
                   <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead>
-                        <tr>
-                          <th style={{ textAlign: "left", padding: "4px 6px", color: T2, fontWeight: 600, minWidth: 80 }}>Joueur</th>
-                          {statCols.map(c => (
-                            <th key={c.key} style={{ padding: "4px 4px", color: T2, fontWeight: 600, minWidth: 44, textAlign: "center" }}>{c.label}</th>
-                          ))}
-                        </tr>
-                      </thead>
+                      <thead><tr>
+                        <th style={{ textAlign: "left", padding: "4px 6px", color: T2, fontWeight: 600, minWidth: 80 }}>Joueur</th>
+                        {statCols.map(c => <th key={c.key} style={{ padding: "4px 4px", color: T2, fontWeight: 600, minWidth: 44, textAlign: "center" }}>{c.label}</th>)}
+                      </tr></thead>
                       <tbody>
                         {players.map(p => (
                           <tr key={p.id} style={{ borderTop: `1px solid ${BORDER}` }}>
@@ -4728,14 +4828,14 @@ function App() {
                 );
                 return (
                   <div style={{ maxWidth: 480, margin: "0 auto" }}>
-                    <button onClick={() => setCoordGame(null)} style={{ background: "none", border: "none", color: ACC, fontSize: 13, cursor: "pointer", padding: "0 0 16px", display: "flex", alignItems: "center", gap: 4 }}>
+                    <button onClick={() => setCoordGame(null)} style={{ background: "none", border: "none", color: ACC, fontSize: 13, cursor: "pointer", padding: "0 0 14px", display: "flex", alignItems: "center", gap: 4 }}>
                       ← Retour
                     </button>
                     {/* Game header */}
                     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}>
                       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
-                      <div style={{ fontSize: 12, color: T2 }}>{g.time || ""}{ g.venue ? " · " + g.venue : ""}</div>
-                      {g.locked && <div style={{ marginTop: 8, fontSize: 11, color: "#f59e0b", fontWeight: 600 }}>🔒 Match verrouillé — lecture seule</div>}
+                      <div style={{ fontSize: 12, color: T2 }}>{g.time || ""}{g.venue ? " · " + g.venue : ""}</div>
+                      {g.locked && <div style={{ marginTop: 8, fontSize: 11, color: "#f59e0b", fontWeight: 600 }}>🔒 Match verrouillé — lecture seule pour le coordinateur</div>}
                     </div>
                     {/* Score inputs */}
                     {!g.locked && (
@@ -4744,18 +4844,14 @@ function App() {
                         <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 11, color: T2, marginBottom: 4 }}>{g.home}</div>
-                            <input type="number" min="0"
-                              style={{ ...inp, fontSize: 24, fontWeight: 800, textAlign: "center", padding: "10px 8px" }}
-                              value={coordDraft.homeScore}
-                              onChange={e => setCoordDraft(d => ({ ...d, homeScore: e.target.value }))} />
+                            <input type="number" min="0" style={{ ...inp, fontSize: 24, fontWeight: 800, textAlign: "center", padding: "10px 8px" }}
+                              value={coordDraft.homeScore} onChange={e => setCoordDraft(d => ({ ...d, homeScore: e.target.value }))} />
                           </div>
                           <div style={{ paddingBottom: 12, color: T2, fontWeight: 700, fontSize: 18 }}>–</div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 11, color: T2, marginBottom: 4 }}>{g.away}</div>
-                            <input type="number" min="0"
-                              style={{ ...inp, fontSize: 24, fontWeight: 800, textAlign: "center", padding: "10px 8px" }}
-                              value={coordDraft.awayScore}
-                              onChange={e => setCoordDraft(d => ({ ...d, awayScore: e.target.value }))} />
+                            <input type="number" min="0" style={{ ...inp, fontSize: 24, fontWeight: 800, textAlign: "center", padding: "10px 8px" }}
+                              value={coordDraft.awayScore} onChange={e => setCoordDraft(d => ({ ...d, awayScore: e.target.value }))} />
                           </div>
                         </div>
                       </div>
@@ -4764,67 +4860,78 @@ function App() {
                     {!g.locked && statCols.length > 0 && (
                       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: T2, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.8 }}>Stats joueurs</div>
-                        {homePs.length > 0 && <div style={{ marginBottom: 14 }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: ACC, marginBottom: 8 }}>{g.home}</div>
-                          {renderStatsTable(homePs)}
-                        </div>}
-                        {awayPs.length > 0 && <div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: ACC, marginBottom: 8 }}>{g.away}</div>
-                          {renderStatsTable(awayPs)}
-                        </div>}
-                        {homePs.length === 0 && awayPs.length === 0 && (
-                          <div style={{ fontSize: 13, color: T2 }}>Aucun joueur inscrit pour ces équipes.</div>
-                        )}
+                        {homePs.length > 0 && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 11, fontWeight: 600, color: ACC, marginBottom: 8 }}>{g.home}</div>{renderStatsTable(homePs)}</div>}
+                        {awayPs.length > 0 && <div><div style={{ fontSize: 11, fontWeight: 600, color: ACC, marginBottom: 8 }}>{g.away}</div>{renderStatsTable(awayPs)}</div>}
+                        {homePs.length === 0 && awayPs.length === 0 && <div style={{ fontSize: 13, color: T2 }}>Aucun joueur inscrit pour ces équipes.</div>}
                       </div>
                     )}
-                    {/* Action buttons */}
-                    {!g.locked && (coordLocking ? (
+                    {/* PTS validation warning */}
+                    {coordPtsWarning && (
+                      <div style={{ background: "#f59e0b10", border: "1px solid #f59e0b40", borderRadius: 12, padding: "16px 18px", marginBottom: 14 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#f59e0b", marginBottom: 8 }}>Points joueurs ≠ score d'équipe</div>
+                        {coordPtsWarning.homeCalc !== coordPtsWarning.homeScore && (
+                          <div style={{ fontSize: 12, color: T2, marginBottom: 4 }}>{coordPtsWarning.homeTeam} : joueurs ({coordPtsWarning.homeCalc}) ≠ score ({coordPtsWarning.homeScore})</div>
+                        )}
+                        {coordPtsWarning.awayCalc !== coordPtsWarning.awayScore && (
+                          <div style={{ fontSize: 12, color: T2, marginBottom: 10 }}>{coordPtsWarning.awayTeam} : joueurs ({coordPtsWarning.awayCalc}) ≠ score ({coordPtsWarning.awayScore})</div>
+                        )}
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setCoordPtsWarning(null)}>Corriger</button>
+                          <button style={{ ...btn("#f59e0b"), color: "#000", flex: 1 }} onClick={() => { setCoordPtsWarning(null); setCoordLocking(true); }}>Verrouiller quand même</button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Lock confirmation */}
+                    {!g.locked && !coordPtsWarning && coordLocking && (
                       <div style={{ background: CARD, border: "1px solid #f59e0b40", borderRadius: 12, padding: "18px", marginBottom: 14 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: "#f59e0b" }}>Confirmer le verrouillage ?</div>
-                        <div style={{ fontSize: 13, color: T2, marginBottom: 14 }}>Le score ne pourra plus être modifié par les coordinateurs. Seul un responsable peut déverrouiller.</div>
+                        <div style={{ fontSize: 13, color: T2, marginBottom: 14 }}>Le score sera publié. Seul un responsable pourra déverrouiller.</div>
                         <div style={{ display: "flex", gap: 10 }}>
-                          <button style={{ ...btn("#f59e0b"), color: "#000", flex: 1 }} onClick={() => saveCoordDraft(true)} disabled={coordSaving}>
-                            {coordSaving ? "..." : "Confirmer 🔒"}
-                          </button>
+                          <button style={{ ...btn("#f59e0b"), color: "#000", flex: 1 }} onClick={doLock} disabled={coordSaving}>{coordSaving ? "..." : "Confirmer 🔒"}</button>
                           <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setCoordLocking(false)}>Annuler</button>
                         </div>
                       </div>
-                    ) : (
-                      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-                        <button style={{ ...btn("#1e293b"), flex: 1, border: `1px solid ${BORDER}` }} onClick={() => saveCoordDraft(false)} disabled={coordSaving}>
-                          {coordSaving ? "..." : "Sauvegarder"}
-                        </button>
-                        <button style={{ ...btn(), flex: 1 }} onClick={() => setCoordLocking(true)} disabled={coordSaving}>
-                          Verrouiller 🔒
-                        </button>
+                    )}
+                    {/* Save / lock buttons */}
+                    {!g.locked && !coordPtsWarning && !coordLocking && (
+                      <div>
+                        <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                          <button style={{ ...btn("#1e293b"), flex: 1, border: `1px solid ${BORDER}` }} onClick={doSaveDraft} disabled={coordSaving}>{coordSaving ? "..." : "Sauvegarder"}</button>
+                          <button style={{ ...btn(), flex: 1 }} onClick={checkPtsAndLock} disabled={coordSaving}>Verrouiller 🔒</button>
+                        </div>
+                        {coordLastSaved && <div style={{ fontSize: 11, color: T2, textAlign: "center" }}>Brouillon enregistré · {coordLastSaved}</div>}
                       </div>
-                    ))}
+                    )}
                   </div>
                 );
               }
 
               // ── LIST VIEW ──────────────────────────────────────────────────────
-              const STATUS_INFO = {
-                locked:   { label: "VERROUILLÉ", bg: "#ffffff12", color: T2 },
-                final:    { label: "FINAL",      bg: "#22c55e20", color: "#22c55e" },
-                live:     { label: "EN DIRECT",  bg: ACC+"25",    color: ACC },
-                soon:     { label: "BIENTÔT",    bg: "#f59e0b20", color: "#f59e0b" },
-                upcoming: { label: "À VENIR",    bg: "#ffffff0d", color: T2 },
-              };
+              const notifAvailable = typeof Notification !== "undefined";
+              const notifGranted = notifAvailable && Notification.permission === "granted";
+              const notifRefused = notifAvailable && Notification.permission === "denied";
               return (
                 <div style={{ maxWidth: 480, margin: "0 auto" }}>
                   {/* Title + venue selector */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
                     {allVenues.length > 0 && (
-                      <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }}
-                        value={activeVenue}
-                        onChange={e => setCoordVenue(e.target.value)}>
+                      <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }} value={activeVenue} onChange={e => setCoordVenue(e.target.value)}>
                         {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
                         <option value="">Tous les gymnases</option>
                       </select>
                     )}
                   </div>
+                  {/* Notification CTA */}
+                  {!notifGranted && !notifRefused && notifAvailable && (
+                    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <div style={{ fontSize: 12, color: T2 }}>Reçois un rappel 60 min avant chaque match.</div>
+                      <button style={{ ...btn("#1e293b"), border: `1px solid ${BORDER}`, fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }}
+                        onClick={() => Notification.requestPermission().catch(() => {})}>
+                        Activer les rappels
+                      </button>
+                    </div>
+                  )}
                   {coordTodayGames.length === 0 ? (
                     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "32px 24px", textAlign: "center" }}>
                       <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>
@@ -4834,11 +4941,12 @@ function App() {
                     </div>
                   ) : (
                     coordTodayGames.map(g => {
-                      const status = getCoordStatus(g);
+                      const status = getGameStatus(g);
                       const si = STATUS_INFO[status];
-                      const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
+                      const hasDraft = g.draft?.homeScore !== undefined;
+                      const displayScore = g.played ? `${g.homeScore} – ${g.awayScore}` : hasDraft ? `${g.draft.homeScore} – ${g.draft.awayScore}` : null;
                       return (
-                        <div key={g.id} style={{ background: CARD, border: `1px solid ${status === "live" ? ACC+"60" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10 }}>
+                        <div key={g.id} style={{ background: CARD, border: `1px solid ${status === "live" ? ACC+"60" : status === "needs_score" ? "#f59e0b40" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10 }}>
                           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
@@ -4846,17 +4954,16 @@ function App() {
                             </div>
                             <span style={{ background: si.bg, color: si.color, borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>{si.label}</span>
                           </div>
-                          {hasScore && (
+                          {displayScore && (
                             <div style={{ fontSize: 20, fontWeight: 800, marginTop: 10, letterSpacing: 1 }}>
-                              {g.homeScore} <span style={{ color: T2, fontSize: 14, fontWeight: 400 }}>–</span> {g.awayScore}
-                              {g.locked && <span style={{ marginLeft: 8, fontSize: 13 }}>🔒</span>}
+                              {displayScore}{g.locked && <span style={{ marginLeft: 8, fontSize: 13 }}>🔒</span>}
+                              {hasDraft && !g.played && <span style={{ marginLeft: 8, fontSize: 11, color: T2, fontWeight: 400 }}>brouillon</span>}
                             </div>
                           )}
                           {status !== "locked" && (
-                            <button
-                              onClick={() => openCoordGame(g)}
-                              style={{ marginTop: 12, width: "100%", ...btn(hasScore ? "#1e293b" : ACC), fontSize: 13, border: hasScore ? `1px solid ${BORDER}` : "none", justifyContent: "center" }}>
-                              {hasScore ? "Modifier" : "Entrer le score"}
+                            <button onClick={() => openCoordGame(g)}
+                              style={{ marginTop: 12, width: "100%", ...btn(displayScore ? "#1e293b" : ACC), fontSize: 13, border: displayScore ? `1px solid ${BORDER}` : "none", justifyContent: "center" }}>
+                              {displayScore ? "Modifier" : "Entrer le score"}
                             </button>
                           )}
                         </div>
@@ -4868,9 +4975,29 @@ function App() {
             }
             // ── END COORDINATOR BRANCH ──────────────────────────────────────────
 
+            // ── OWNER / SUPERADMIN TODAY ────────────────────────────────────────
+            const ownerAllVenues = [...new Set(todayGames.map(g => g.venue || g.gym || "Non précisé"))].sort();
+            const ownerActiveVenue = coordVenue; // reuse same state
+            const ownerFilteredGymMap = {};
+            todayGames
+              .filter(g => !ownerActiveVenue || (g.venue || g.gym || "Non précisé") === ownerActiveVenue)
+              .forEach(g => {
+                const gym = g.venue || g.gym || "Gymnase non précisé";
+                if (!ownerFilteredGymMap[gym]) ownerFilteredGymMap[gym] = [];
+                ownerFilteredGymMap[gym].push(g);
+              });
             return (
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Aujourd'hui</div>
+                {/* Title + venue selector */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
+                  {ownerAllVenues.length > 1 && (
+                    <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }} value={ownerActiveVenue || ""} onChange={e => setCoordVenue(e.target.value || null)}>
+                      <option value="">Tous les gymnases</option>
+                      {ownerAllVenues.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  )}
+                </div>
 
                 {/* Quick actions */}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
@@ -4893,24 +5020,34 @@ function App() {
                     <div style={{ fontSize: 13, color: T2 }}>Les prochains matchs apparaîtront ici le jour même.</div>
                   </div>
                 ) : (
-                  Object.entries(gymMap).map(([gym, games]) => (
+                  Object.entries(ownerFilteredGymMap).map(([gym, games]) => (
                     <div key={gym} style={{ marginBottom: 24 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: T2, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{gym}</div>
                       {games.map(g => {
-                        const isLive = isGameLive(g, sport);
-                        const isPast = isGamePast(g);
+                        const status = getGameStatus(g);
+                        const si = STATUS_INFO[status];
                         const hasScore = g.homeScore !== undefined && g.awayScore !== undefined;
                         return (
-                          <div key={g.id} style={{ background: CARD, border: `1px solid ${isLive ? ACC+"60" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              <div style={{ fontWeight: 700, fontSize: 14 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
-                              <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}{g.categoryId ? ` · ${(league.categories||[]).find(c=>c.id===g.categoryId)?.name||""}` : ""}</div>
+                          <div key={g.id} style={{ background: CARD, border: `1px solid ${status === "live" ? ACC+"60" : status === "needs_score" ? "#f59e0b40" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8 }}>
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
+                                <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}{g.categoryId ? ` · ${(league.categories||[]).find(c=>c.id===g.categoryId)?.name||""}` : ""}</div>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                <span style={{ background: si.bg, color: si.color, borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 700 }}>{si.label}</span>
+                                {hasScore && <span style={{ fontWeight: 700, fontSize: 15 }}>{g.homeScore} – {g.awayScore}{g.locked ? " 🔒" : ""}</span>}
+                              </div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              {isLive && <span style={{ background: ACC+"25", color: ACC, borderRadius: 6, padding: "3px 9px", fontSize: 11, fontWeight: 700 }}>EN DIRECT</span>}
-                              {hasScore && <span style={{ fontWeight: 700, fontSize: 15 }}>{g.homeScore} – {g.awayScore}</span>}
-                              {isPast && !hasScore && (
-                                <button onClick={() => setEditScore(g)} style={{ background: ACC, border: "none", borderRadius: 7, color: "#fff", padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Entrer le score</button>
+                            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                              {!hasScore && isGamePast(g) && (
+                                <button onClick={() => setEditScore(g)} style={{ ...btn(ACC), fontSize: 12, height: 32, padding: "0 14px" }}>Entrer le score</button>
+                              )}
+                              {hasScore && !g.locked && (
+                                <button onClick={() => setEditScore(g)} style={{ ...btn("#252540"), border: `1px solid ${BORDER}`, fontSize: 12, height: 32, padding: "0 14px" }}>Modifier</button>
+                              )}
+                              {g.locked && (
+                                <button onClick={() => setCoordUnlockGame(g)} style={{ ...btn("#252540"), border: "1px solid #f59e0b40", color: "#f59e0b", fontSize: 12, height: 32, padding: "0 14px" }}>Déverrouiller</button>
                               )}
                             </div>
                           </div>
@@ -7673,6 +7810,32 @@ service cloud.firestore {
                     });
                   }}>Enregistrer le score</button>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setEditScore(null)}>Annuler</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+
+        {/* ── UNLOCK CONFIRMATION MODAL ── */}
+        {coordUnlockGame && (() => {
+          const g = coordUnlockGame;
+          const [unlocking, setUnlocking] = React.useState(false);
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+              <div style={{ width: 400, ...card, padding: 32 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Déverrouiller ce match ?</div>
+                <div style={{ fontSize: 13, color: T2, marginBottom: 16 }}>{g.home} vs {g.away} · {g.date}</div>
+                <div style={{ fontSize: 13, color: "#f59e0b", background: "#f59e0b15", border: "1px solid #f59e0b40", borderRadius: 8, padding: "10px 14px", marginBottom: 24 }}>
+                  Le score sera déverrouillé et pourra être modifié par le coordinateur. L'action sera journalisée.
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button style={{ ...btn("#f59e0b20"), border: "1px solid #f59e0b60", color: "#f59e0b", flex: 1 }} disabled={unlocking} onClick={async () => {
+                    setUnlocking(true);
+                    try { await unlockScore(g.id); setCoordUnlockGame(null); }
+                    catch(e) { alert("Erreur : " + e.message); setUnlocking(false); }
+                  }}>{unlocking ? "..." : "Confirmer le déverrouillage"}</button>
+                  <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setCoordUnlockGame(null)}>Annuler</button>
                 </div>
               </div>
             </div>

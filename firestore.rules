@@ -133,7 +133,7 @@ service cloud.firestore {
         return isLeagueCoordinator(leagueId)
             && resource.data.get('locked', false) != true
             && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['homeScore', 'awayScore', 'played', 'locked', 'lockedBy', 'lockedAt'])
+                .hasOnly(['homeScore', 'awayScore', 'played', 'locked', 'lockedBy', 'lockedAt', 'draft'])
             && isValidLockChange();
       }
 
@@ -157,7 +157,8 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly([
                  'points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers',
                  'threes', 'fgm', 'fga', 'ftm', 'fta', 'fgPct', 'ftPct',
-                 'goals', 'saves', 'goalsAgainst'
+                 'goals', 'saves', 'goalsAgainst',
+                 'draft'
                ]);
       }
 
