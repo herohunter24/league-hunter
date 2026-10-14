@@ -908,11 +908,12 @@ function isGameLive(game, sport) {
   return dt <= now && now < new Date(dt.getTime() + dur);
 }
 
+function localDateStr(date) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(date);
+}
 function isGameToday(game) {
-  const gameDate = game.date ? new Date(game.date + "T12:00") : null; // mid-day to avoid DST edge cases
-  if (!gameDate) return false;
-  const today = new Date();
-  return today.toDateString() === gameDate.toDateString();
+  if (!game.date) return false;
+  return localDateStr(new Date()) === game.date;
 }
 function isGameAwaiting(game) {
   return isGamePast(game) && (game.homeScore === undefined || game.awayScore === undefined);
@@ -936,7 +937,9 @@ function getGameStatus(game, sport) {
 function daysAgo(game) {
   const dt = getGameDateTime(game) || (game.date ? new Date(game.date + "T23:59") : null);
   if (!dt) return 0;
-  return Math.floor((Date.now() - dt.getTime()) / 86400000);
+  const gameStr  = localDateStr(dt);
+  const todayStr = localDateStr(new Date());
+  return Math.round((new Date(todayStr + "T12:00") - new Date(gameStr + "T12:00")) / 86400000);
 }
 
 function isGoalie(p) {

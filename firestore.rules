@@ -87,14 +87,14 @@ service cloud.firestore {
     // Self: may flip mustChangePassword true → false (first-login confirmation).
     // Coordinator: cannot read other users, cannot create/modify any user doc.
     match /users/{userId} {
-      allow get:    if isSuperAdmin()
+      // allow read covers both get and list; resource.data conditions let Firestore
+      // validate a query's WHERE clauses at evaluation time, so an owner query must
+      // include where('leagueId','==',own) + where('role','==','coordinator') to pass.
+      allow read:   if isSuperAdmin()
                     || (isSignedIn() && request.auth.uid == userId)
                     || (isSignedIn() && callerDoc().get('role', '') == 'owner'
                         && resource.data.get('role', '') == 'coordinator'
                         && resource.data.get('leagueId', '') == callerDoc().get('leagueId', ''));
-      // Owner may list only to query coordinators for their own league.
-      allow list:   if isSuperAdmin()
-                    || (isSignedIn() && callerDoc().get('role', '') == 'owner');
       allow create: if isSuperAdmin() || isOwnerCreatingCoordinator();
       allow update: if isSuperAdmin()
                     || isOwnerUpdatingCoordinator()

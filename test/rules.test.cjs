@@ -315,9 +315,13 @@ describe('users — read / delete', () => {
   it('superadmin can list users', async () => {
     await assertSucceeds(superadminCtx().firestore().collection('users').get());
   });
-  it('owner can list users (to query own coordinators)', async () => {
-    // Changed: owner can list so they can query where('leagueId',…).where('role','coordinator')
-    await assertSucceeds(ownerCtx().firestore().collection('users').get());
+  it('owner can list coordinators for own league', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().collection('users').where('leagueId', '==', LEAGUE_ID).where('role', '==', 'coordinator').get()
+    );
+  });
+  it('owner cannot list all users (unfiltered)', async () => {
+    await assertFails(ownerCtx().firestore().collection('users').get());
   });
 });
 
@@ -1173,6 +1177,12 @@ describe('users — owner list permission', () => {
     // The SDK used here doesn't expose query builders — use the Firestore instance directly
     await assertSucceeds(
       ownerCtx().firestore().collection('users').where('leagueId', '==', LEAGUE_ID).where('role', '==', 'coordinator').get()
+    );
+  });
+
+  it('owner cannot list coordinators from another league', async () => {
+    await assertFails(
+      ownerCtx().firestore().collection('users').where('leagueId', '==', OTHER_LEAGUE_ID).where('role', '==', 'coordinator').get()
     );
   });
 
