@@ -3700,7 +3700,7 @@ function App() {
   async function applyRpAdjustment(pid, amount, reason) {
     if (!league || !pid || !amount) return;
     const existing = ((league.playerMilestones||{})[pid]) || { milestones: [], rpAdjustments: [] };
-    const adj = { amount: parseInt(amount), reason: reason||"Manual adjustment", date: new Date().toISOString().slice(0,10) };
+    const adj = { amount: parseInt(amount), reason: reason||"Manual adjustment", date: localDateStr(new Date()) };
     const updated = { ...league, playerMilestones: { ...(league.playerMilestones||{}), [pid]: { ...existing, rpAdjustments: [...(existing.rpAdjustments||[]), adj] } } };
     await writeLeagueNow(updated); setDirty(false);
     showToast(`Ajustement RP appliqué.`, "success");
@@ -4104,7 +4104,7 @@ function App() {
                   <tbody>
                     {visibleLeagues.map((l, i) => {
                       const lOwners = users.filter(u => u.leagueId === l.id && u.role === "owner");
-                      const upcoming = (l.schedule||[]).filter(g => g.homeScore === undefined && g.awayScore === undefined && g.date >= new Date().toISOString().slice(0,10)).length;
+                      const upcoming = (l.schedule||[]).filter(g => g.homeScore === undefined && g.awayScore === undefined && g.date >= localDateStr(new Date())).length;
                       const completed = (l.schedule||[]).filter(g => g.homeScore !== undefined).length;
                       const status = upcoming > 0 ? "Active" : completed > 0 ? "Terminée" : "En cours";
                       const statusColor = upcoming > 0 ? "#22c55e" : completed > 0 ? ACC : "#f59e0b";
