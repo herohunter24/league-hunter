@@ -1198,3 +1198,39 @@ describe('users — owner list permission', () => {
     );
   });
 });
+
+// ── Security audit — owner escalation ────────────────────────────────────────
+describe('users — owner cannot escalate privileges', () => {
+  it('owner cannot update coordinator role field', async () => {
+    // isOwnerUpdatingCoordinator only allows active/mustChangePassword/username/venue/displayName
+    await assertFails(
+      ownerCtx().firestore().doc(`users/${COORD_UID}`).update({ role: 'owner' })
+    );
+  });
+  it('owner cannot update coordinator leagueId field', async () => {
+    await assertFails(
+      ownerCtx().firestore().doc(`users/${COORD_UID}`).update({ leagueId: OTHER_LEAGUE_ID })
+    );
+  });
+  it('owner cannot update a non-coordinator user doc', async () => {
+    // resource.data.role must be 'coordinator' — owner doc with role:'owner' must be blocked
+    await assertFails(
+      ownerCtx().firestore().doc(`users/${OTHER_OWNER_UID}`).update({ active: false })
+    );
+  });
+});
+
+// ── Security audit — coordinator self-update limits ───────────────────────────
+describe('coordinator — self-update restricted to mustChangePassword only', () => {
+  it('coordinator cannot change their own active field', async () => {
+    // Self-update rule only allows mustChangePassword flip (true→false)
+    await assertFails(
+      coordCtx().firestore().doc(`users/${COORD_UID}`).update({ active: false })
+    );
+  });
+  it('coordinator cannot change their own leagueId field', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`users/${COORD_UID}`).update({ leagueId: OTHER_LEAGUE_ID })
+    );
+  });
+});
