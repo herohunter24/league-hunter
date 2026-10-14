@@ -2275,8 +2275,11 @@ function App() {
       }
 
       if (u.role === "owner") {
-        const allSnap = await getDocs(collection(db, "users")).catch(() => null);
-        if (allSnap) setUsers(allSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+        if (u.leagueId) {
+          const { query, where } = _FS;
+          const coordSnap = await getDocs(query(collection(db, "users"), where("leagueId", "==", u.leagueId), where("role", "==", "coordinator"))).catch(() => null);
+          if (coordSnap) setUsers(coordSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+        }
         setUser(u);
         if (u.mustChangePassword) {
           console.log("[Auth] resolveFirebaseUser: → changepw (mustChangePassword)");
