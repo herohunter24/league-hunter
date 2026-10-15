@@ -971,15 +971,15 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .arc-card .pcard { transition: box-shadow 0.3s; }
 .arc-card:hover .pcard { transform: none; box-shadow: 0 26px 60px rgba(0,0,0,0.6); }
 @media (max-width: 720px) {
-  /* 2×2 grid — all 4 cards visible at once, no horizontal scroll */
+  /* 2×2 fan grid — all 4 cards visible, arc + float preserved */
   .arc-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    padding: 12px 16px 0;
+    gap: 16px 10px;
+    padding: 24px 22px 30px;
     margin: 0 auto 28px;
-    overflow-x: unset;
-    max-width: 440px;
+    overflow: visible;
+    max-width: 420px;
     justify-content: unset;
     align-items: unset;
   }
@@ -987,11 +987,20 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
     width: 100%;
     max-width: none;
     flex-shrink: unset;
-    transform: none !important;
     scroll-snap-align: unset;
-    animation: none !important;
+    transform-origin: center bottom;
   }
-  .arc-card:hover { transform: translateY(-4px) scale(1.02) !important; }
+  /* mini-fan: left cards lean left, right cards lean right */
+  .arc-card:nth-child(1) { transform: rotate(-5deg) translateY(6px); animation: cardFloat 3.2s ease-in-out infinite 0s; }
+  .arc-card:nth-child(2) { transform: rotate(5deg) translateY(6px); animation: cardFloat 3.6s ease-in-out infinite 0.4s; }
+  .arc-card:nth-child(3) { transform: rotate(-4deg) translateY(4px); animation: cardFloat 3.4s ease-in-out infinite 0.8s; }
+  .arc-card:nth-child(4) { transform: rotate(4deg) translateY(4px); animation: cardFloat 3.8s ease-in-out infinite 1.2s; }
+  .arc-card:hover, .arc-card:active { transform: translateY(-6px) rotate(0deg) scale(1.04) !important; animation: none !important; translate: 0 0 !important; }
+  /* disable desktop hover-spread on touch devices */
+  .arc-row:hover .arc-card:nth-child(1):not(:hover),
+  .arc-row:hover .arc-card:nth-child(2):not(:hover),
+  .arc-row:hover .arc-card:nth-child(3):not(:hover),
+  .arc-row:hover .arc-card:nth-child(4):not(:hover) { transform: unset; }
 }
 .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
 
@@ -1368,7 +1377,7 @@ button:active { transform: scale(0.98); }
 .arc-card:nth-child(3) { animation: cardFloat 3.4s ease-in-out infinite 0.8s; }
 .arc-card:nth-child(4) { animation: cardFloat 3.8s ease-in-out infinite 1.2s; }
 .arc-card:hover { animation: none !important; translate: 0 0 !important; }
-@media (max-width: 720px) { .arc-card { animation: none !important; } }
+/* mobile arc animations enabled per-card in the 720px block above */
 
 /* 8 — Game cards: status pill + played/upcoming styling; hover 2px lift */
 .game-card { transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
