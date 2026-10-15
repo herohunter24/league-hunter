@@ -2,6 +2,8 @@
 export const NLS_LOGO        = 'https://www.nlscreation.com/cdn/shop/files/NLSBlack.png';
 export const NLS_LOGO_WHITE  = '/logo/nls-logo-white.png';
 export const NLS_LOGO_BLACK  = '/logo/nls-logo-black.png';
+// Round basketball crest — used on player cards and as the NLS public site logo
+export const NLS_CREST       = '/logo/nls-crest.png';
 export const HERO_VIDEO_SRC  = 'https://stream.mux.com/8wrHPCX2dC3msyYU9ObwqNdm00u3ViXvOSHUMRYSEe5Q.m3u8';
 export const BRAND_NAME      = 'NLS·CRÉATION';
 export const WEBSITE_URL     = 'https://www.nlscreation.com';

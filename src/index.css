@@ -36,7 +36,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   transition: opacity 0.2s;
 }
 .site-header-logo:hover { opacity: 0.85; }
-.site-header-logo img { height: 30px; }
+.site-header-logo img { height: 44px; width: 44px; object-fit: contain; }
 .site-header-logo-fallback { font-family: var(--ff-display); font-weight: 700; letter-spacing: 0.12em; font-size: 17px; color: var(--ink); }
 .header-tabs { display: flex; align-items: center; gap: 2px; }
 .header-tab {
@@ -153,7 +153,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   z-index: -1; pointer-events: none;
 }
 
-.hero-visual-logo { height: clamp(60px, 10vw, 100px); margin-bottom: 32px; opacity: 0.92; animation: fadeUp 0.6s ease both; }
+.hero-visual-logo { height: clamp(110px, 12vw, 160px); width: clamp(110px, 12vw, 160px); object-fit: contain; margin-bottom: 32px; opacity: 0.95; animation: fadeUp 0.6s ease both; }
 .hero-kicker {
   font-family: var(--ff-display); font-size: 14px; font-weight: 600;
   letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold);
@@ -941,7 +941,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .footer-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
 .footer-col {}
 .footer-col--brand {}
-.footer-logo { height: 28px; margin-bottom: 14px; display: block; }
+.footer-logo { height: 44px; width: 44px; object-fit: contain; margin-bottom: 14px; display: block; }
 .footer-tagline { font-size: 13px; color: var(--ink-soft); margin-bottom: 16px; }
 .footer-ig { display: flex; align-items: center; gap: 8px; color: var(--ink-mid); text-decoration: none; font-size: 13px; }
 .footer-ig:hover { color: var(--gold); }
@@ -971,9 +971,39 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .arc-card .pcard { transition: box-shadow 0.3s; }
 .arc-card:hover .pcard { transform: none; box-shadow: 0 26px 60px rgba(0,0,0,0.6); }
 @media (max-width: 720px) {
-  .arc-row { overflow-x: auto; justify-content: flex-start; padding: 16px 4px; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; }
-  .arc-card { width: 180px; max-width: 62vw; transform: none !important; scroll-snap-align: center; }
-  .arc-card:hover { transform: translateY(-6px) scale(1.03) !important; }
+  /* 2×2 fan grid — all 4 cards visible, arc + float preserved */
+  .arc-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 10px;
+    padding: 24px 22px 30px;
+    margin: 0 auto 28px;
+    overflow: visible;
+    max-width: 420px;
+    justify-content: unset;
+    align-items: unset;
+  }
+  .arc-card {
+    width: 100%;
+    max-width: none;
+    flex-shrink: unset;
+    scroll-snap-align: unset;
+    transform-origin: center bottom;
+  }
+  /* mini-fan: left cards lean left, right cards lean right */
+  .arc-card:nth-child(1) { transform: rotate(-5deg) translateY(6px); animation: cardFloat 3.2s ease-in-out infinite 0s; }
+  .arc-card:nth-child(2) { transform: rotate(5deg) translateY(6px); animation: cardFloat 3.6s ease-in-out infinite 0.4s; }
+  .arc-card:nth-child(3) { transform: rotate(-4deg) translateY(4px); animation: cardFloat 3.4s ease-in-out infinite 0.8s; }
+  .arc-card:nth-child(4) { transform: rotate(4deg) translateY(4px); animation: cardFloat 3.8s ease-in-out infinite 1.2s; }
+  .arc-card:hover, .arc-card:active { transform: translateY(-6px) rotate(0deg) scale(1.04) !important; animation: none !important; translate: 0 0 !important; }
+  /* disable desktop hover-spread on touch devices */
+  .arc-row:hover .arc-card:nth-child(1):not(:hover),
+  .arc-row:hover .arc-card:nth-child(2):not(:hover),
+  .arc-row:hover .arc-card:nth-child(3):not(:hover),
+  .arc-row:hover .arc-card:nth-child(4):not(:hover) { transform: unset; }
+  /* stat readability: raise minimums so numbers ≥ 11px at ~160px card width */
+  .pc-stat-v { font-size: clamp(11px, 6cqi, 15px); }
+  .pc-stat-k { font-size: clamp(8px, 3.2cqi, 9px); }
 }
 .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
 
@@ -1350,7 +1380,7 @@ button:active { transform: scale(0.98); }
 .arc-card:nth-child(3) { animation: cardFloat 3.4s ease-in-out infinite 0.8s; }
 .arc-card:nth-child(4) { animation: cardFloat 3.8s ease-in-out infinite 1.2s; }
 .arc-card:hover { animation: none !important; translate: 0 0 !important; }
-@media (max-width: 720px) { .arc-card { animation: none !important; } }
+/* mobile arc animations enabled per-card in the 720px block above */
 
 /* 8 — Game cards: status pill + played/upcoming styling; hover 2px lift */
 .game-card { transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
