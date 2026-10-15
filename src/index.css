@@ -1001,6 +1001,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
   .arc-row:hover .arc-card:nth-child(2):not(:hover),
   .arc-row:hover .arc-card:nth-child(3):not(:hover),
   .arc-row:hover .arc-card:nth-child(4):not(:hover) { transform: unset; }
+  /* stat readability: raise minimums so numbers ≥ 11px at ~160px card width */
+  .pc-stat-v { font-size: clamp(11px, 6cqi, 15px); }
+  .pc-stat-k { font-size: clamp(8px, 3.2cqi, 9px); }
 }
 .mission-body { max-width: 640px; margin: 0 auto 30px; color: var(--ink-mid); font-size: 15.5px; line-height: 1.85; }
 
