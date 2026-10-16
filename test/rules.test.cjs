@@ -1033,6 +1033,30 @@ describe('coordinator — draft system', () => {
         .set({ points: 20, hack: 'bad', draft: true })
     );
   });
+  it('coordinator can save draft with savedByName inside the draft map', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        draft: { homeScore: 80, awayScore: 75, savedBy: COORD_UID, savedByName: 'Marie Tremblay', savedAt: new Date() },
+      })
+    );
+  });
+});
+
+describe('coordinator — lockedByName field', () => {
+  it('coordinator can write lockedByName on an unlocked game', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        lockedByName: 'Marie Tremblay',
+      })
+    );
+  });
+  it('coordinator cannot write lockedByName alongside an unknown field', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        lockedByName: 'Marie Tremblay', hack: 'bad',
+      })
+    );
+  });
 });
 
 describe('owner — unlock a locked game', () => {

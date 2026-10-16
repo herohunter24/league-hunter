@@ -1640,7 +1640,7 @@ function App() {
   // Coordinator scorekeeping (Phase 3)
   const [coordGame, setCoordGame] = useState(null);       // game being edited
   const [coordDraft, setCoordDraft] = useState({ homeScore: "", awayScore: "", stats: {} });
-  const [coordVenue, setCoordVenue] = useState(null);     // selected venue filter (coordinator + owner)
+  const [coordVenue, setCoordVenue] = useState(() => { try { return localStorage.getItem('coord_venue'); } catch { return null; } }); // selected venue filter; persisted in localStorage
   const [coordLocking, setCoordLocking] = useState(false); // lock-confirm dialog open
   const [coordSaving, setCoordSaving] = useState(false);
   const [coordLastSaved, setCoordLastSaved] = useState(null); // "HH:MM" of last draft autosave
@@ -2682,7 +2682,7 @@ function App() {
     if (!doc || !updateDoc || !setDoc || !serverTimestamp) return;
     const lid = String(selId), gid = String(gameId);
 
-    const draftPayload = { homeScore: Number(homeScore), awayScore: Number(awayScore), savedBy: user.uid, savedAt: serverTimestamp() };
+    const draftPayload = { homeScore: Number(homeScore), awayScore: Number(awayScore), savedBy: user.uid, savedByName: user.displayName || user.email || "", savedAt: serverTimestamp() };
     await updateDoc(doc(_db, "leagues", lid, "games", gid), { draft: draftPayload });
 
     for (const [pid, stats] of Object.entries(statsMap || {})) {
@@ -2716,7 +2716,7 @@ function App() {
 
     await updateDoc(doc(_db, "leagues", lid, "games", gid), {
       homeScore: Number(homeScore), awayScore: Number(awayScore),
-      played: true, locked: true, lockedBy: user.uid, lockedAt: serverTimestamp(),
+      played: true, locked: true, lockedBy: user.uid, lockedByName: user.displayName || user.email || "", lockedAt: serverTimestamp(),
       draft: deleteField(),
     });
     for (const [pid, stats] of Object.entries(statsMap || {})) {
@@ -2737,7 +2737,7 @@ function App() {
           if (Object.keys(clean).length > 0) newStats[pid] = clean;
         }
         const { draft: _d, ...rest } = g;
-        return { ...rest, homeScore: Number(homeScore), awayScore: Number(awayScore), played: true, locked: true, lockedBy: user.uid, playerStats: newStats };
+        return { ...rest, homeScore: Number(homeScore), awayScore: Number(awayScore), played: true, locked: true, lockedBy: user.uid, lockedByName: user.displayName || user.email || "", playerStats: newStats };
       })};
     }));
   }
@@ -4868,6 +4868,18 @@ function App() {
                       <div style={{ fontSize: 12, color: T2 }}>{g.time || ""}{g.venue ? " · " + g.venue : ""}</div>
                       {g.locked && <div style={{ marginTop: 8, fontSize: 11, color: "#f59e0b", fontWeight: 600 }}>🔒 Match verrouillé — lecture seule pour le coordinateur</div>}
                     </div>
+                    {/* Concurrent edit warning */}
+                    {(() => {
+                      const d = g.draft;
+                      if (!d || !d.savedBy || d.savedBy === user.uid) return null;
+                      const savedMs = d.savedAt?.toMillis?.() ?? 0;
+                      if (!savedMs || Date.now() - savedMs > 2 * 60 * 1000) return null;
+                      return (
+                        <div style={{ background: "#7c2d1220", border: "1px solid #f9731640", borderRadius: 12, padding: "12px 16px", marginBottom: 14, fontSize: 13, color: "#fb923c" }}>
+                          ⚠️ {d.savedByName || "Un coordinateur"} modifie ce match en ce moment.
+                        </div>
+                      );
+                    })()}
                     {/* Score inputs */}
                     {!g.locked && (
                       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}>
@@ -4944,27 +4956,21 @@ function App() {
               return (
                 <div style={{ maxWidth: 480, margin: "0 auto" }}>
                   {/* Title + venue selector */}
-                  {(() => {
-                    const assignedVenue = (user?.venue || "").trim();
-                    const isLocked = !!assignedVenue;
-                    return (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
-                        <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
-                        {allVenues.length > 0 && (
-                          isLocked ? (
-                            <span style={{ ...inp, padding: "6px 12px", fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6, cursor: "default", opacity: 0.85 }}>
-                              🏟 {assignedVenue}
-                            </span>
-                          ) : (
-                            <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }} value={activeVenue} onChange={e => setCoordVenue(e.target.value)}>
-                              {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
-                              <option value="">Tous les gymnases</option>
-                            </select>
-                          )
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
+                    {allVenues.length > 0 && (
+                      <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }}
+                        value={activeVenue}
+                        onChange={e => {
+                          const v = e.target.value;
+                          setCoordVenue(v);
+                          try { localStorage.setItem('coord_venue', v); } catch {}
+                        }}>
+                        <option value="">Tous les gymnases</option>
+                        {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    )}
+                  </div>
                   {/* Notification CTA */}
                   {!notifGranted && !notifRefused && notifAvailable && (
                     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -5001,6 +5007,12 @@ function App() {
                             <div style={{ fontSize: 20, fontWeight: 800, marginTop: 10, letterSpacing: 1 }}>
                               {displayScore}{g.locked && <span style={{ marginLeft: 8, fontSize: 13 }}>🔒</span>}
                               {hasDraft && !g.played && <span style={{ marginLeft: 8, fontSize: 11, color: T2, fontWeight: 400 }}>brouillon</span>}
+                            </div>
+                          )}
+                          {g.locked && (g.lockedByName || g.lockedAt) && (
+                            <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>
+                              Verrouillé{g.lockedByName ? ` par ${g.lockedByName}` : ""}
+                              {g.lockedAt && (() => { try { const d = g.lockedAt.toDate ? g.lockedAt.toDate() : new Date(g.lockedAt); return ` · ${d.toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" })}`; } catch { return ""; } })()}
                             </div>
                           )}
                           {status !== "locked" && (() => {
