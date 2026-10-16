@@ -810,7 +810,7 @@ const btnDanger = () => ({ background: "none", border: "1px solid #EF444470", bo
 const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px" };
 const lbl = { fontSize: 12, color: T2, fontWeight: 600, display: "block", marginBottom: 6 };
 
-function PasswordInput({ value, onChange, onKeyDown, placeholder, autoComplete, style }) {
+function PasswordInput({ value, onChange, onKeyDown, placeholder, autoComplete, style, ...rest }) {
   const [show, setShow] = React.useState(false);
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
@@ -822,6 +822,7 @@ function PasswordInput({ value, onChange, onKeyDown, placeholder, autoComplete, 
         placeholder={placeholder}
         autoComplete={autoComplete}
         style={{ ...style, paddingRight: 48 }}
+        {...rest}
       />
       <button
         type="button"
@@ -1680,6 +1681,7 @@ function App() {
   const [coordDeviceId] = useState(() => { try { let id = localStorage.getItem('coord_device_id'); if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('coord_device_id', id); } return id; } catch { return Math.random().toString(36).slice(2); } });
   const [coordAccessData, setCoordAccessData] = useState(null); // { username, password } from settings/coordAccess
   const [showCoordCreds, setShowCoordCreds] = useState(false);
+  const [showCoordCreate, setShowCoordCreate] = useState(false);
   const [coordLocking, setCoordLocking] = useState(false); // lock-confirm dialog open
   const [coordSaving, setCoordSaving] = useState(false);
   const [coordLastSaved, setCoordLastSaved] = useState(null); // "HH:MM" of last draft autosave
@@ -2976,14 +2978,21 @@ function App() {
       const newUid = cred.user.uid;
       const newCoordDoc = {
         username: u, displayName: u, role: "coordinator",
-        leagueId,
+        leagueId: user.leagueId,
         active: true, mustChangePassword: false, createdAt: new Date().toISOString().slice(0, 10),
       };
       const { setDoc, doc } = _FS;
       try {
         await setDoc(doc(_db, "users", newUid), newCoordDoc);
-        await setDoc(doc(_db, "leagues", String(leagueId), "settings", "coordAccess"), { username: u, password: tempPassword });
       } catch(fsErr) {
+        console.error("[createCoordinator] write failed: users/" + newUid, fsErr);
+        try { await (authFns.deleteUser ? authFns.deleteUser(cred.user) : cred.user.delete()); } catch {}
+        throw fsErr;
+      }
+      try {
+        await setDoc(doc(_db, "leagues", String(user.leagueId), "settings", "coordAccess"), { username: u, password: tempPassword });
+      } catch(fsErr) {
+        console.error("[createCoordinator] write failed: leagues/" + String(user.leagueId) + "/settings/coordAccess", fsErr);
         try { await (authFns.deleteUser ? authFns.deleteUser(cred.user) : cred.user.delete()); } catch {}
         throw fsErr;
       }
@@ -2992,6 +3001,7 @@ function App() {
       setShowCoordCreds(false);
       setNewCoord({ username: "", tempPassword: "" });
       setCoordError("");
+      setShowCoordCreate(false);
       showToast(`Compte coordinateur créé : ${u}`);
     } catch(e) {
       if (e.code === 'auth/email-already-in-use') {
@@ -3031,9 +3041,19 @@ function App() {
         leagueId: oldCoord?.leagueId,
         active: true, mustChangePassword: false, createdAt: new Date().toISOString().slice(0, 10),
       };
-      await setDoc(doc(_db, "users", newUid), newCoordDoc);
+      try {
+        await setDoc(doc(_db, "users", newUid), newCoordDoc);
+      } catch(fsErr) {
+        console.error("[resetCoordAccess] write failed: users/" + newUid, fsErr);
+        throw fsErr;
+      }
       if (oldCoord?.leagueId) {
-        await setDoc(doc(_db, "leagues", String(oldCoord.leagueId), "settings", "coordAccess"), { username: u, password: tempPassword });
+        try {
+          await setDoc(doc(_db, "leagues", String(oldCoord.leagueId), "settings", "coordAccess"), { username: u, password: tempPassword });
+        } catch(fsErr) {
+          console.error("[resetCoordAccess] write failed: leagues/" + String(oldCoord.leagueId) + "/settings/coordAccess", fsErr);
+          throw fsErr;
+        }
       }
       setUsers(prev => [...prev.filter(usr => usr.id !== coordId), { ...newCoordDoc, id: newUid }]);
       setCoordAccessData({ username: u, password: tempPassword });
@@ -4624,7 +4644,7 @@ function App() {
 
         {/* ── MISSING SCORE ALERT BANNER ── */}
         {(() => {
-          const awaiting = (league.schedule || []).filter(g => isGameAwaiting(g));
+          const awaiting = (league.schedule || []).filter(g => isNeedingScore(g));
           if (!awaiting.length) return null;
           const urgent = awaiting.filter(g => daysAgo(g) >= 2);
           return (
@@ -6478,6 +6498,8 @@ function App() {
               {/* ── COORDONNATEURS ── */}
               {(() => {
                 const leagueCoords = users.filter(u => u.leagueId === selId && u.role === "coordinator");
+                const sharedCoord = leagueCoords.find(c => !c.venue);
+                const legacyCoords = leagueCoords.filter(c => c.venue);
                 const isResettingCoord = resetCoordForm.coordId !== null;
                 return (
                   <div style={{ ...card, marginBottom: 20 }}>
@@ -6523,11 +6545,37 @@ function App() {
                       </div>
                     )}
 
+                    {/* RECRÉER button — only when coordinators exist and create form is hidden */}
+                    {leagueCoords.length > 0 && !isResettingCoord && !showCoordCreate && (
+                      <div style={{ marginBottom: 16 }}>
+                        <button
+                          onClick={() => {
+                            if (sharedCoord) {
+                              setResetCoordForm({ coordId: sharedCoord.id, newUsername: "", tempPassword: "" });
+                              setCoordError("");
+                            } else {
+                              setShowCoordCreate(true);
+                            }
+                          }}
+                          style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
+                          RECRÉER LE COMPTE
+                        </button>
+                      </div>
+                    )}
+
                     {/* Create form */}
-                    {!isResettingCoord && (
+                    {!isResettingCoord && (leagueCoords.length === 0 || showCoordCreate) && (
                       <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18, marginBottom: 20 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 12 }}>
-                          {coordAccessData ? "RECRÉER LE COMPTE" : "CRÉER LE COMPTE COORDINATEUR"}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em" }}>
+                            {leagueCoords.length > 0 ? "RECRÉER LE COMPTE" : "CRÉER LE COMPTE COORDINATEUR"}
+                          </div>
+                          {showCoordCreate && (
+                            <button onClick={() => { setShowCoordCreate(false); setCoordError(""); }}
+                              style={{ background: "none", border: "none", color: T2, fontSize: 12, cursor: "pointer", padding: "2px 6px" }}>
+                              Annuler
+                            </button>
+                          )}
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -6541,7 +6589,8 @@ function App() {
                               <label style={lbl}>Mot de passe</label>
                               <PasswordInput style={inp} value={newCoord.tempPassword}
                                 onChange={e => setNewCoord(c => ({ ...c, tempPassword: e.target.value }))}
-                                placeholder="6 caractères minimum" autoComplete="new-password" />
+                                placeholder="6 caractères minimum" autoComplete="new-password"
+                                name="coord-new-password" data-lpignore="true" />
                             </div>
                           </div>
                           {coordError && <div style={{ color: "#ef4444", fontSize: 12 }}>{coordError}</div>}
@@ -6575,7 +6624,8 @@ function App() {
                               <label style={lbl}>Nouveau mot de passe temporaire</label>
                               <PasswordInput style={inp} value={resetCoordForm.tempPassword}
                                 onChange={e => setResetCoordForm(f => ({ ...f, tempPassword: e.target.value }))}
-                                placeholder="6 caractères minimum" autoComplete="new-password" />
+                                placeholder="6 caractères minimum" autoComplete="new-password"
+                                name="coord-new-password" data-lpignore="true" />
                             </div>
                           </div>
                           {coordError && <div style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{coordError}</div>}
@@ -6594,34 +6644,50 @@ function App() {
                     })()}
 
                     {/* Coordinator list */}
-                    {leagueCoords.length === 0 && !isResettingCoord && (
+                    {leagueCoords.length === 0 && !isResettingCoord && !showCoordCreate && (
                       <div style={{ fontSize: 13, color: T2, fontStyle: "italic" }}>Aucun coordinateur pour cette ligue.</div>
                     )}
-                    {leagueCoords.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {leagueCoords.map(coord => (
-                          <div key={coord.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: 14 }}>{coord.displayName || coord.username}</div>
-                              <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
-                                @{coord.username}
+                    {sharedCoord && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: legacyCoords.length > 0 ? 16 : 0 }}>
+                        <div key={sharedCoord.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{sharedCoord.displayName || sharedCoord.username}</div>
+                            <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>@{sharedCoord.username}</div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: sharedCoord.active === false ? "#ef444418" : "#22c55e18", color: sharedCoord.active === false ? "#ef4444" : "#22c55e", fontWeight: 700 }}>
+                              {sharedCoord.active === false ? "Désactivé" : "Actif"}
+                            </span>
+                            <button onClick={() => toggleCoordActive(sharedCoord.id, sharedCoord.active === false)}
+                              style={{ background: "none", border: `1px solid ${sharedCoord.active === false ? "#22c55e50" : "#ef444450"}`, borderRadius: 6, color: sharedCoord.active === false ? "#22c55e" : "#ef4444", padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                              {sharedCoord.active === false ? "Réactiver" : "Désactiver"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {legacyCoords.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 8 }}>ANCIENS COMPTES</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {legacyCoords.map(coord => (
+                            <div key={coord.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: SURF, border: `1px solid ${BORDER}`, borderRadius: 8, opacity: coord.active === false ? 0.6 : 1 }}>
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: 13 }}>{coord.displayName || coord.username}</div>
+                                <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>@{coord.username} · {coord.venue}</div>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: coord.active === false ? "#ef444418" : "#22c55e18", color: coord.active === false ? "#ef4444" : "#22c55e", fontWeight: 700 }}>
+                                  {coord.active === false ? "Désactivé" : "Actif"}
+                                </span>
+                                <button onClick={() => toggleCoordActive(coord.id, coord.active === false)}
+                                  style={{ background: "none", border: `1px solid ${coord.active === false ? "#22c55e50" : "#ef444450"}`, borderRadius: 6, color: coord.active === false ? "#22c55e" : "#ef4444", padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                                  {coord.active === false ? "Réactiver" : "Désactiver"}
+                                </button>
                               </div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                              <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: coord.active === false ? "#ef444418" : "#22c55e18", color: coord.active === false ? "#ef4444" : "#22c55e", fontWeight: 700 }}>
-                                {coord.active === false ? "Désactivé" : "Actif"}
-                              </span>
-                              <button onClick={() => { setResetCoordForm({ coordId: coord.id, newUsername: "", tempPassword: "" }); setCoordError(""); }}
-                                style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
-                                Réinitialiser
-                              </button>
-                              <button onClick={() => toggleCoordActive(coord.id, coord.active === false)}
-                                style={{ background: "none", border: `1px solid ${coord.active === false ? "#22c55e50" : "#ef444450"}`, borderRadius: 6, color: coord.active === false ? "#22c55e" : "#ef4444", padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
-                                {coord.active === false ? "Réactiver" : "Désactiver"}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -8628,7 +8694,7 @@ service cloud.firestore {
 
         {/* ── MISSING SCORE MODAL (shown once per day on login) ── */}
         {showMissingModal && (() => {
-          const awaiting = (league.schedule || []).filter(g => isGameAwaiting(g)).sort((a,b) => daysAgo(b) - daysAgo(a));
+          const awaiting = (league.schedule || []).filter(g => isNeedingScore(g)).sort((a,b) => daysAgo(b) - daysAgo(a));
           if (!awaiting.length) { setShowMissingModal(false); return null; }
           return (
             <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350, padding: 20 }}>

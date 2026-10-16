@@ -1131,6 +1131,29 @@ describe('users — owner manages coordinators', () => {
       })
     );
   });
+  it('owner can create shared coordinator doc (no venue field)', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore().doc('users/shared_coord_uid').set({
+        username: 'coord_shared', displayName: 'coord_shared', role: 'coordinator',
+        leagueId: LEAGUE_ID, active: true,
+        mustChangePassword: false, createdAt: '2025-01-01',
+      })
+    );
+  });
+  it('owner can write coordAccess settings doc for own league', async () => {
+    await assertSucceeds(
+      ownerCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/settings/coordAccess`)
+        .set({ username: 'coord_shared', password: 'pass1234' })
+    );
+  });
+  it('owner of other league cannot write coordAccess for this league', async () => {
+    await assertFails(
+      otherOwnerCtx().firestore()
+        .doc(`leagues/${LEAGUE_ID}/settings/coordAccess`)
+        .set({ username: 'hacked', password: 'hack1234' })
+    );
+  });
   it('owner cannot create a coordinator for another league', async () => {
     await assertFails(
       ownerCtx().firestore().doc('users/new_coord_uid').set({
