@@ -1681,7 +1681,6 @@ function App() {
   const [coordDeviceId] = useState(() => { try { let id = localStorage.getItem('coord_device_id'); if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('coord_device_id', id); } return id; } catch { return Math.random().toString(36).slice(2); } });
   const [coordAccessData, setCoordAccessData] = useState(null); // { username, password } from settings/coordAccess
   const [showCoordCreds, setShowCoordCreds] = useState(false);
-  const [showCoordCreate, setShowCoordCreate] = useState(false);
   const [coordLocking, setCoordLocking] = useState(false); // lock-confirm dialog open
   const [coordSaving, setCoordSaving] = useState(false);
   const [coordLastSaved, setCoordLastSaved] = useState(null); // "HH:MM" of last draft autosave
@@ -1840,6 +1839,7 @@ function App() {
   // Tracks the last-written sub-collection state per league so writeLeagueNow can diff
   // Structure: { [leagueId]: { teams: {id→doc}, players: {id→doc}, games: {id→doc}, stats: {gameId→{playerId→doc}} } }
   const subcolData = useRef({});
+  const pendingDeletes = useRef({}); // { [lid]: { games: Set, teams: Set, players: Set } } — only delete IDs explicitly added here
   const coordNotifRef  = useRef(new Set()); // gameIds already notified (60-min alert)
   const coordTimersRef = useRef([]);        // setTimeout handles for cleanup
   const coordDraftRef  = useRef({ homeScore: "", awayScore: "", stats: {} }); // stable ref for autosave
@@ -1894,6 +1894,10 @@ function App() {
     const before = (lg.players || []).length;
     const cleaned = stripOrphanedPlayers(lg.teams || [], lg.players || []);
     if (cleaned.length !== before) {
+      const lid2 = String(lg.id);
+      if (!pendingDeletes.current[lid2]) pendingDeletes.current[lid2] = { games: new Set(), teams: new Set(), players: new Set() };
+      (lg.players || []).filter(p => !cleaned.some(c => c.id === p.id))
+        .forEach(p => pendingDeletes.current[lid2].players.add(String(p.id)));
       const updated = { ...lg, players: cleaned };
       writeLeagueNow(updated).catch(e => console.error("Silent orphan cleanup:", e));
     }
@@ -2635,8 +2639,13 @@ function App() {
           ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "teams", tid), data: team });
         }
       }
+      const pd = pendingDeletes.current[lid] || {};
+      const pdGames   = pd.games   || new Set();
+      const pdTeams   = pd.teams   || new Set();
+      const pdPlayers = pd.players || new Set();
+
       for (const tid of Object.keys(prev.teams)) {
-        if (!newTeams[tid]) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "teams", tid) });
+        if (!newTeams[tid] && pdTeams.has(tid)) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "teams", tid) });
       }
 
       // Players: strip email from public doc; write email to playersPrivate
@@ -2654,7 +2663,7 @@ function App() {
         }
       }
       for (const pid of Object.keys(prev.players)) {
-        if (!newPlayers[pid]) {
+        if (!newPlayers[pid] && pdPlayers.has(pid)) {
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "players", pid) });
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "playersPrivate", pid) });
         }
@@ -2679,9 +2688,9 @@ function App() {
           if (!newStats[pid]) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)) });
         }
       }
-      // Delete removed games (and their playerStats)
+      // Delete removed games (and their playerStats) — only when explicitly marked
       for (const gid of Object.keys(prev.games)) {
-        if (!newGames[gid]) {
+        if (!newGames[gid] && pdGames.has(gid)) {
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "games", gid) });
           for (const pid of Object.keys(prev.stats[gid] || {})) {
             ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)) });
@@ -2705,7 +2714,8 @@ function App() {
         await batch.commit();
       }
 
-      // Update tracked state so next write can diff correctly
+      // Commits succeeded — clear pending deletes and update tracked state
+      delete pendingDeletes.current[lid];
       subcolData.current[lid] = {
         teams:   newTeams,
         players: Object.fromEntries(Object.entries(newPlayers).map(([pid, p]) => { const { email: _e, ...pub } = p; return [pid, pub]; })),
@@ -2823,18 +2833,40 @@ function App() {
     showToast("Enregistré à " + ts);
   }
   function discardDirty() {
+    const lid = String(selId);
+    delete pendingDeletes.current[lid];
     try {
       const saved = JSON.parse(localStorage.getItem("wxLeagues") || "null") || DEMO_LEAGUES;
       const savedLeague = saved.find(l => l.id === selId);
-      if (savedLeague) setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
+      if (savedLeague) {
+        setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
+        subcolData.current[lid] = {
+          teams:          Object.fromEntries((savedLeague.teams   || []).map(t => [String(t.id), t])),
+          players:        Object.fromEntries((savedLeague.players || []).map(p => { const { email: _e, ...pub } = p; return [String(p.id), pub]; })),
+          playersPrivate: Object.fromEntries((savedLeague.players || []).filter(p => p.email).map(p => [String(p.id), { email: p.email }])),
+          games:          Object.fromEntries((savedLeague.schedule || []).map(g => { const { playerStats: _s, ...rest } = g; return [String(g.id), rest]; })),
+          stats:          Object.fromEntries((savedLeague.schedule || []).map(g => [String(g.id), g.playerStats || {}])),
+        };
+      }
     } catch {}
     setDirty(false);
   }
   function leaveWithoutSaving() {
+    const lid = String(selId);
+    delete pendingDeletes.current[lid];
     try {
       const saved = JSON.parse(localStorage.getItem("wxLeagues") || "null") || DEMO_LEAGUES;
       const savedLeague = saved.find(l => l.id === selId);
-      if (savedLeague) setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
+      if (savedLeague) {
+        setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
+        subcolData.current[lid] = {
+          teams:          Object.fromEntries((savedLeague.teams   || []).map(t => [String(t.id), t])),
+          players:        Object.fromEntries((savedLeague.players || []).map(p => { const { email: _e, ...pub } = p; return [String(p.id), pub]; })),
+          playersPrivate: Object.fromEntries((savedLeague.players || []).filter(p => p.email).map(p => [String(p.id), { email: p.email }])),
+          games:          Object.fromEntries((savedLeague.schedule || []).map(g => { const { playerStats: _s, ...rest } = g; return [String(g.id), rest]; })),
+          stats:          Object.fromEntries((savedLeague.schedule || []).map(g => [String(g.id), g.playerStats || {}])),
+        };
+      }
     } catch {}
     setDirty(false);
     const dest = pendingNavTab;
@@ -3175,6 +3207,14 @@ function App() {
     const remainingSchedule = teamToDelete
       ? league.schedule.filter(g => g.home !== teamToDelete.name && g.away !== teamToDelete.name)
       : league.schedule;
+    // Mark explicit deletions so writeLeagueNow diff is allowed to delete them
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].teams.add(String(id));
+    league.players.filter(p => (teamToDelete && p.team === teamToDelete.name) || String(p.teamId) === String(id))
+      .forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
+    if (teamToDelete) league.schedule.filter(g => g.home === teamToDelete.name || g.away === teamToDelete.name)
+      .forEach(g => pendingDeletes.current[lid].games.add(String(g.id)));
     // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
     if (__fbReady && _db) {
       try {
@@ -3337,6 +3377,14 @@ function App() {
     if (delTeamDeletePlayers) {
       remainingPlayers = league.players.filter(p => p.team !== team.name && String(p.teamId) !== String(team.id));
     }
+    // Mark explicit deletions so writeLeagueNow diff is allowed to delete them
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].teams.add(String(team.id));
+    if (delTeamDeletePlayers) {
+      league.players.filter(p => p.team === team.name || String(p.teamId) === String(team.id))
+        .forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
+    }
     if (__fbReady && _db) {
       try {
         const { deleteDoc, doc } = _FS;
@@ -3361,6 +3409,10 @@ function App() {
     const cleaned = stripOrphanedPlayers(league.teams, league.players);
     const removed = before - cleaned.length;
     if (removed === 0) { showToast("Aucun joueur orphelin trouvé."); return; }
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    league.players.filter(p => !cleaned.some(c => c.id === p.id))
+      .forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
     const updated = { ...league, players: cleaned };
     await writeLeagueNow(updated);
     setDirty(false);
@@ -3404,6 +3456,10 @@ function App() {
       delete ps[String(id)];
       return { ...g, playerStats: ps };
     });
+    // Mark explicit deletion so writeLeagueNow diff is allowed to delete it
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].players.add(String(id));
     // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
     if (__fbReady && _db) {
       try {
@@ -3575,6 +3631,10 @@ function App() {
   }
   async function deleteGame(id) {
     if (!league) return;
+    // Mark explicit deletion so writeLeagueNow diff is allowed to delete it
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].games.add(String(id));
     // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
     if (__fbReady && _db) {
       try {
@@ -3895,6 +3955,12 @@ function App() {
     const updSchedule = (league.schedule || []).filter(g => g.categoryId !== catId);
     const updHonours  = { ...(league.honours || {}) };
     delete updHonours[catId];
+    // Mark explicit deletions so writeLeagueNow diff is allowed to delete them
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    league.teams.filter(t => t.categoryId === catId).forEach(t => pendingDeletes.current[lid].teams.add(String(t.id)));
+    league.players.filter(p => p.categoryId === catId).forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
+    (league.schedule || []).filter(g => g.categoryId === catId).forEach(g => pendingDeletes.current[lid].games.add(String(g.id)));
     const updated = { ...league, categories: updCategories, teams: updTeams, players: updPlayers, schedule: updSchedule, honours: updHonours };
     await writeLeagueNow(updated);
     setDirty(false);
@@ -6498,8 +6564,8 @@ function App() {
               {/* ── COORDONNATEURS ── */}
               {(() => {
                 const leagueCoords = users.filter(u => u.leagueId === selId && u.role === "coordinator");
-                const sharedCoord = leagueCoords.find(c => !c.venue);
-                const legacyCoords = leagueCoords.filter(c => c.venue);
+                const sharedCoord = coordAccessData ? leagueCoords.find(c => c.username === coordAccessData.username) : null;
+                const legacyCoords = leagueCoords.filter(c => c !== sharedCoord);
                 const isResettingCoord = resetCoordForm.coordId !== null;
                 return (
                   <div style={{ ...card, marginBottom: 20 }}>
@@ -6545,17 +6611,13 @@ function App() {
                       </div>
                     )}
 
-                    {/* RECRÉER button — only when coordinators exist and create form is hidden */}
-                    {leagueCoords.length > 0 && !isResettingCoord && !showCoordCreate && (
+                    {/* RECRÉER button — only when a shared account exists */}
+                    {sharedCoord && !isResettingCoord && (
                       <div style={{ marginBottom: 16 }}>
                         <button
                           onClick={() => {
-                            if (sharedCoord) {
-                              setResetCoordForm({ coordId: sharedCoord.id, newUsername: "", tempPassword: "" });
-                              setCoordError("");
-                            } else {
-                              setShowCoordCreate(true);
-                            }
+                            setResetCoordForm({ coordId: sharedCoord.id, newUsername: "", tempPassword: "" });
+                            setCoordError("");
                           }}
                           style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 8, color: T2, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
                           RECRÉER LE COMPTE
@@ -6563,19 +6625,13 @@ function App() {
                       </div>
                     )}
 
-                    {/* Create form */}
-                    {!isResettingCoord && (leagueCoords.length === 0 || showCoordCreate) && (
+                    {/* Create form — shown when no shared account exists yet */}
+                    {!sharedCoord && !isResettingCoord && (
                       <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18, marginBottom: 20 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <div style={{ marginBottom: 12 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em" }}>
-                            {leagueCoords.length > 0 ? "RECRÉER LE COMPTE" : "CRÉER LE COMPTE COORDINATEUR"}
+                            CRÉER LE COMPTE COORDINATEUR
                           </div>
-                          {showCoordCreate && (
-                            <button onClick={() => { setShowCoordCreate(false); setCoordError(""); }}
-                              style={{ background: "none", border: "none", color: T2, fontSize: 12, cursor: "pointer", padding: "2px 6px" }}>
-                              Annuler
-                            </button>
-                          )}
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -6611,7 +6667,7 @@ function App() {
                             RÉINITIALISER L'ACCÈS — {targetCoord?.displayName || targetCoord?.username}
                           </div>
                           <div style={{ fontSize: 12, color: T2, marginBottom: 12, lineHeight: 1.5 }}>
-                            L'ancien compte perd l'accès. Un nouveau compte est créé avec le même gymnase et nom d'affichage.
+                            L'ancien compte perd l'accès. Un nouveau compte partagé est créé avec le nouveau nom d'utilisateur.
                           </div>
                           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                             <div style={{ flex: 1, minWidth: 140 }}>
@@ -6644,7 +6700,7 @@ function App() {
                     })()}
 
                     {/* Coordinator list */}
-                    {leagueCoords.length === 0 && !isResettingCoord && !showCoordCreate && (
+                    {leagueCoords.length === 0 && !isResettingCoord && (
                       <div style={{ fontSize: 13, color: T2, fontStyle: "italic" }}>Aucun coordinateur pour cette ligue.</div>
                     )}
                     {sharedCoord && (
