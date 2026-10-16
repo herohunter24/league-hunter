@@ -1620,6 +1620,7 @@ function App() {
   const [delTeamTyped, setDelTeamTyped] = useState("");
   const [delTeamDeletePlayers, setDelTeamDeletePlayers] = useState(true);
   const [rosterErrors, setRosterErrors] = useState({});  // { [_key]: { firstName?, lastName? } }
+  const [orphanConfirm, setOrphanConfirm] = useState(null); // null | "loading" | { count, cleanedPlayers, orphanedIds, lid }
   // Calendrier filters
   const [calFilter, setCalFilter] = useState({ team: "", venue: "", status: "" });
   const [calSearch, setCalSearch] = useState("");
@@ -1773,6 +1774,7 @@ function App() {
   // Tracks the last-written sub-collection state per league so writeLeagueNow can diff
   // Structure: { [leagueId]: { teams: {id→doc}, players: {id→doc}, games: {id→doc}, stats: {gameId→{playerId→doc}} } }
   const subcolData = useRef({});
+  const pendingDeletes = useRef({}); // { [lid]: { games: Set, teams: Set, players: Set } } — only delete IDs explicitly added here
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   // Reset add-forms when switching tabs so stale input doesn't persist
@@ -1795,7 +1797,7 @@ function App() {
   //   • user changes (owner logs in before data load completes)
   // All three deps are intentional — this is the primary fix for the blank-screen timing bug.
   useEffect(() => {
-    if (!selId) { setActiveCatId(null); return; }
+    if (!selId) { setActiveCatId(null); setOrphanConfirm(null); return; }
     const lg = leagues.find(l => l.id === selId);
     if (!lg) return;
     const cats = lg.categories || [];
@@ -1803,19 +1805,6 @@ function App() {
       setActiveCatId(cats[0].id);
     }
   }, [selId, leagues, user]); // `user` added so this re-fires after owner login completes
-
-  // Silent auto-cleanup of orphaned players whenever a league is selected
-  useEffect(() => {
-    if (!selId) return;
-    const lg = leagues.find(l => l.id === selId);
-    if (!lg) return;
-    const before = (lg.players || []).length;
-    const cleaned = stripOrphanedPlayers(lg.teams || [], lg.players || []);
-    if (cleaned.length !== before) {
-      const updated = { ...lg, players: cleaned };
-      writeLeagueNow(updated).catch(e => console.error("Silent orphan cleanup:", e));
-    }
-  }, [selId]);
 
   // Load email config when league is selected
   useEffect(() => {
@@ -2464,6 +2453,11 @@ function App() {
         _updatedAt:  ts,  // ← always bumped so public onSnapshot always detects this write
       }});
 
+      const pd = pendingDeletes.current[lid] || {};
+      const pdGames   = pd.games   || new Set();
+      const pdTeams   = pd.teams   || new Set();
+      const pdPlayers = pd.players || new Set();
+
       // Teams: write changed docs, delete removed docs
       for (const [tid, team] of Object.entries(newTeams)) {
         if (JSON.stringify(team) !== JSON.stringify(prev.teams[tid])) {
@@ -2471,7 +2465,7 @@ function App() {
         }
       }
       for (const tid of Object.keys(prev.teams)) {
-        if (!newTeams[tid]) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "teams", tid) });
+        if (!newTeams[tid] && pdTeams.has(tid)) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "teams", tid) });
       }
 
       // Players: strip email from public doc; write email to playersPrivate
@@ -2489,7 +2483,7 @@ function App() {
         }
       }
       for (const pid of Object.keys(prev.players)) {
-        if (!newPlayers[pid]) {
+        if (!newPlayers[pid] && pdPlayers.has(pid)) {
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "players", pid) });
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "playersPrivate", pid) });
         }
@@ -2514,9 +2508,9 @@ function App() {
           if (!newStats[pid]) ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)) });
         }
       }
-      // Delete removed games (and their playerStats)
+      // Delete removed games (and their playerStats) — only when explicitly marked
       for (const gid of Object.keys(prev.games)) {
-        if (!newGames[gid]) {
+        if (!newGames[gid] && pdGames.has(gid)) {
           ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "games", gid) });
           for (const pid of Object.keys(prev.stats[gid] || {})) {
             ops.push({ type: 'delete', ref: doc(_db, "leagues", lid, "games", gid, "playerStats", String(pid)) });
@@ -2540,7 +2534,8 @@ function App() {
         await batch.commit();
       }
 
-      // Update tracked state so next write can diff correctly
+      // Commits succeeded — clear pending deletes and update tracked state
+      delete pendingDeletes.current[lid];
       subcolData.current[lid] = {
         teams:   newTeams,
         players: Object.fromEntries(Object.entries(newPlayers).map(([pid, p]) => { const { email: _e, ...pub } = p; return [pid, pub]; })),
@@ -2565,26 +2560,57 @@ function App() {
     setDirty(false); setPendingSave(false);
     showToast("Enregistré à " + ts);
   }
-  function discardDirty() {
+  async function restoreLeagueFromFirestore(lid) {
+    if (!__fbReady || !_db || !_FS) return;
     try {
-      const saved = JSON.parse(localStorage.getItem("wxLeagues") || "null") || DEMO_LEAGUES;
-      const savedLeague = saved.find(l => l.id === selId);
-      if (savedLeague) setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
-    } catch {}
-    setDirty(false);
+      const { getDocs, collection } = _FS;
+      const [teamsSnap, playersSnap, gamesSnap, privSnap] = await Promise.all([
+        getDocs(collection(_db, "leagues", lid, "teams")),
+        getDocs(collection(_db, "leagues", lid, "players")),
+        getDocs(collection(_db, "leagues", lid, "games")),
+        getDocs(collection(_db, "leagues", lid, "playersPrivate")).catch(() => ({ docs: [] })),
+      ]);
+      const privEmails = {};
+      privSnap.docs.forEach(d => { privEmails[d.id] = d.data().email; });
+      const freshTeams   = teamsSnap.docs.map(d => d.data());
+      const freshPlayers = playersSnap.docs.map(d => {
+        const p = d.data();
+        return privEmails[String(p.id)] ? { ...p, email: privEmails[String(p.id)] } : p;
+      });
+      const freshGames = gamesSnap.docs.map(d => d.data());
+      const curLeague = leaguesRef.current.find(l => String(l.id) === lid);
+      if (!curLeague) return;
+      const freshLeague = { ...curLeague, teams: freshTeams, players: freshPlayers, schedule: freshGames };
+      subcolData.current[lid] = {
+        teams:          Object.fromEntries(teamsSnap.docs.map(d => [d.id, d.data()])),
+        players:        Object.fromEntries(playersSnap.docs.map(d => [d.id, d.data()])),
+        playersPrivate: Object.fromEntries(privSnap.docs.map(d => [d.id, d.data()])),
+        games:          Object.fromEntries(gamesSnap.docs.map(d => [d.id, d.data()])),
+        stats:          {},
+      };
+      setLeagues(prev => {
+        const next = prev.map(l => String(l.id) === lid ? freshLeague : l);
+        try { localStorage.setItem("wxLeagues", JSON.stringify(next)); localStorage.setItem("wxLeagues_updated", Date.now().toString()); } catch {}
+        return next;
+      });
+    } catch(e) { console.error("[restoreLeagueFromFirestore]", lid, e); }
   }
-  function leaveWithoutSaving() {
-    try {
-      const saved = JSON.parse(localStorage.getItem("wxLeagues") || "null") || DEMO_LEAGUES;
-      const savedLeague = saved.find(l => l.id === selId);
-      if (savedLeague) setLeagues(prev => prev.map(l => l.id === selId ? savedLeague : l));
-    } catch {}
+  async function discardDirty() {
+    const lid = String(selId);
+    delete pendingDeletes.current[lid];
+    setDirty(false);
+    await restoreLeagueFromFirestore(lid);
+  }
+  async function leaveWithoutSaving() {
+    const lid = String(selId);
+    delete pendingDeletes.current[lid];
     setDirty(false);
     const dest = pendingNavTab;
     setPendingNavTab(null);
-    if (dest === "__dashboard__") { setPage("dashboard"); setSelId(null); }
-    else if (dest === "__logout__") { logout(); }
-    else { setTab(dest); }
+    if (dest === "__dashboard__") { setPage("dashboard"); setSelId(null); return; }
+    if (dest === "__logout__") { logout(); return; }
+    setTab(dest);
+    await restoreLeagueFromFirestore(lid);
   }
   function copyPublicSnippet() {
     const cfg = __fbCfg;
@@ -2811,6 +2837,14 @@ function App() {
     const remainingSchedule = teamToDelete
       ? league.schedule.filter(g => g.home !== teamToDelete.name && g.away !== teamToDelete.name)
       : league.schedule;
+    // Mark explicit deletions so writeLeagueNow diff is allowed to delete them
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].teams.add(String(id));
+    league.players.filter(p => (teamToDelete && p.team === teamToDelete.name) || String(p.teamId) === String(id))
+      .forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
+    if (teamToDelete) league.schedule.filter(g => g.home === teamToDelete.name || g.away === teamToDelete.name)
+      .forEach(g => pendingDeletes.current[lid].games.add(String(g.id)));
     // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
     if (__fbReady && _db) {
       try {
@@ -2973,6 +3007,14 @@ function App() {
     if (delTeamDeletePlayers) {
       remainingPlayers = league.players.filter(p => p.team !== team.name && String(p.teamId) !== String(team.id));
     }
+    // Mark explicit deletions so writeLeagueNow diff is allowed to delete them
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].teams.add(String(team.id));
+    if (delTeamDeletePlayers) {
+      league.players.filter(p => p.team === team.name || String(p.teamId) === String(team.id))
+        .forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
+    }
     if (__fbReady && _db) {
       try {
         const { deleteDoc, doc } = _FS;
@@ -2991,16 +3033,38 @@ function App() {
     showToast(`Équipe "${team.name}" supprimée.`);
   }
 
-  async function cleanOrphanedPlayers() {
-    if (!league) return;
-    const before = league.players.length;
-    const cleaned = stripOrphanedPlayers(league.teams, league.players);
-    const removed = before - cleaned.length;
-    if (removed === 0) { showToast("Aucun joueur orphelin trouvé."); return; }
-    const updated = { ...league, players: cleaned };
+  async function loadOrphanCheck() {
+    if (!league || !__fbReady || !_db || !_FS) return;
+    setOrphanConfirm("loading");
+    const lid = String(league.id);
+    try {
+      const { getDocs, collection } = _FS;
+      const [teamsSnap, playersSnap] = await Promise.all([
+        getDocs(collection(_db, "leagues", lid, "teams")),
+        getDocs(collection(_db, "leagues", lid, "players")),
+      ]);
+      const freshTeams   = teamsSnap.docs.map(d => d.data());
+      const freshPlayers = playersSnap.docs.map(d => d.data());
+      const cleaned = stripOrphanedPlayers(freshTeams, freshPlayers);
+      const orphanedIds = freshPlayers.filter(p => !cleaned.some(c => c.id === p.id)).map(p => String(p.id));
+      setOrphanConfirm({ count: orphanedIds.length, cleanedPlayers: cleaned, orphanedIds, lid });
+    } catch(e) {
+      console.error("[loadOrphanCheck]", e);
+      setOrphanConfirm(null);
+      showToast("Erreur lors de la vérification des orphelins.");
+    }
+  }
+  async function confirmCleanOrphans() {
+    if (!league || !orphanConfirm || orphanConfirm === "loading" || orphanConfirm.count === 0) return;
+    const { cleanedPlayers, orphanedIds, lid } = orphanConfirm;
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    orphanedIds.forEach(id => pendingDeletes.current[lid].players.add(id));
+    const updated = { ...league, players: cleanedPlayers };
     await writeLeagueNow(updated);
     setDirty(false);
-    showToast(`${removed} joueur${removed !== 1 ? "s" : ""} orphelin${removed !== 1 ? "s" : ""} supprimé${removed !== 1 ? "s" : ""} de Firestore.`);
+    const removed = orphanConfirm.count;
+    setOrphanConfirm(null);
+    showToast(`${removed} joueur${removed !== 1 ? "s" : ""} orphelin${removed !== 1 ? "s" : ""} supprimé${removed !== 1 ? "s" : ""}.`);
   }
   async function addPlayer() {
     if (!nP.name || !nP.team || !league) { if (!nP.team) showToast("Sélectionne une équipe pour ce joueur."); return; }
@@ -3040,6 +3104,10 @@ function App() {
       delete ps[String(id)];
       return { ...g, playerStats: ps };
     });
+    // Mark explicit deletion so writeLeagueNow diff is allowed to delete it
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].players.add(String(id));
     // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
     if (__fbReady && _db) {
       try {
@@ -3211,6 +3279,9 @@ function App() {
   }
   async function deleteGame(id) {
     if (!league) return;
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    pendingDeletes.current[lid].games.add(String(id));
     // Belt-and-suspenders: delete directly from Firestore, don't rely solely on diff
     if (__fbReady && _db) {
       try {
@@ -3529,6 +3600,11 @@ function App() {
     const updTeams    = league.teams.filter(t => t.categoryId !== catId);
     const updPlayers  = league.players.filter(p => p.categoryId !== catId);
     const updSchedule = (league.schedule || []).filter(g => g.categoryId !== catId);
+    const lid = String(league.id);
+    if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
+    league.teams.filter(t => t.categoryId === catId).forEach(t => pendingDeletes.current[lid].teams.add(String(t.id)));
+    league.players.filter(p => p.categoryId === catId).forEach(p => pendingDeletes.current[lid].players.add(String(p.id)));
+    (league.schedule || []).filter(g => g.categoryId === catId).forEach(g => pendingDeletes.current[lid].games.add(String(g.id)));
     const updHonours  = { ...(league.honours || {}) };
     delete updHonours[catId];
     const updated = { ...league, categories: updCategories, teams: updTeams, players: updPlayers, schedule: updSchedule, honours: updHonours };
@@ -6481,16 +6557,40 @@ function App() {
                   Supprime les joueurs dont l'équipe n'existe plus dans la liste. S'exécute instantanément et écrit dans Firestore — utilise ceci si une équipe a été supprimée mais que ses joueurs apparaissent encore sur le site public.
                 </div>
                 {(() => {
-                  const orphanCount = stripOrphanedPlayers(league.teams, league.players).length < league.players.length
-                    ? league.players.length - stripOrphanedPlayers(league.teams, league.players).length
-                    : 0;
+                  const memOrphanCount = league.players.length - stripOrphanedPlayers(league.teams, league.players).length;
+                  if (orphanConfirm === "loading") {
+                    return <div style={{ fontSize: 13, color: T2 }}>Vérification en cours…</div>;
+                  }
+                  if (orphanConfirm && orphanConfirm !== "loading") {
+                    if (orphanConfirm.count === 0) {
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Aucun orphelin détecté (données Firestore à jour)</span>
+                          <button onClick={() => setOrphanConfirm(null)} style={{ background: "none", border: "none", color: T2, fontSize: 12, cursor: "pointer" }}>Fermer</button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ fontSize: 13, color: "#ef4444", fontWeight: 600 }}>
+                          {orphanConfirm.count} joueur{orphanConfirm.count !== 1 ? "s" : ""} orphelin{orphanConfirm.count !== 1 ? "s" : ""} trouvé{orphanConfirm.count !== 1 ? "s" : ""} dans Firestore
+                        </div>
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <button onClick={confirmCleanOrphans} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
+                            Supprimer les joueurs orphelins ({orphanConfirm.count})
+                          </button>
+                          <button onClick={() => setOrphanConfirm(null)} style={{ ...btn(T2), fontSize: 13, padding: "9px 18px" }}>Annuler</button>
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      <button onClick={cleanOrphanedPlayers} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
-                        Nettoyer les joueurs orphelins
+                      <button onClick={loadOrphanCheck} style={{ ...btn("#ef4444"), fontSize: 13, padding: "9px 18px" }}>
+                        Supprimer les joueurs orphelins{memOrphanCount > 0 ? ` (≈${memOrphanCount})` : ""}
                       </button>
-                      {orphanCount > 0
-                        ? <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>{orphanCount} joueur{orphanCount !== 1 ? "s" : ""} orphelin{orphanCount !== 1 ? "s" : ""} détecté{orphanCount !== 1 ? "s" : ""}</span>
+                      {memOrphanCount > 0
+                        ? <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 600 }}>{memOrphanCount} joueur{memOrphanCount !== 1 ? "s" : ""} orphelin{memOrphanCount !== 1 ? "s" : ""} détecté{memOrphanCount !== 1 ? "s" : ""} (estimation)</span>
                         : <span style={{ fontSize: 12, color: "#22c55e" }}>✓ Aucun orphelin détecté</span>
                       }
                     </div>
