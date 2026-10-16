@@ -140,7 +140,9 @@ service cloud.firestore {
             && resource.data.get('locked', false) != true
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['homeScore', 'awayScore', 'played', 'locked', 'lockedBy', 'lockedByName', 'lockedAt', 'draft'])
-            && isValidLockChange();
+            && isValidLockChange()
+            && isValidLockedByName()
+            && isValidDraftWrite();
       }
 
       // If any lock field is touched, it must be a proper lock-only action.
@@ -153,6 +155,22 @@ service cloud.firestore {
             || (request.resource.data.get('locked', false) == true
                 && request.resource.data.lockedBy == request.auth.uid
                 && request.resource.data.lockedAt == request.time);
+      }
+
+      // Anti-spoofing: lockedByName must equal the caller's real displayName.
+      function isValidLockedByName() {
+        let affected = request.resource.data.diff(resource.data).affectedKeys();
+        return !affected.hasAny(['lockedByName'])
+            || request.resource.data.lockedByName == callerDoc().get('displayName', '');
+      }
+
+      // Anti-spoofing: draft.savedBy must be caller's uid; draft.savedByName must
+      // equal caller's real displayName.
+      function isValidDraftWrite() {
+        let affected = request.resource.data.diff(resource.data).affectedKeys();
+        return !affected.hasAny(['draft'])
+            || (request.resource.data.draft.savedBy == request.auth.uid
+                && request.resource.data.draft.savedByName == callerDoc().get('displayName', ''));
       }
 
       // ── Coordinator playerStats write ─────────────────────────────────────

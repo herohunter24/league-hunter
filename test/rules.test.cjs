@@ -1008,7 +1008,7 @@ describe('coordinator — draft system', () => {
   it('coordinator can save draft field on an unlocked game', async () => {
     await assertSucceeds(
       coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
-        draft: { homeScore: 72, awayScore: 68, savedBy: COORD_UID, savedAt: new Date() },
+        draft: { homeScore: 72, awayScore: 68, savedBy: COORD_UID, savedByName: 'Marie Tremblay', savedAt: new Date() },
       })
     );
   });
@@ -1054,6 +1054,44 @@ describe('coordinator — lockedByName field', () => {
     await assertFails(
       coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
         lockedByName: 'Marie Tremblay', hack: 'bad',
+      })
+    );
+  });
+});
+
+describe('coordinator — anti-spoofing (identity fields)', () => {
+  it('coordinator cannot write another person\'s name as lockedByName', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        lockedByName: 'Hacker Name',
+      })
+    );
+  });
+  it('coordinator cannot spoof another uid in draft.savedBy', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        draft: { homeScore: 72, awayScore: 68, savedBy: 'uid_stranger', savedByName: 'Marie Tremblay', savedAt: new Date() },
+      })
+    );
+  });
+  it('coordinator cannot spoof another name in draft.savedByName', async () => {
+    await assertFails(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        draft: { homeScore: 72, awayScore: 68, savedBy: COORD_UID, savedByName: 'Hacker Name', savedAt: new Date() },
+      })
+    );
+  });
+  it('coordinator can write own lockedByName', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        lockedByName: 'Marie Tremblay',
+      })
+    );
+  });
+  it('coordinator can write own uid and name in draft', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        draft: { homeScore: 72, awayScore: 68, savedBy: COORD_UID, savedByName: 'Marie Tremblay', savedAt: new Date() },
       })
     );
   });
@@ -1163,7 +1201,7 @@ describe('coordinator — production-shaped docs (no locked/draft fields)', () =
   it('coordinator can save draft on a minimal production game doc', async () => {
     await assertSucceeds(
       coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/${GAME_PROD}`).update({
-        draft: { homeScore: 55, awayScore: 48, savedBy: COORD_UID, savedAt: new Date() },
+        draft: { homeScore: 55, awayScore: 48, savedBy: COORD_UID, savedByName: 'Marie Tremblay', savedAt: new Date() },
       })
     );
   });
