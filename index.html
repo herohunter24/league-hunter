@@ -1633,14 +1633,17 @@ function App() {
   const [delTeamDeletePlayers, setDelTeamDeletePlayers] = useState(true);
   const [rosterErrors, setRosterErrors] = useState({});  // { [_key]: { firstName?, lastName? } }
   // Coordinator management
-  const [newCoord, setNewCoord] = useState({ username: "", displayName: "", venue: "", tempPassword: "" });
+  const [newCoord, setNewCoord] = useState({ username: "", tempPassword: "" });
   const [coordError, setCoordError] = useState("");
   const [manageCoordLeagueId, setManageCoordLeagueId] = useState(null);
   const [resetCoordForm, setResetCoordForm] = useState({ coordId: null, newUsername: "", tempPassword: "" });
   // Coordinator scorekeeping (Phase 3)
   const [coordGame, setCoordGame] = useState(null);       // game being edited
   const [coordDraft, setCoordDraft] = useState({ homeScore: "", awayScore: "", stats: {} });
-  const [coordVenue, setCoordVenue] = useState(() => { try { return localStorage.getItem('coord_venue'); } catch { return null; } }); // selected venue filter; persisted in localStorage
+  const [coordVenue, setCoordVenue] = useState(() => { try { return localStorage.getItem('coord_venue'); } catch { return null; } }); // selected venue; persisted in localStorage; null = venue picker shown
+  const [coordDeviceId] = useState(() => { try { let id = localStorage.getItem('coord_device_id'); if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('coord_device_id', id); } return id; } catch { return Math.random().toString(36).slice(2); } });
+  const [coordAccessData, setCoordAccessData] = useState(null); // { username, password } from settings/coordAccess
+  const [showCoordCreds, setShowCoordCreds] = useState(false);
   const [coordLocking, setCoordLocking] = useState(false); // lock-confirm dialog open
   const [coordSaving, setCoordSaving] = useState(false);
   const [coordLastSaved, setCoordLastSaved] = useState(null); // "HH:MM" of last draft autosave
@@ -1804,6 +1807,17 @@ function App() {
   const coordDraftRef  = useRef({ homeScore: "", awayScore: "", stats: {} }); // stable ref for autosave
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => { coordDraftRef.current = coordDraft; }, [coordDraft]);
+  useEffect(() => {
+    if (tab !== 'settings' || !selId || !__fbReady || !_db) return;
+    if (user?.role !== 'owner' && user?.role !== 'superadmin') return;
+    (async () => {
+      try {
+        const { getDoc, doc } = _FS;
+        const snap = await getDoc(doc(_db, "leagues", String(selId), "settings", "coordAccess"));
+        setCoordAccessData(snap.exists() ? snap.data() : null);
+      } catch {}
+    })();
+  }, [tab, selId]);
 
   // Reset add-forms when switching tabs so stale input doesn't persist
   useEffect(() => {
@@ -2682,7 +2696,7 @@ function App() {
     if (!doc || !updateDoc || !setDoc || !serverTimestamp) return;
     const lid = String(selId), gid = String(gameId);
 
-    const draftPayload = { homeScore: Number(homeScore), awayScore: Number(awayScore), savedBy: user.uid, savedByName: user.displayName || user.email || "", savedAt: serverTimestamp() };
+    const draftPayload = { homeScore: Number(homeScore), awayScore: Number(awayScore), savedBy: user.uid, savedByName: user.displayName || user.email || "", deviceId: coordDeviceId, venue: coordVenue || "", savedAt: serverTimestamp() };
     await updateDoc(doc(_db, "leagues", lid, "games", gid), { draft: draftPayload });
 
     for (const [pid, stats] of Object.entries(statsMap || {})) {
@@ -2912,10 +2926,10 @@ function App() {
   }
 
   async function createCoordinator(leagueId) {
-    const { username, displayName, venue, tempPassword } = newCoord;
+    const { username, tempPassword } = newCoord;
     const u = (username || "").trim().toLowerCase();
-    if (!u || !displayName.trim()) { setCoordError("Nom d'utilisateur et nom d'affichage requis."); return; }
-    if (!tempPassword || tempPassword.length < 6) { setCoordError("Le mot de passe temporaire doit contenir au moins 6 caractères."); return; }
+    if (!u) { setCoordError("Nom d'utilisateur requis."); return; }
+    if (!tempPassword || tempPassword.length < 6) { setCoordError("Le mot de passe doit contenir au moins 6 caractères."); return; }
     if (users.some(usr => usr.username === u)) { setCoordError("Ce nom d'utilisateur est déjà utilisé."); return; }
     const secondaryAuth = window.__wxSecondaryAuth;
     if (!secondaryAuth) { setCoordError("Firebase secondaire non disponible. Recharge la page."); return; }
@@ -2925,22 +2939,24 @@ function App() {
       const cred = await authFns.createUserWithEmailAndPassword(secondaryAuth, `${u}@websitex.app`, tempPassword);
       const newUid = cred.user.uid;
       const newCoordDoc = {
-        username: u, displayName: displayName.trim(), role: "coordinator",
-        leagueId, venue: (venue || "").trim(),
-        active: true, mustChangePassword: true, createdAt: new Date().toISOString().slice(0, 10),
+        username: u, displayName: u, role: "coordinator",
+        leagueId,
+        active: true, mustChangePassword: false, createdAt: new Date().toISOString().slice(0, 10),
       };
       const { setDoc, doc } = _FS;
       try {
         await setDoc(doc(_db, "users", newUid), newCoordDoc);
+        await setDoc(doc(_db, "leagues", String(leagueId), "settings", "coordAccess"), { username: u, password: tempPassword });
       } catch(fsErr) {
-        // Firestore write failed — delete the orphaned Auth account
         try { await (authFns.deleteUser ? authFns.deleteUser(cred.user) : cred.user.delete()); } catch {}
         throw fsErr;
       }
       setUsers(prev => [...prev, { ...newCoordDoc, id: newUid }]);
-      setNewCoord({ username: "", displayName: "", venue: "", tempPassword: "" });
-      setCreatedCreds({ username: u, password: tempPassword, leagueName: leagues.find(l => l.id === leagueId)?.name || "Ligue", isReset: false });
-      showToast(`Coordinateur ${u} créé.`);
+      setCoordAccessData({ username: u, password: tempPassword });
+      setShowCoordCreds(false);
+      setNewCoord({ username: "", tempPassword: "" });
+      setCoordError("");
+      showToast(`Compte coordinateur créé : ${u}`);
     } catch(e) {
       if (e.code === 'auth/email-already-in-use') {
         setCoordError(`Le nom d'utilisateur "${u}" est déjà pris. Essaie un autre.`);
@@ -2975,16 +2991,20 @@ function App() {
       const { setDoc, deleteDoc, doc } = _FS;
       await deleteDoc(doc(_db, "users", coordId));
       const newCoordDoc = {
-        username: u, displayName: oldCoord?.displayName || u, role: "coordinator",
-        leagueId: oldCoord?.leagueId, venue: oldCoord?.venue || "",
-        active: true, mustChangePassword: true, createdAt: new Date().toISOString().slice(0, 10),
+        username: u, displayName: u, role: "coordinator",
+        leagueId: oldCoord?.leagueId,
+        active: true, mustChangePassword: false, createdAt: new Date().toISOString().slice(0, 10),
       };
       await setDoc(doc(_db, "users", newUid), newCoordDoc);
+      if (oldCoord?.leagueId) {
+        await setDoc(doc(_db, "leagues", String(oldCoord.leagueId), "settings", "coordAccess"), { username: u, password: tempPassword });
+      }
       setUsers(prev => [...prev.filter(usr => usr.id !== coordId), { ...newCoordDoc, id: newUid }]);
+      setCoordAccessData({ username: u, password: tempPassword });
+      setShowCoordCreds(false);
       setResetCoordForm({ coordId: null, newUsername: "", tempPassword: "" });
       setCoordError("");
-      setCreatedCreds({ username: u, password: tempPassword, leagueName: leagues.find(l => l.id === oldCoord?.leagueId)?.name || "Ligue", isReset: true });
-      showToast(`Accès réinitialisé — nouveau compte: ${u}`);
+      showToast(`Accès réinitialisé — nouveau compte : ${u}`);
     } catch(e) {
       if (e.code === 'auth/email-already-in-use') {
         setCoordError(`Le nom d'utilisateur "${u}" est déjà pris. Essaie un autre.`);
@@ -4756,12 +4776,35 @@ function App() {
 
             // ── COORDINATOR BRANCH ──────────────────────────────────────────────
             if (user?.role === "coordinator") {
-              const activeVenue = coordVenue !== null ? coordVenue : (user?.venue || "");
-              const allVenues = [...new Set(todayGames.map(g => g.venue || g.gym || "Non précisé"))].sort();
-              // Fall back to "Tous les gymnases" when the stored venue has no games today.
-              const effectiveVenue = activeVenue && allVenues.includes(activeVenue) ? activeVenue : "";
-              const coordTodayGames = effectiveVenue
-                ? todayGames.filter(g => (g.venue || g.gym || "Non précisé") === effectiveVenue)
+              const allLeagueVenues = [...new Set(catSchedule.map(g => g.venue || g.gym).filter(Boolean))].sort();
+
+              // Full-screen venue picker when no venue selected yet
+              if (coordVenue === null) {
+                return (
+                  <div style={{ maxWidth: 420, margin: "0 auto", padding: "32px 0" }}>
+                    <div style={{ textAlign: "center", marginBottom: 36 }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Choisis ton gymnase</div>
+                      <div style={{ fontSize: 14, color: T2 }}>Sélectionne le gymnase où tu travailles aujourd'hui.</div>
+                    </div>
+                    {allLeagueVenues.length === 0 ? (
+                      <div style={{ textAlign: "center", color: T2, fontSize: 14 }}>Aucun gymnase trouvé dans le calendrier.</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {allLeagueVenues.map(v => (
+                          <button key={v}
+                            onClick={() => { setCoordVenue(v); try { localStorage.setItem('coord_venue', v); } catch {} }}
+                            style={{ ...btn(ACC), fontSize: 16, padding: "18px 24px", borderRadius: 12, justifyContent: "center", fontWeight: 700 }}>
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const coordTodayGames = coordVenue
+                ? todayGames.filter(g => (g.venue || g.gym || "Non précisé") === coordVenue)
                 : todayGames;
 
               const openCoordGame = (g) => {
@@ -4872,12 +4915,12 @@ function App() {
                     {/* Concurrent edit warning */}
                     {(() => {
                       const d = g.draft;
-                      if (!d || !d.savedBy || d.savedBy === user.uid) return null;
+                      if (!d || !d.deviceId || d.deviceId === coordDeviceId) return null;
                       const savedMs = d.savedAt?.toMillis?.() ?? 0;
                       if (!savedMs || Date.now() - savedMs > 2 * 60 * 1000) return null;
                       return (
                         <div style={{ background: "#7c2d1220", border: "1px solid #f9731640", borderRadius: 12, padding: "12px 16px", marginBottom: 14, fontSize: 13, color: "#fb923c" }}>
-                          ⚠️ {d.savedByName || "Un coordinateur"} modifie ce match en ce moment.
+                          ⚠️ Ce match est en train d'être modifié sur un autre appareil{d.venue ? ` (${d.venue})` : ""}.
                         </div>
                       );
                     })()}
@@ -4956,21 +4999,14 @@ function App() {
               const notifRefused = notifAvailable && Notification.permission === "denied";
               return (
                 <div style={{ maxWidth: 480, margin: "0 auto" }}>
-                  {/* Title + venue selector */}
+                  {/* Title + venue header */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
-                    {allVenues.length > 0 && (
-                      <select style={{ ...inp, padding: "6px 12px", fontSize: 13 }}
-                        value={effectiveVenue}
-                        onChange={e => {
-                          const v = e.target.value;
-                          setCoordVenue(v);
-                          try { localStorage.setItem('coord_venue', v); } catch {}
-                        }}>
-                        <option value="">Tous les gymnases</option>
-                        {allVenues.map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                    )}
+                    <div style={{ fontSize: 13, color: T2, display: "flex", alignItems: "center", gap: 4 }}>
+                      Gymnase : <strong style={{ color: T1, marginLeft: 4 }}>{coordVenue}</strong>
+                      <button onClick={() => { setCoordVenue(null); try { localStorage.removeItem('coord_venue'); } catch {} }}
+                        style={{ background: "none", border: "none", color: ACC, fontSize: 13, cursor: "pointer", padding: "0 0 0 4px" }}>· Changer</button>
+                    </div>
                   </div>
                   {/* Notification CTA */}
                   {!notifGranted && !notifRefused && notifAvailable && (
@@ -4985,7 +5021,7 @@ function App() {
                   {coordTodayGames.length === 0 ? (
                     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "32px 24px", textAlign: "center" }}>
                       <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>
-                        {effectiveVenue ? `Aucun match à "${effectiveVenue}" aujourd'hui` : "Aucun match aujourd'hui"}
+                        {coordVenue ? `Aucun match à "${coordVenue}" aujourd'hui` : "Aucun match aujourd'hui"}
                       </div>
                       <div style={{ fontSize: 13, color: T2 }}>Les matchs du jour apparaîtront ici.</div>
                     </div>
@@ -5010,9 +5046,9 @@ function App() {
                               {hasDraft && !g.played && <span style={{ marginLeft: 8, fontSize: 11, color: T2, fontWeight: 400 }}>brouillon</span>}
                             </div>
                           )}
-                          {g.locked && (g.lockedByName || g.lockedAt) && (
+                          {g.locked && g.lockedAt && (
                             <div style={{ fontSize: 11, color: T2, marginTop: 3 }}>
-                              Verrouillé{g.lockedByName ? ` par ${g.lockedByName}` : ""}
+                              Verrouillé{g.venue ? ` · ${g.venue}` : ""}
                               {g.lockedAt && (() => { try { const d = g.lockedAt.toDate ? g.lockedAt.toDate() : new Date(g.lockedAt); return ` · ${d.toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" })}`; } catch { return ""; } })()}
                             </div>
                           )}
@@ -6411,13 +6447,52 @@ function App() {
                   <div style={{ ...card, marginBottom: 20 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Coordonnateurs</div>
                     <div style={{ fontSize: 12, color: T2, marginBottom: 18, lineHeight: 1.6 }}>
-                      Les coordonnateurs peuvent entrer les scores et consulter le calendrier de leur gymnase. Ils se connectent avec nom d'utilisateur + mot de passe.
+                      Un seul compte partagé par ligue. Chaque appareil choisit son gymnase à la connexion.
                     </div>
+
+                    {/* Saved credentials display */}
+                    {coordAccessData && (
+                      <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 12 }}>IDENTIFIANTS DU COMPTE PARTAGÉ</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: T2 }}>Nom d'utilisateur</div>
+                              <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: T1, marginTop: 2 }}>{coordAccessData.username}</div>
+                            </div>
+                            <button onClick={() => navigator.clipboard.writeText(coordAccessData.username).then(() => showToast("Nom d'utilisateur copié!")).catch(() => {})}
+                              style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
+                              Copier
+                            </button>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: T2 }}>Mot de passe</div>
+                              <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 700, color: T1, marginTop: 2, letterSpacing: showCoordCreds ? 0 : 2 }}>
+                                {showCoordCreds ? coordAccessData.password : "●".repeat(Math.min(coordAccessData.password?.length || 8, 12))}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => setShowCoordCreds(s => !s)}
+                                style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                                {showCoordCreds ? "Masquer" : "Afficher"}
+                              </button>
+                              <button onClick={() => navigator.clipboard.writeText(coordAccessData.password).then(() => showToast("Mot de passe copié!")).catch(() => {})}
+                                style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                                Copier
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Create form */}
                     {!isResettingCoord && (
                       <div style={{ background: SURF, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 18, marginBottom: 20 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 12 }}>CRÉER UN COMPTE COORDINATEUR</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: T2, letterSpacing: "0.08em", marginBottom: 12 }}>
+                          {coordAccessData ? "RECRÉER LE COMPTE" : "CRÉER LE COMPTE COORDINATEUR"}
+                        </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                             <div style={{ flex: 1, minWidth: 140 }}>
@@ -6427,21 +6502,7 @@ function App() {
                                 placeholder="ex: coord_nls" autoCapitalize="none" />
                             </div>
                             <div style={{ flex: 1, minWidth: 140 }}>
-                              <label style={lbl}>Nom d'affichage</label>
-                              <input style={inp} value={newCoord.displayName}
-                                onChange={e => setNewCoord(c => ({ ...c, displayName: e.target.value }))}
-                                placeholder="ex: Marie Tremblay" />
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                            <div style={{ flex: 1, minWidth: 140 }}>
-                              <label style={lbl}>Gymnase assigné (optionnel)</label>
-                              <input style={inp} value={newCoord.venue}
-                                onChange={e => setNewCoord(c => ({ ...c, venue: e.target.value }))}
-                                placeholder="ex: Gymnase Nord" />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 140 }}>
-                              <label style={lbl}>Mot de passe temporaire</label>
+                              <label style={lbl}>Mot de passe</label>
                               <input type="password" style={inp} value={newCoord.tempPassword}
                                 onChange={e => setNewCoord(c => ({ ...c, tempPassword: e.target.value }))}
                                 placeholder="6 caractères minimum" autoComplete="new-password" />
@@ -6507,8 +6568,7 @@ function App() {
                             <div>
                               <div style={{ fontWeight: 600, fontSize: 14 }}>{coord.displayName || coord.username}</div>
                               <div style={{ fontSize: 11, color: T2, marginTop: 2 }}>
-                                @{coord.username}{coord.venue ? ` · ${coord.venue}` : ""}
-                                {coord.mustChangePassword ? " · ! Doit changer son MDP" : ""}
+                                @{coord.username}
                               </div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>

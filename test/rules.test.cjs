@@ -1040,6 +1040,13 @@ describe('coordinator — draft system', () => {
       })
     );
   });
+  it('coordinator can save draft with deviceId and venue (shared-account model)', async () => {
+    await assertSucceeds(
+      coordCtx().firestore().doc(`leagues/${LEAGUE_ID}/games/game_001`).update({
+        draft: { homeScore: 88, awayScore: 72, savedBy: COORD_UID, savedByName: 'Marie Tremblay', deviceId: 'abc123xyz', venue: 'Gym Nord', savedAt: new Date() },
+      })
+    );
+  });
 });
 
 describe('coordinator — lockedByName field', () => {
