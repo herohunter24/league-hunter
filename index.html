@@ -16,7 +16,7 @@
 <!-- ══ FIREBASE v10 ══ Module script runs before DOMContentLoaded (before Babel processes text/babel) -->
 <script type="module">
   import { initializeApp }                                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, doc, getDocs, getDoc, setDoc,
+  import { initializeFirestore, collection, doc, getDocs, getDoc, setDoc,
            onSnapshot, deleteDoc, writeBatch, updateDoc,
            deleteField, query, where, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes,
@@ -45,7 +45,7 @@
   } else {
     try {
       const app = initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+      const db  = initializeFirestore(app, { ignoreUndefinedProperties: true });
       const storage = getStorage(app);
       const auth = getAuth(app);
       // Expose globals synchronously — do NOT await before this point so that
@@ -1567,6 +1567,7 @@ function App() {
   const [expandedPlayerId, setExpandedPlayerId] = useState(null);
   const [psDraft, setPsDraft] = useState(null); // draft for publicSettings custom header/description
   const [urlDraft, setUrlDraft] = useState(null); // draft for customPublicSiteUrl input
+  const [settingsRestoreKey, setSettingsRestoreKey] = useState(0); // incremented by restoreLeagueFromFirestore to force settings form remount
   const [testingConn, setTestingConn] = useState(false); // public site connection test in progress
   // ── Analytics ──
   const [anVisitors, setAnVisitors] = useState(0);     // unique sessions in last 5 min
@@ -1775,6 +1776,7 @@ function App() {
   // Structure: { [leagueId]: { teams: {id→doc}, players: {id→doc}, games: {id→doc}, stats: {gameId→{playerId→doc}} } }
   const subcolData = useRef({});
   const pendingDeletes = useRef({}); // { [lid]: { games: Set, teams: Set, players: Set } } — only delete IDs explicitly added here
+  const wasAuthenticatedRef = useRef(false); // tracks if auth was ever resolved successfully; prevents transient null from redirecting to login
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   // Reset add-forms when switching tabs so stale input doesn't persist
@@ -2050,8 +2052,14 @@ function App() {
       unsubAuth = fns.onAuthStateChanged(auth, async firebaseUser => {
         console.log("[Auth] onAuthStateChanged fired, user:", firebaseUser?.uid ?? "null");
         if (firebaseUser) {
+          wasAuthenticatedRef.current = true;
           await resolveFirebaseUser(firebaseUser);
         } else {
+          if (wasAuthenticatedRef.current) {
+            // Transient null from another tab opening or token refresh — ignore.
+            // A real logout goes through logout() which resets wasAuthenticatedRef first.
+            return;
+          }
           setPage("login");
           setAuthChecked(true);
         }
@@ -2214,6 +2222,7 @@ function App() {
   }
 
   function logout() {
+    wasAuthenticatedRef.current = false; // allow onAuthStateChanged null to pass through on real sign-out
     setPage("login"); setUser(null); setSelId(null); setDirty(false); setLastSaved(null);
     setEmail(""); setPass(""); setErr("");
     const auth = _auth || window.__wxAuth;
@@ -2388,6 +2397,19 @@ function App() {
   function handleSave() { setPendingSave(true); }
   // ── IMMEDIATE FIRESTORE WRITE (sub-collection architecture) ──
   // Bridge pattern: in-memory league state is unchanged (still has flat arrays).
+  // Recursively removes undefined values so Firestore set() never sees them
+  function stripUndefined(obj) {
+    if (Array.isArray(obj)) return obj.map(stripUndefined);
+    if (obj !== null && typeof obj === "object") {
+      const out = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v !== undefined) out[k] = stripUndefined(v);
+      }
+      return out;
+    }
+    return obj;
+  }
+
   // Only the persistence layer changes — meta goes to root doc, arrays go to sub-collections.
   // Diffs against subcolData.current to only write/delete changed documents.
   async function writeLeagueNow(updated) {
@@ -2528,7 +2550,7 @@ function App() {
         const chunk = ops.slice(i, i + 450);
         const batch = writeBatch(_db);
         for (const op of chunk) {
-          if (op.type === 'set') batch.set(op.ref, op.data);
+          if (op.type === 'set') batch.set(op.ref, stripUndefined(op.data));
           else batch.delete(op.ref);
         }
         await batch.commit();
@@ -2545,8 +2567,9 @@ function App() {
         })),
         stats:   Object.fromEntries((updated.schedule || []).map(g => [String(g.id), g.playerStats || {}])),
       };
+      return true;
 
-    } catch(e) { console.error("Firestore writeLeagueNow:", e); }
+    } catch(e) { console.error("Firestore writeLeagueNow:", e); return false; }
   }
 
   async function confirmSave() {
@@ -2554,7 +2577,8 @@ function App() {
     const current = leaguesRef.current;
     const lg = current.find(l => l.id === selId);
     if (!lg) return;
-    await writeLeagueNow(lg);
+    const ok = await writeLeagueNow(lg);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     const ts = new Date().toLocaleTimeString();
     setLastSaved(ts);
     setDirty(false); setPendingSave(false);
@@ -2593,6 +2617,10 @@ function App() {
         try { localStorage.setItem("wxLeagues", JSON.stringify(next)); localStorage.setItem("wxLeagues_updated", Date.now().toString()); } catch {}
         return next;
       });
+      // Clear any settings-tab draft state so form fields re-read from the restored league
+      setUrlDraft(null);
+      setPsDraft(null);
+      setSettingsRestoreKey(k => k + 1);
     } catch(e) { console.error("[restoreLeagueFromFirestore]", lid, e); }
   }
   async function discardDirty() {
@@ -2981,7 +3009,8 @@ function App() {
       }
 
       const updated = { ...league, players: updatedPlayers, schedule: updatedSchedule };
-      await writeLeagueNow(updated);
+      const ok = await writeLeagueNow(updated);
+      if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
       setDirty(false);
       setRosterTeam(null);
       setRosterRows([]);
@@ -3026,7 +3055,8 @@ function App() {
       } catch(e) { console.error('[League Hunter] confirmDelTeam direct delete failed:', e); }
     }
     const updated = { ...league, teams: remainingTeams, players: remainingPlayers };
-    await writeLeagueNow(updated);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     setDirty(false);
     setDelTeamTarget(null);
     setDelTeamTyped('');
@@ -3060,7 +3090,8 @@ function App() {
     if (!pendingDeletes.current[lid]) pendingDeletes.current[lid] = { games: new Set(), teams: new Set(), players: new Set() };
     orphanedIds.forEach(id => pendingDeletes.current[lid].players.add(id));
     const updated = { ...league, players: cleanedPlayers };
-    await writeLeagueNow(updated);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     setDirty(false);
     const removed = orphanConfirm.count;
     setOrphanConfirm(null);
@@ -3186,7 +3217,8 @@ function App() {
       ? (league.schedule || []).map(g => ({ ...g, home: g.home === oldName ? newName : g.home, away: g.away === oldName ? newName : g.away }))
       : league.schedule;
     const updated = { ...league, teams: updatedTeams, players: updatedPlayers, schedule: updatedSchedule };
-    await writeLeagueNow(updated);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     setDirty(false);
     setEditTeam(null);
     showToast("Équipe mise à jour !");
@@ -3208,10 +3240,11 @@ function App() {
     const _saveH = _saveUnits==='metric' ? (editPlayer.heightCm?parseInt(editPlayer.heightCm)||undefined:undefined) : ((editPlayer.heightFt||editPlayer.heightIn)?(parseInt(editPlayer.heightFt||0)*12+parseInt(editPlayer.heightIn||0))||undefined:undefined);
     const _saveW = editPlayer.weight ? parseInt(editPlayer.weight)||undefined : undefined;
     const updatedPlayers = league.players.map(p => p.id === editPlayer.id
-      ? { ...p, name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : { height: undefined }), ...(_saveW != null ? { weight: _saveW } : { weight: undefined }) }
+      ? { ...p, name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : {}), ...(_saveW != null ? { weight: _saveW } : {}) }
       : p);
     const updated = { ...league, players: updatedPlayers };
-    await writeLeagueNow(updated);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     setDirty(false);
     // Send notification if email changed/added and emailConfig exists
     if (editPlayer.email && emailConfig) {
@@ -3380,7 +3413,8 @@ function App() {
         g.id === editStats.game.id ? { ...g, playerStats: cleaned } : g
       ),
     };
-    await writeLeagueNow(updated);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     setDirty(false);
     setEditStats(null);
     setStatsValidationError(null);
@@ -3476,7 +3510,8 @@ function App() {
     }
 
     const updated = { ...league, season: { resetAt: Date.now(), number: currentNum + 1 }, playerMilestones: {} };
-    await writeLeagueNow(updated);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
     setDirty(false);
     showToast(`Saison ${currentNum + 1} démarrée ! Classements réinitialisés.`, "success");
   }
@@ -3485,7 +3520,9 @@ function App() {
     const existing = ((league.playerMilestones||{})[pid]) || { milestones: [], rpAdjustments: [] };
     const adj = { amount: parseInt(amount), reason: reason||"Manual adjustment", date: new Date().toISOString().slice(0,10) };
     const updated = { ...league, playerMilestones: { ...(league.playerMilestones||{}), [pid]: { ...existing, rpAdjustments: [...(existing.rpAdjustments||[]), adj] } } };
-    await writeLeagueNow(updated); setDirty(false);
+    const ok = await writeLeagueNow(updated);
+    if (ok === false) { showToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
+    setDirty(false);
     showToast(`Ajustement RP appliqué.`, "success");
   }
 
@@ -5838,7 +5875,7 @@ function App() {
           })()}
 
           {tab==="settings" && (
-            <div>
+            <div key={settingsRestoreKey}>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Paramètres de la ligue</div>
               <div style={{ fontSize: 13, color: T2, marginBottom: 28 }}>Active les catégories de stats et gère ta connexion au site public. Clique sur <strong style={{ color: T1 }}>Enregistrer</strong> pour appliquer.</div>
 

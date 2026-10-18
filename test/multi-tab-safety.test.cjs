@@ -144,4 +144,52 @@ describe('multi-tab safety — writeLeagueNow delete guard', () => {
     assert.ok(players.includes('p_del'),  'p_del deleted');
     assert.ok(!players.includes('p_keep'), 'p_keep not deleted');
   });
+
+  it('FIX: stripUndefined removes undefined values from player docs', () => {
+    // Simulates saveEditPlayer with no height/weight — undefined must not reach Firestore
+    function stripUndefined(obj) {
+      if (Array.isArray(obj)) return obj.map(stripUndefined);
+      if (obj !== null && typeof obj === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (v !== undefined) out[k] = stripUndefined(v);
+        }
+        return out;
+      }
+      return obj;
+    }
+
+    const playerWithNoHeight = { id: 1, name: 'Thierry', height: undefined, weight: undefined, team: 'Raptors' };
+    const cleaned = stripUndefined(playerWithNoHeight);
+
+    assert.ok(!Object.prototype.hasOwnProperty.call(cleaned, 'height'), 'height key removed');
+    assert.ok(!Object.prototype.hasOwnProperty.call(cleaned, 'weight'), 'weight key removed');
+    assert.strictEqual(cleaned.name, 'Thierry', 'other fields preserved');
+
+    // Nested objects also stripped
+    const nested = { player: { stats: { pts: 10, extra: undefined } }, tag: undefined };
+    const cleanedNested = stripUndefined(nested);
+    assert.ok(!Object.prototype.hasOwnProperty.call(cleanedNested, 'tag'), 'top-level undefined removed');
+    assert.ok(!Object.prototype.hasOwnProperty.call(cleanedNested.player.stats, 'extra'), 'nested undefined removed');
+    assert.strictEqual(cleanedNested.player.stats.pts, 10, 'nested defined value preserved');
+  });
+
+  it('FIX: writeLeagueNow returns false on batch failure → callers suppress success toast', () => {
+    // Simulates the return-value contract: ok === false means error toast, not success toast
+    let toastShown = null;
+    function fakeShowToast(msg, type) { toastShown = { msg, type }; }
+
+    async function fakeWriteLeagueNow() { return false; }
+
+    async function fakeConfirmSave() {
+      const ok = await fakeWriteLeagueNow();
+      if (ok === false) { fakeShowToast("Erreur : la sauvegarde a échoué — réessaie", "error"); return; }
+      fakeShowToast("Enregistré", "success");
+    }
+
+    return fakeConfirmSave().then(() => {
+      assert.strictEqual(toastShown?.type, 'error', 'error toast shown on failure');
+      assert.ok(toastShown?.msg.includes('échoué'), 'error message mentions failure');
+    });
+  });
 });
