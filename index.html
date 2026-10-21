@@ -452,6 +452,88 @@ function getTier(rp) {
   for (const t of RANK_TIERS) { if (rp >= t.minRP) tier = t; }
   return tier;
 }
+// ── CARD TIERS (same rules as the public site: src/config/cardTiers.js + src/lib/data.js) ──
+// The public player cards use 9 tiers decided by per-game performance compared to
+// players of the same category. Website X shows the same tier so both sides match.
+const CARD_TIERS_ADMIN = [
+  { id: 'bronze',   label: 'Bronze',    color: '#b87333', icon: '🥉', pctMin: 0,  minScore: 0  },
+  { id: 'silver',   label: 'Argent',    color: '#d7dce2', icon: '🥈', pctMin: 25, minScore: 4  },
+  { id: 'gold',     label: 'Or',        color: '#ffd75e', icon: '🥇', pctMin: 45, minScore: 7  },
+  { id: 'emerald',  label: 'Émeraude',  color: '#50e878', icon: '💚', pctMin: 60, minScore: 10 },
+  { id: 'sapphire', label: 'Saphir',    color: '#7ab0ff', icon: '💙', pctMin: 72, minScore: 13 },
+  { id: 'ruby',     label: 'Rubis',     color: '#ff6080', icon: '❤️', pctMin: 82, minScore: 16 },
+  { id: 'amethyst', label: 'Améthyste', color: '#cc99ff', icon: '💜', pctMin: 89, minScore: 20 },
+  { id: 'diamond',  label: 'Diamant',   color: '#8ee6ff', icon: '💎', pctMin: 94, minScore: 25 },
+  { id: 'legend',   label: 'Légende',   color: '#e0b0ff', icon: '👑', pctMin: 98, minScore: 30 },
+];
+const CARD_MIN_GAMES = 3;
+const CARD_SMALL_GROUP = 10;
+// Per-game performance (basketball formula + streak multipliers, no one-time milestone bonuses).
+function cardRankScore(player, allGames, league) {
+  const season  = (league && league.season) || {};
+  const resetAt = season.resetAt || 0;
+  const pid     = String(player.id);
+  const milData = ((league && league.playerMilestones) || {})[pid] || {};
+  const games = [...(allGames || [])].filter(g => {
+    if (!g.playerStats || g.playerStats[pid] === undefined || g.playerStats[pid].draft) return false;
+    if (resetAt && new Date((g.date || '9999') + 'T00:00').getTime() < resetAt) return false;
+    return true;
+  }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (!games.length) return { avg: 0, gp: 0 };
+  if ((league && league.sport) !== 'Basketball') {
+    const sum = k => games.reduce((s, g) => s + (+(g.playerStats[pid][k] || 0)), 0);
+    return { avg: (sum('points') || sum('goals') || 0) / games.length, gp: games.length };
+  }
+  const base = games.map(g => { const ps = g.playerStats[pid] || {};
+    return Math.max(0, (+(ps.points||0))*1.0 + (+(ps.rebounds||0))*0.7 + (+(ps.assists||0))*1.2 + (+(ps.steals||0))*1.5 + (+(ps.blocks||0))*1.5 - (+(ps.turnovers||0))*1.0); });
+  const avg = base.reduce((s, x) => s + x, 0) / base.length;
+  let aStr = 0, bStr = 0;
+  const adj = base.map(s => {
+    if (s >= avg) { aStr++; bStr = 0; } else { bStr++; aStr = 0; }
+    let m = 1;
+    if (s >= avg) { if (aStr >= 7) m = 1.70; else if (aStr >= 6) m = 1.50; else if (aStr >= 5) m = 1.35; else if (aStr >= 4) m = 1.25; else if (aStr >= 3) m = 1.15; else if (aStr >= 2) m = 1.08; }
+    else if (bStr >= 3) m = 0.95;
+    return s * m;
+  });
+  const adjTotal = (milData.rpAdjustments || []).reduce((s, a) => s + (+(a.amount || 0)), 0);
+  return { avg: Math.max(0, (adj.reduce((s, x) => s + x, 0) + adjTotal) / games.length), gp: games.length };
+}
+// Returns { [playerId]: { tier, next, pctRank, avg, gp, mode } } for every player of the league.
+function computeCardTiers(league) {
+  const players = (league && league.players) || [];
+  const games = ((league && league.schedule) || []).filter(g => g.homeScore !== undefined && g.awayScore !== undefined);
+  const teamCat = Object.fromEntries(((league && league.teams) || []).map(t => [t.name, t.categoryId != null ? String(t.categoryId) : '']));
+  const scored = players.map(p => {
+    const r = cardRankScore(p, games, league);
+    const cat = p.categoryId != null && p.categoryId !== '' ? String(p.categoryId) : (teamCat[p.team] || '');
+    return { id: String(p.id), cat, ...r };
+  });
+  const byId = {};
+  scored.forEach(s => {
+    const pool = scored.filter(x => x.cat === s.cat && x.gp >= CARD_MIN_GAMES);
+    let tierId = 'bronze', pctRank = 0, mode = 'unranked';
+    if (s.gp === 0) tierId = 'bronze';
+    else if (s.gp < CARD_MIN_GAMES) tierId = 'silver';
+    else if (pool.length < CARD_SMALL_GROUP) {
+      mode = 'fixed';
+      CARD_TIERS_ADMIN.forEach(t => { if (s.avg >= t.minScore) tierId = t.id; });
+    } else {
+      mode = 'pct';
+      pctRank = pool.filter(x => x.avg < s.avg).length / pool.length * 100;
+      CARD_TIERS_ADMIN.forEach(t => { if (pctRank >= t.pctMin) tierId = t.id; });
+    }
+    const idx = CARD_TIERS_ADMIN.findIndex(t => t.id === tierId);
+    const tier = CARD_TIERS_ADMIN[idx], next = CARD_TIERS_ADMIN[idx + 1] || null;
+    let progress = 100;
+    if (next) {
+      if (mode === 'pct') progress = Math.round(Math.max(0, Math.min(1, (pctRank - tier.pctMin) / (next.pctMin - tier.pctMin))) * 100);
+      else if (mode === 'fixed') progress = Math.round(Math.max(0, Math.min(1, (s.avg - tier.minScore) / (next.minScore - tier.minScore))) * 100);
+      else progress = Math.round(Math.min(1, s.gp / CARD_MIN_GAMES) * 100);
+    }
+    byId[s.id] = { tier, next, pctRank, avg: s.avg, gp: s.gp, mode, progress };
+  });
+  return byId;
+}
 function getNextTier(rp) {
   for (const t of RANK_TIERS) { if (rp < t.minRP) return t; }
   return null;
@@ -4235,6 +4317,9 @@ function App() {
       return { name: t.name, emoji: t.emoji, gp: wins+losses, wins, losses };
     }).sort((a,b) => b.wins-a.wins);
 
+    // Card tiers — same result as the public player cards
+    const cardTierMap = computeCardTiers(league);
+
     // ── COMPUTE TOTALS ──
     let skaterTotals=[], goalieTotals=[], bballTotals=[];
     if (sport === "Hockey") {
@@ -4681,7 +4766,7 @@ function App() {
                                     {(() => {
                                       const rp = calcPlayerRP(p, catSchedule, league);
                                       const lbl2 = calcPlayerLabel(p, catPlayers, catSchedule, league);
-                                      const tier2 = getTier(rp);
+                                      const tier2 = (cardTierMap[String(p.id)] || {}).tier || CARD_TIERS_ADMIN[0];
                                       if (!lbl2 || tier2.id === 'bronze') return null;
                                       return <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: tier2.color, background: tier2.color+'18', border: `1px solid ${tier2.color}40`, borderRadius: 100, padding: '2px 7px' }}>{lbl2.label}</span>;
                                     })()}
@@ -5440,13 +5525,14 @@ function App() {
                         .map(p => {
                           const rp = calcPlayerRP(p, catSchedule, league);
                           const gp = catSchedule.filter(g => g.playerStats && g.playerStats[String(p.id)] !== undefined).length;
-                          return { ...p, rp, gp };
+                          const ct = cardTierMap[String(p.id)] || { tier: CARD_TIERS_ADMIN[0], next: CARD_TIERS_ADMIN[1], avg: 0, progress: 0 };
+                          return { ...p, rp, gp, ct };
                         })
-                        .sort((a,b) => b.rp - a.rp)
+                        .sort((a,b) => CARD_TIERS_ADMIN.indexOf(b.ct.tier) - CARD_TIERS_ADMIN.indexOf(a.ct.tier) || b.ct.avg - a.ct.avg || b.rp - a.rp)
                         .map((p, i) => {
-                          const tier = getTier(p.rp);
-                          const next = getNextTier(p.rp);
-                          const pct  = next ? Math.min(100, Math.round(((p.rp - tier.minRP)/(next.minRP - tier.minRP))*100)) : 100;
+                          const tier = p.ct.tier;
+                          const next = p.ct.next;
+                          const pct  = p.ct.progress;
                           return (
                             <tr key={p.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                               <td style={{ padding: "10px 12px", fontWeight: 700, color: T2, width: 36 }}>{i+1}</td>
@@ -5455,7 +5541,7 @@ function App() {
                                 <div className="rp-bar-bg" style={{ width: 120 }}>
                                   <div className="rp-bar-fill" style={{ width: `${pct}%`, background: tier.color }} />
                                 </div>
-                                <div style={{ fontSize: 10, color: T2 }}>{p.rp} RP{next ? ` · ${next.minRP - p.rp} to ${next.label}` : ' · MAX'}</div>
+                                <div style={{ fontSize: 10, color: T2 }}>{p.rp} RP · {p.ct.avg.toFixed(1)} / match{next ? ` · prochain : ${next.label}` : ' · niveau max'}</div>
                               </td>
                               <td style={{ padding: "10px 12px", color: T2, fontSize: 12 }}>{p.team}</td>
                               <td style={{ padding: "10px 12px" }}>

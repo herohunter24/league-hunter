@@ -95,6 +95,53 @@ function basketballScore(player, allGames, leagueLike) {
   return Math.max(0, Math.round(total + milRP + adjTotal));
 }
 
+// Per-game ranking score used for card tiers (basketball).
+// Same per-game formula and hot/cold streak multipliers as basketballScore, but
+// WITHOUT the one-time milestone bonuses: those are season rewards (RP), not
+// per-game performance, and dividing them by games played inflated early-season
+// tiers. Manual RP adjustments made by the league owner still count, spread per game.
+function basketballRankScore(player, allGames, leagueLike) {
+  const season  = (leagueLike && leagueLike.season) || {};
+  const resetAt = season.resetAt || 0;
+  const pid     = String(player.id);
+  const milData = ((leagueLike && leagueLike.playerMilestones) || {})[pid] || {};
+  const games = [...(allGames || [])]
+    .filter(g => {
+      if (!g.playerStats || g.playerStats[pid] === undefined || g.playerStats[pid].draft) return false;
+      if (resetAt) {
+        const gt = new Date((g.date || '9999') + 'T00:00').getTime();
+        if (gt < resetAt) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (!games.length) return 0;
+  const baseScores = games.map(g => {
+    const ps = g.playerStats[pid] || {};
+    return Math.max(0,
+      (+(ps.points   || 0)) * 1.0 +
+      (+(ps.rebounds || 0)) * 0.7 +
+      (+(ps.assists  || 0)) * 1.2 +
+      (+(ps.steals   || 0)) * 1.5 +
+      (+(ps.blocks   || 0)) * 1.5 -
+      (+(ps.turnovers|| 0)) * 1.0);
+  });
+  const avg = baseScores.reduce((s, x) => s + x, 0) / baseScores.length;
+  let aStr = 0, bStr = 0;
+  const adjusted = baseScores.map(s => {
+    if (s >= avg) { aStr++; bStr = 0; } else { bStr++; aStr = 0; }
+    let m = 1;
+    if (s >= avg) {
+      if (aStr >= 7) m = 1.70; else if (aStr >= 6) m = 1.50; else if (aStr >= 5) m = 1.35;
+      else if (aStr >= 4) m = 1.25; else if (aStr >= 3) m = 1.15; else if (aStr >= 2) m = 1.08;
+    } else if (bStr >= 3) m = 0.95;
+    return s * m;
+  });
+  const adjTotal = (milData.rpAdjustments || []).reduce((s, a) => s + (+(a.amount || 0)), 0);
+  const perGame = (adjusted.reduce((s, x) => s + x, 0) + adjTotal) / games.length;
+  return Math.max(0, perGame);
+}
+
 // ── Generic fallback ──────────────────────────────────────────────────────────
 // Used for any sport without a dedicated formula.
 // Score = games played × 10 + primary scoring stat.
@@ -109,6 +156,15 @@ function genericScore(player, allGames) {
   return pGames.length * 10 + scoring;
 }
 
+// Per-game ranking score for sports without a dedicated formula.
+function genericRankScore(player, allGames) {
+  const pid = String(player.id);
+  const pGames = (allGames || []).filter(g => g.playerStats && g.playerStats[pid] !== undefined && !g.playerStats[pid].draft);
+  if (!pGames.length) return 0;
+  const sum = k => pGames.reduce((s, g) => s + (+(g.playerStats[pid]?.[k] || 0)), 0);
+  return (sum('points') || sum('goals') || sum('score') || 0) / pGames.length;
+}
+
 // ── Export ────────────────────────────────────────────────────────────────────
 export const sportScores = {
   basketball: basketballScore,
@@ -121,6 +177,20 @@ export const sportScores = {
   // TODO: implement tennis-specific formula (wins, sets, aces)
   tennis:     genericScore,
 };
+
+/**
+ * Per-game ranking functions — used ONLY to decide card tiers.
+ * rankFn(player, allGames, leagueLike) → per-game average Number.
+ */
+export const sportRankScores = {
+  basketball: basketballRankScore,
+};
+
+/** Get the per-game ranking function used for card tiers (case-insensitive). */
+export function getRankFn(sport) {
+  const key = (sport || '').toLowerCase();
+  return sportRankScores[key] || genericRankScore;
+}
 
 /** Get the score function for a given sport string (case-insensitive). */
 export function getScoreFn(sport) {
