@@ -19,12 +19,11 @@ import { NLS_LOGO, NLS_LOGO_WHITE, NLS_CREST, BRAND_NAME, WEBSITE_URL, COPYRIGHT
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
 import { AlertsModal } from './components/AlertsModal.jsx';
 import { AlertsManage } from './components/AlertsManage.jsx';
+import { mapsUrl, venueAddress } from './lib/venues.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-// Ouvre le lieu dans Google Maps (app sur téléphone, site sur ordi)
-const mapsUrl = (venue) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue);
 
 function readUrlState() {
   const sp = new URLSearchParams(window.location.search);
@@ -1192,7 +1191,7 @@ export default function App() {
                           {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
                         </div>
                       </div>
-                      {g.venue && <div className="game-venue"><a className="venue-link" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={t.directions}>📍 <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span></a></div>}
+                      {g.venue && <div className="game-venue"><a className="venue-link" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={t.directions}>📍 <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span>{venueAddress(g.venue) && <span className="venue-addr">{venueAddress(g.venue)}</span>}</a></div>}
                     </div>
                   );
                 })}
@@ -1416,7 +1415,7 @@ export default function App() {
               </div>
               {g.venue && (
                 <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  <a className="venue-link venue-link-modal" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer">📍 {t.venue}: <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span></a>
+                  <a className="venue-link venue-link-modal" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer">📍 {t.venue}: <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span>{venueAddress(g.venue) && <span className="venue-addr">{venueAddress(g.venue)}</span>}</a>
                 </div>
               )}
             </div>
