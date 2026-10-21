@@ -1555,3 +1555,10 @@ button:active { transform: scale(0.98); }
 .manage-confirmed-icon { width: 60px; height: 60px; border-radius: 50%; background: rgba(201,162,74,0.12); border: 1.5px solid var(--gold); color: var(--gold); font-size: 26px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
 .manage-confirmed-title { font-family: var(--ff-display); font-size: 26px; font-weight: 900; text-transform: uppercase; color: var(--ink); margin-bottom: 12px; }
 .manage-confirmed-sub { font-size: 15px; color: var(--ink-mid); margin-bottom: 28px; line-height: 1.6; }
+
+/* Lieu cliquable -> Google Maps */
+.venue-link { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; color: inherit; text-decoration: none; }
+.venue-link .venue-name { text-decoration: underline; text-decoration-color: rgba(201,162,74,.5); text-underline-offset: 3px; }
+.venue-link .venue-go { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--gold); padding: 3px 8px; border: 1px solid rgba(201,162,74,.45); border-radius: 999px; }
+.venue-link:hover .venue-name { color: var(--gold); }
+.venue-link-modal { justify-content: center; }

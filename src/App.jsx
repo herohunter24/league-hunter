@@ -23,6 +23,9 @@ import { AlertsManage } from './components/AlertsManage.jsx';
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
 
+// Ouvre le lieu dans Google Maps (app sur téléphone, site sur ordi)
+const mapsUrl = (venue) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(venue);
+
 function readUrlState() {
   const sp = new URLSearchParams(window.location.search);
   return {
@@ -1189,7 +1192,7 @@ export default function App() {
                           {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
                         </div>
                       </div>
-                      {g.venue && <div className="game-venue"><span>📍 {g.venue}</span></div>}
+                      {g.venue && <div className="game-venue"><a className="venue-link" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={t.directions}>📍 <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span></a></div>}
                     </div>
                   );
                 })}
@@ -1413,7 +1416,7 @@ export default function App() {
               </div>
               {g.venue && (
                 <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  📍 {t.venue}: {g.venue}
+                  <a className="venue-link venue-link-modal" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer">📍 {t.venue}: <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span></a>
                 </div>
               )}
             </div>
