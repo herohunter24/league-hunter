@@ -1,6 +1,6 @@
 import { TIER_ORDER } from './tiers.js';
 import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD } from '../config/cardTiers.js';
-import { getScoreFn } from '../config/sportScores.js';
+import { getScoreFn, getRankFn } from '../config/sportScores.js';
 
 export function formatHeight(height, units) {
   if (!height && height !== 0) return '';
@@ -36,8 +36,9 @@ export function deriveArchetype(tierId, ppg, rpg, apg) {
  *   3. Players who have not yet played MIN_GAMES_FOR_TIER games receive 'bronze'
  *      without being counted in the percentile pool.
  *
- * scoreFn(player, allGames, leagueLike) → Number
- *   Pass the appropriate function from src/config/sportScores.js.
+ * scoreFn(player, allGames, leagueLike) → Number   (season RP, incl. milestones — display/sort only)
+ * rankFn(player, allGames, leagueLike)  → Number   (per-game performance — decides the tier)
+ *   Pass the appropriate functions from src/config/sportScores.js.
  *
  * teamCatMap — { teamName: categoryId } to derive categoryId from team when
  *   the player document does not carry it directly.
@@ -46,15 +47,15 @@ export function deriveArchetype(tierId, ppg, rpg, apg) {
  *
  * Future hook: per-league tier overrides live in getTierIdByPct (cardTiers.js).
  */
-function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap) {
+function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap, rankFn) {
   // Step 1 — compute raw score and games-played for every player
   const scored = rawPlayers.map(p => {
     const pid = String(p.id);
     const gp  = games.filter(g => g.playerStats && g.playerStats[pid] !== undefined).length;
     const score = scoreFn({ ...p, id: pid }, games, leagueLike);
-    // avgScore is the per-game average — used for tier ranking so a longer season
-    // doesn't unfairly inflate a player's tier.
-    const avgScore = gp > 0 ? score / gp : 0;
+    // avgScore is the per-game performance used for tier ranking. It excludes the
+    // one-time milestone bonuses so a few early-season milestones can't inflate a tier.
+    const avgScore = gp > 0 ? (rankFn ? rankFn({ ...p, id: pid }, games, leagueLike) : score / gp) : 0;
     const catFromPlayer = p.categoryId != null && p.categoryId !== '' ? String(p.categoryId) : '';
     const categoryId = catFromPlayer || (teamCatMap && teamCatMap[p.team]) || '';
     return { id: pid, score, avgScore, gp, categoryId };
@@ -101,6 +102,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
   const sport      = (meta && meta.sport)  || 'basketball';
   const leagueLike = { season: meta && meta.season, playerMilestones: meta && meta.playerMilestones };
   const scoreFn    = getScoreFn(sport);
+  const rankFn     = getRankFn(sport);
 
   const games = (rawGames || []).map(g => {
     const hs = (g.homeScore !== undefined && g.homeScore !== null && g.homeScore !== '') ? +g.homeScore : null;
@@ -144,7 +146,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
 
   // Compute percentile tiers for all players in one pass
   const tierMap = Object.fromEntries(
-    assignTiers(rawPlayers || [], games, leagueLike, scoreFn, teamCatMap)
+    assignTiers(rawPlayers || [], games, leagueLike, scoreFn, teamCatMap, rankFn)
       .map(t => [t.id, t])
   );
 
