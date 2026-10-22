@@ -1233,6 +1233,12 @@ export default function App() {
             if (ns && !normalize(p.name).includes(ns)) return false;
             return true;
           });
+          // Sans recherche ni filtre d'équipe : seulement les 7 meilleures cartes
+          const TOP_N = 7;
+          const rankSort = (a, b) => (TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier))
+            || ((b.pctRank || 0) - (a.pctRank || 0)) || ((b.rp || 0) - (a.rp || 0)) || ((b.gp || 0) - (a.gp || 0));
+          const totalInGrid = gridPlayers.length;
+          const shownGrid = filterActive ? gridPlayers : [...gridPlayers].sort(rankSort).slice(0, TOP_N);
           return (
             <>
               <div className="player-filters" style={{ marginBottom: 20 }}>
@@ -1244,12 +1250,15 @@ export default function App() {
                   </select>
                 )}
               </div>
-              {gridPlayers.length > 0 ? (
+              {shownGrid.length > 0 ? (
                 <div className="cards-grid">
-                  {gridPlayers.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />)}
+                  {shownGrid.map(p => <PlayerCard key={p.id} p={p} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />)}
                 </div>
               ) : (
                 <div className="empty-note">{t.noPlayersFound}</div>
+              )}
+              {!filterActive && totalInGrid > TOP_N && (
+                <div className="empty-note" style={{ marginTop: 16 }}>{t.topCardsNote.replace('{n}', TOP_N).replace('{total}', totalInGrid)}</div>
               )}
             </>
           );
@@ -1385,7 +1394,7 @@ export default function App() {
 
       {/* ── PLAYER MODAL ── */}
       {selectedPlayer && (
-        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} />
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
       )}
 
       {/* ── GAME MODAL ── */}
