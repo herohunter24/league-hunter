@@ -289,8 +289,11 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .standings-table tbody tr:nth-child(even) .td-team-sticky { background: inherit; }
 .roster-row td { background: #101015 !important; padding: 18px 22px; cursor: default; }
 .roster-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.roster-chip { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 6px 14px; font-size: 12.5px; color: var(--ink-mid); }
+.roster-chip { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 8px 14px; min-height: 40px; font: inherit; font-size: 12.5px; color: var(--ink-mid); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
 .roster-chip b { color: var(--ink); }
+.roster-chip .roster-num { color: var(--gold); font-weight: 700; margin-right: 2px; }
+.roster-chip .roster-go { color: var(--gold); margin-left: 6px; font-size: 14px; line-height: 1; }
+.roster-chip:hover, .roster-chip:focus-visible { border-color: var(--gold); background: var(--surface); outline: none; }
 
 /* ── SCHEDULE ── */
 .sched-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 26px; }

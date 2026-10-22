@@ -1129,8 +1129,14 @@ export default function App() {
                       <td colSpan="9">
                         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 10 }}>{t.roster}</div>
                         <div className="roster-chips">
-                          {PLAYERS.filter(p => p.team === tm.name).map(p => (
-                            <span key={p.id} className="roster-chip"><b>{p.name}</b> · {p.pos} · {fmtN(p.ppg, lang)} {t.ppg}</span>
+                          {PLAYERS.filter(p => p.team === tm.name && (!p.categoryId || !tm.categoryId || p.categoryId === tm.categoryId)).map(p => (
+                            <button key={p.id} type="button" className="roster-chip" onClick={() => openPlayerModal(p)} aria-label={`${p.name} — ${t.viewCard}`}>
+                              {p.number ? <span className="roster-num">#{p.number}</span> : null}
+                              <b>{p.name}</b>
+                              {p.pos ? <span> · {p.pos}</span> : null}
+                              <span> · {fmtN(p.ppg, lang)} {t.ppg}</span>
+                              <span className="roster-go" aria-hidden="true">›</span>
+                            </button>
                           ))}
                         </div>
                       </td>
