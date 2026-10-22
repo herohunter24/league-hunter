@@ -668,8 +668,12 @@ export default function App() {
     }
   }
 
-  // Show demo showcase cards when the connected league has no real players yet
-  const isShowcaseDemo = live && PLAYERS.length === 0;
+  // Cartes exemples sur l'accueil tant qu'aucun vrai joueur n'a atteint Saphir ou mieux
+  const SHOWCASE_MIN_TIER = 'sapphire';
+  const isShowcaseDemo = live && !PLAYERS.some(p => {
+    const i = TIER_ORDER.indexOf(p.tier);
+    return i !== -1 && i <= TIER_ORDER.indexOf(SHOWCASE_MIN_TIER);
+  });
 
   const showcasePlayers = useMemo(() => {
     if (isShowcaseDemo) return DEMO_SHOWCASE_PLAYERS;
