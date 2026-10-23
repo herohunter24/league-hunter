@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { loadPrefs, savePrefs, unsubscribe, confirmSub } from '../lib/alerts.js';
+import { siteUrl } from '../lib/firebase.js';
 
 export function AlertsManage({ leagueId, token, action, lang, t, teams, categories }) {
   const [sub, setSub]         = useState(null);
@@ -72,7 +73,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
         <div className="manage-confirmed-icon" aria-hidden="true">✓</div>
         <h1 className="manage-confirmed-title">{t.alertsConfirmedTitle}</h1>
         <p className="manage-confirmed-sub">{t.alertsConfirmedSub}</p>
-        <a href={window.location.pathname + '?league=' + leagueId} className="btn">{t.alertsBackToSite}</a>
+        <a href={siteUrl()} className="btn">{t.alertsBackToSite}</a>
       </div>
     </div>
   );
@@ -82,7 +83,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
       <div className="manage-confirmed">
         <h1 className="manage-confirmed-title">{t.alertsUnsubDoneTitle}</h1>
         <p className="manage-confirmed-sub">{t.alertsUnsubDoneSub}</p>
-        <a href={window.location.pathname + '?league=' + leagueId} className="btn">{t.alertsBackToSite}</a>
+        <a href={siteUrl()} className="btn">{t.alertsBackToSite}</a>
       </div>
     </div>
   );
@@ -90,7 +91,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
   if (error) return (
     <div className="manage-page">
       <div className="manage-error">{error}</div>
-      <a href={window.location.pathname + '?league=' + leagueId} className="btn" style={{ marginTop: 20 }}>{t.alertsBackToSite}</a>
+      <a href={siteUrl()} className="btn" style={{ marginTop: 20 }}>{t.alertsBackToSite}</a>
     </div>
   );
 
@@ -159,7 +160,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
           {t.alertsUnsub}
         </button>
         <div className="manage-back">
-          <a href={window.location.pathname + '?league=' + leagueId}>{t.alertsBackToSite}</a>
+          <a href={siteUrl()}>{t.alertsBackToSite}</a>
         </div>
       </div>
     </div>

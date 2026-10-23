@@ -16,12 +16,12 @@ const db = getFirestore();
 
 const RESEND_KEY = defineSecret('RESEND_API_KEY');
 const REGION = 'us-east1';
-const FROM = 'NLS <alertes@nlscreation.com>';
+const FROM = 'NLS <no-reply@nlsshowcases.com>';
 
 // CORS helper
 function cors(req, res) {
   const origin = req.headers.origin || '';
-  const allowed = ['https://nls-creation.vercel.app', 'http://localhost:5173', 'http://localhost:4173'];
+  const allowed = ['https://nlsshowcases.com', 'https://www.nlsshowcases.com', 'https://nls-creation.vercel.app', 'http://localhost:5173', 'http://localhost:4173'];
   if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
     res.set('Access-Control-Allow-Origin', origin);
   }

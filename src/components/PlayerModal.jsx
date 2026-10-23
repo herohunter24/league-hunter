@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LEAGUE_ID } from '../lib/firebase.js';
+import { siteUrl } from '../lib/firebase.js';
 import { getPlayerProgression } from '../config/cardTiers.js';
 import { scoutingReport } from '../lib/scouting.js';
 import { PlayerCard } from './PlayerCard.jsx';
@@ -111,7 +111,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
             <div className="pm-actions">
               <button className="pm-btn" style={{ background: 'var(--gold)', color: '#000', borderColor: 'var(--gold)' }} onClick={() => onShare(p)}>⤓ {t.download}</button>
               <button className="pm-btn" style={{ background: 'none', color: 'var(--ink)', borderColor: 'var(--border)' }} onClick={() => {
-                const url = `${location.origin}${location.pathname}?league=${LEAGUE_ID || ''}&player=${p.id}`;
+                const url = location.origin + siteUrl({ player: p.id });
                 if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); }
                 else { navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {}); }
               }}>{t.share}</button>

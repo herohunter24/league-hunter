@@ -1,6 +1,21 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/((?!assets/|images/|logo/|leagues/|favicon\\.ico$|robots\\.txt$).+)",
+      "has": [{ "type": "host", "value": "(www\\.)?nlsshowcases\\.com" }],
+      "destination": "/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "(www\\.)?nlsshowcases\\.com" }],
+      "destination": "/nls-public.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

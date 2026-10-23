@@ -1,6 +1,6 @@
 // Bilingual HTML email templates — NLS brand (black/gold/off-white)
 
-const BASE_URL = process.env.NLS_PUBLIC_URL || 'https://nls-creation.vercel.app';
+const BASE_URL = process.env.NLS_PUBLIC_URL || 'https://nlsshowcases.com';
 
 const LOGO_URL = 'https://www.nlscreation.com/cdn/shop/files/NLSBlack.png';
 
@@ -42,11 +42,11 @@ function btn(text, url) {
 }
 
 function manageUrl(leagueId, token) {
-  return `${BASE_URL}/nls-public.html?league=${leagueId}&manage=${token}`;
+  return `${BASE_URL}/?manage=${token}`;
 }
 
 function confirmUrl(leagueId, token) {
-  return `${BASE_URL}/nls-public.html?league=${leagueId}&manage=${token}&action=confirm`;
+  return `${BASE_URL}/?manage=${token}&action=confirm`;
 }
 
 // ── CONFIRMATION (double opt-in) ─────────────────────────────────────────────
