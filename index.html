@@ -2353,9 +2353,9 @@ function App() {
       }
 
       if (u.role === "owner") {
-        // Les responsables ne peuvent lister que les comptes de leur ligue (règle Firestore)
+        // Les responsables ne peuvent lister que le compte coordonnateur de leur ligue (règle Firestore)
         const _fsq = window.__wxFS?.query ? window.__wxFS : _FS;
-        const allSnap = await getDocs(_fsq.query(collection(db, "users"), _fsq.where("leagueId", "==", u.leagueId))).catch(() => null);
+        const allSnap = await getDocs(_fsq.query(collection(db, "users"), _fsq.where("leagueId", "==", u.leagueId), _fsq.where("role", "==", "coordinator"))).catch(() => null);
         if (allSnap) setUsers(allSnap.docs.map(d => ({ ...d.data(), id: d.id })));
         setUser(u);
         if (u.mustChangePassword) {
