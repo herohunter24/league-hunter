@@ -8,6 +8,8 @@ export function useLeagueData() {
   const [games, setGames]     = useState([]);
   const [loading, setLoading] = useState(!!LEAGUE_ID);
   const [error, setError]     = useState(null);
+  // Switch « Alertes actives » de Website X (même doc que les Cloud Functions)
+  const [alertsActive, setAlertsActive] = useState(false);
 
   useEffect(() => {
     if (!LEAGUE_ID || !db) return;
@@ -21,6 +23,11 @@ export function useLeagueData() {
         setMeta(snap.data()); setLoading(false);
       },
       err => { console.error('[NLS] League doc listen error:', err); setError('connection'); setLoading(false); }
+    ));
+
+    unsubs.push(onSnapshot(doc(db, 'leagues', lid, 'meta', 'publicSettings'),
+      snap => setAlertsActive(snap.exists() && snap.data().alertsActive === true),
+      err => console.error('[NLS] publicSettings listen error:', err)
     ));
 
     unsubs.push(onSnapshot(collection(db, 'leagues', lid, 'teams'),
@@ -63,5 +70,5 @@ export function useLeagueData() {
     return () => { unsubs.forEach(u => u()); psUnsubs.forEach(u => u()); };
   }, []);
 
-  return { live: !!LEAGUE_ID, meta, teams, players, games, loading, error };
+  return { live: !!LEAGUE_ID, meta, alertsActive, teams, players, games, loading, error };
 }
