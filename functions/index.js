@@ -3,12 +3,11 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentUpdated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { Resend } from 'resend';
 import { randomUUID } from 'crypto';
 import {
-  confirmEmail, welcomeEmail, reminderEmail,
+  confirmEmail, welcomeEmail,
   scoreEmail, changeEmail, cancelEmail, announcementEmail,
 } from './templates.js';
 
@@ -158,13 +157,12 @@ export const nlsSubscribe = onRequest(
       follows: fl,
       categories: [...new Set(fl.map(f => f.categoryId))],
       teams: [...new Set(fl.map(f => f.team))],
-      types: types || { reminder: true, scores: true, changes: true },
+      types: types || { scores: true, changes: true },
       lang: lang || 'fr',
       status: 'pending',
       token,
       createdAt: FieldValue.serverTimestamp(),
       consentAt: null,
-      lastSentReminders: [],
     });
 
     const resend = new Resend(RESEND_KEY.value());
@@ -232,7 +230,7 @@ export const nlsPrefs = onRequest(
         follows: fl,
         categories: [...new Set(fl.map(f => f.categoryId))],
         teams: [...new Set(fl.map(f => f.team))],
-        types: { reminder: !!t.reminder, scores: !!t.scores, changes: !!t.changes },
+        types: { scores: !!t.scores, changes: !!t.changes },
         lang: lang || snap.docs[0].data().lang,
       });
       res.json({ ok: true });
@@ -345,64 +343,6 @@ export const nlsAdminSend = onRequest(
       }
     }
     res.json({ ok: true, sent });
-  }
-);
-
-// ── SCHEDULED: DAILY GAME REMINDERS ─────────────────────────────────────────
-export const nlsReminders = onSchedule(
-  { schedule: 'every day 09:00', timeZone: 'America/Toronto', region: REGION, secrets: [RESEND_KEY] },
-  async () => {
-    const resend = new Resend(RESEND_KEY.value());
-    const now = new Date();
-    const in24 = new Date(now.getTime() + 24 * 3_600_000);
-    const in48 = new Date(now.getTime() + 48 * 3_600_000);
-
-    const d24 = in24.toISOString().slice(0, 10);
-    const d48 = in48.toISOString().slice(0, 10);
-
-    // Get all leagues
-    const leaguesSnap = await db.collection('leagues').get();
-    for (const leagueDoc of leaguesSnap.docs) {
-      const leagueId = leagueDoc.id;
-
-      // Check alertsActive
-      const psSnap = await db.collection('leagues').doc(leagueId).collection('meta').doc('publicSettings').get();
-      if (!psSnap.exists || psSnap.data().alertsActive !== true) continue;
-
-      // Get games in the 24–48h window
-      const gamesSnap = await db.collection('leagues').doc(leagueId).collection('games')
-        .where('date', 'in', [d24, d48]).get();
-
-      for (const gameDoc of gamesSnap.docs) {
-        const game = { id: gameDoc.id, ...gameDoc.data() };
-        if (num(game.homeScore) != null) continue; // already played
-
-        // Get active subscribers with reminder enabled, following this game's category or teams
-        const subsSnap = await db.collection('leagues').doc(leagueId)
-          .collection('subscribers').where('status', '==', 'active').get();
-
-        for (const subDoc of subsSnap.docs) {
-          const sub = subDoc.data();
-          if (!sub.types?.reminder) continue;
-
-          if (!subFollowsGame(sub, game)) continue;
-
-          // Don't resend for the same game
-          if ((sub.lastSentReminders || []).includes(game.id)) continue;
-
-          const tmpl = reminderEmail({ to: sub.email, name: sub.name, leagueId, token: sub.token, lang: sub.lang, game });
-          try {
-            await send(resend, tmpl);
-            await subDoc.ref.update({ lastSentReminders: FieldValue.arrayUnion(game.id) });
-            await db.collection('leagues').doc(leagueId).collection('emailLog').add({
-              type: 'reminder', subId: subDoc.id, gameId: game.id, sentAt: FieldValue.serverTimestamp(), status: 'sent',
-            });
-          } catch (e) {
-            console.error('reminder send error', subDoc.id, e);
-          }
-        }
-      }
-    }
   }
 );
 

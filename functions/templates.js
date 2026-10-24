@@ -86,36 +86,6 @@ export function welcomeEmail({ to, name, leagueId, token, lang }) {
   return { to, subject, html: shell(lang === 'fr' ? fr : en, prefs, prefs) };
 }
 
-// ── GAME REMINDER ─────────────────────────────────────────────────────────────
-export function reminderEmail({ to, name, leagueId, token, lang, game }) {
-  const prefs = manageUrl(leagueId, token);
-  const unsub = `${prefs}&unsub=1`;
-  const gameDate = new Date(game.date + 'T12:00').toLocaleDateString(
-    lang === 'fr' ? 'fr-CA' : 'en-CA',
-    { weekday: 'long', day: 'numeric', month: 'long' }
-  );
-  const fr = `
-    <p style="font-size:11px;font-weight:700;letter-spacing:0.2em;color:#C9A24A;text-transform:uppercase;margin:0 0 12px;">Rappel de match · 24h</p>
-    <h1 style="font-family:'Arial Black',Arial,sans-serif;font-size:20px;font-weight:900;color:#F4F1EA;margin:0 0 20px;">${game.home} vs ${game.away}</h1>
-    <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
-      <tr><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:13px;color:#888;">Date</td><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:14px;color:#F4F1EA;text-align:right;">${gameDate.charAt(0).toUpperCase() + gameDate.slice(1)}</td></tr>
-      <tr><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:13px;color:#888;">Heure</td><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:14px;color:#F4F1EA;text-align:right;">${game.time || 'À confirmer'}</td></tr>
-      <tr><td style="padding:10px 0;font-size:13px;color:#888;">Lieu</td><td style="padding:10px 0;font-size:14px;color:#F4F1EA;text-align:right;">${game.venue || 'À confirmer'}</td></tr>
-    </table>`;
-  const en = `
-    <p style="font-size:11px;font-weight:700;letter-spacing:0.2em;color:#C9A24A;text-transform:uppercase;margin:0 0 12px;">Game Reminder · 24h</p>
-    <h1 style="font-family:'Arial Black',Arial,sans-serif;font-size:20px;font-weight:900;color:#F4F1EA;margin:0 0 20px;">${game.home} vs ${game.away}</h1>
-    <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
-      <tr><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:13px;color:#888;">Date</td><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:14px;color:#F4F1EA;text-align:right;">${gameDate.charAt(0).toUpperCase() + gameDate.slice(1)}</td></tr>
-      <tr><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:13px;color:#888;">Time</td><td style="padding:10px 0;border-bottom:1px solid #1E1E1E;font-size:14px;color:#F4F1EA;text-align:right;">${game.time || 'TBD'}</td></tr>
-      <tr><td style="padding:10px 0;font-size:13px;color:#888;">Venue</td><td style="padding:10px 0;font-size:14px;color:#F4F1EA;text-align:right;">${game.venue || 'TBD'}</td></tr>
-    </table>`;
-  const subject = lang === 'fr'
-    ? `Rappel : ${game.home} vs ${game.away} demain`
-    : `Reminder: ${game.home} vs ${game.away} tomorrow`;
-  return { to, subject, html: shell(lang === 'fr' ? fr : en, unsub, prefs) };
-}
-
 // ── SCORE RESULT ─────────────────────────────────────────────────────────────
 export function scoreEmail({ to, name, leagueId, token, lang, game }) {
   const prefs = manageUrl(leagueId, token);

@@ -1455,8 +1455,8 @@ export default function App() {
             </h2>
             <p className="alerts-sub">
               {lang === 'fr'
-                ? 'Bientôt, reçois les rappels de matchs, les résultats et les changements d\'horaire directement dans ta boîte courriel.'
-                : 'Soon, get game reminders, scores and schedule changes directly in your inbox.'}
+                ? 'Bientôt, reçois les résultats et les changements d\'horaire de tes matchs directement dans ta boîte courriel.'
+                : 'Soon, get scores and schedule changes for your games directly in your inbox.'}
             </p>
           </div>
         </div>

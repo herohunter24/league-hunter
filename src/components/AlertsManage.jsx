@@ -134,7 +134,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
           <div className="alerts-field">
             <div className="alerts-label">{t.alertsTypes}</div>
             <div className="alerts-checks">
-              {[['reminder', t.alertsTypeReminder], ['scores', t.alertsTypeScore], ['changes', t.alertsTypeChange]].map(([k, label]) => (
+              {[['scores', t.alertsTypeScore], ['changes', t.alertsTypeChange]].map(([k, label]) => (
                 <label key={k} className="alerts-check-row">
                   <input type="checkbox" checked={sub.types?.[k] ?? true} onChange={() => toggleType(k)} />
                   <span>{label}</span>

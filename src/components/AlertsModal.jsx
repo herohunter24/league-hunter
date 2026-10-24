@@ -8,7 +8,7 @@ export function AlertsModal({ leagueId, lang, t, teams, categories, onClose }) {
   const [email, setEmail]         = useState('');
   const [follows, setFollows]     = useState([]);
   const [picking, setPicking]     = useState(true);
-  const [types, setTypes]         = useState({ reminder: true, scores: true, changes: true });
+  const [types, setTypes]         = useState({ scores: true, changes: true });
   const [consent, setConsent]     = useState(false);
   const [honeypot, setHoneypot]   = useState('');
   const [busy, setBusy]           = useState(false);
@@ -123,7 +123,6 @@ export function AlertsModal({ leagueId, lang, t, teams, categories, onClose }) {
               <div className="alerts-label">{t.alertsTypes}</div>
               <div className="alerts-checks">
                 {[
-                  ['reminder', t.alertsTypeReminder],
                   ['scores',   t.alertsTypeScore],
                   ['changes',  t.alertsTypeChange],
                 ].map(([k, label]) => (
