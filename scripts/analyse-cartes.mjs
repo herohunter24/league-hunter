@@ -5,8 +5,9 @@ const val=v=>{if(!v)return null;const k=Object.keys(v)[0],x=v[k];
  if(k==='mapValue')return Object.fromEntries(Object.entries(x.fields||{}).map(([a,b])=>[a,val(b)]));
  if(k==='arrayValue')return (x.values||[]).map(val); if(k==='integerValue')return +x; if(k==='doubleValue')return x; if(k==='nullValue')return null; return x;};
 const doc=d=>({id:d.name.split('/').pop(),...val({mapValue:d})});
-async function list(path){let out=[],tok='';do{const r=await (await fetch(`${BASE}${path}?pageSize=300${tok?'&pageToken='+tok:''}`)).json();(r.documents||[]).forEach(d=>out.push(doc(d)));tok=r.nextPageToken||'';}while(tok);return out;}
-const meta=val({mapValue:(await (await fetch(BASE)).json())});
+const KEY='AIzaSyDfMttfJLMvEW-LB3TIkFgebR5Cb7-1Wi4';
+async function list(path){let out=[],tok='';do{const r=await (await fetch(`${BASE}${path}?key=${KEY}&pageSize=300${tok?'&pageToken='+tok:''}`)).json();if(r.error)console.error(path,JSON.stringify(r.error).slice(0,300));(r.documents||[]).forEach(d=>out.push(doc(d)));tok=r.nextPageToken||'';}while(tok);return out;}
+const meta=val({mapValue:(await (await fetch(BASE+'?key='+KEY)).json()).fields?await (await fetch(BASE+'?key='+KEY)).json():(console.error('meta',JSON.stringify(await (await fetch(BASE+'?key='+KEY)).json()).slice(0,300)),{})});
 const teams=await list('/teams'), players=await list('/players'), games=await list('/games');
 for(const g of games){const ps=await list(`/games/${g.id}/playerStats`);g.playerStats=Object.fromEntries(ps.map(p=>{const{id,...r}=p;return[id,r];}));}
 const v=buildLiveViewData(meta,teams,players,games);
