@@ -1,28 +1,45 @@
 import { useState } from 'react';
 import { subscribe } from '../lib/alerts.js';
+import { TeamFollowPicker, FollowList } from './TeamFollowPicker.jsx';
 
 export function AlertsModal({ leagueId, lang, t, teams, categories, onClose }) {
-  const [email, setEmail]       = useState('');
-  const [name, setName]         = useState('');
-  const [selCats, setSelCats]   = useState([]);
-  const [selTeams, setSelTeams] = useState([]);
-  const [types, setTypes]       = useState({ reminder: true, scores: true, changes: true });
-  const [consent, setConsent]   = useState(false);
-  const [honeypot, setHoneypot] = useState('');
-  const [busy, setBusy]         = useState(false);
-  const [done, setDone]         = useState(false);
-  const [err, setErr]           = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName]   = useState('');
+  const [email, setEmail]         = useState('');
+  const [follows, setFollows]     = useState([]);
+  const [picking, setPicking]     = useState(true);
+  const [types, setTypes]         = useState({ reminder: true, scores: true, changes: true });
+  const [consent, setConsent]     = useState(false);
+  const [honeypot, setHoneypot]   = useState('');
+  const [busy, setBusy]           = useState(false);
+  const [done, setDone]           = useState(false);
+  const [err, setErr]             = useState('');
 
-  function toggleCat(id) { setSelCats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); }
-  function toggleTeam(id) { setSelTeams(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); }
   function toggleType(k) { setTypes(p => ({ ...p, [k]: !p[k] })); }
+  function addFollow(f) {
+    setFollows(p => p.some(x => x.categoryId === f.categoryId && x.team === f.team) ? p : [...p, f]);
+    setPicking(false);
+  }
+  function removeFollow(f) {
+    const next = follows.filter(x => !(x.categoryId === f.categoryId && x.team === f.team));
+    setFollows(next);
+    if (next.length === 0) setPicking(true);
+  }
+
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const canSubmit = firstName.trim() && lastName.trim() && emailOk && follows.length > 0 && consent && !busy;
 
   async function submit(e) {
     e.preventDefault();
+    if (!firstName.trim() || !lastName.trim() || !emailOk) { setErr(t.alertsNeedFields); return; }
+    if (follows.length === 0) { setErr(t.alertsNeedTeam); return; }
     if (!consent) { setErr(t.alertsNeedConsent); return; }
     setBusy(true); setErr('');
     try {
-      const res = await subscribe({ leagueId, email, name, categories: selCats, teams: selTeams, types, lang, honeypot });
+      const res = await subscribe({
+        leagueId, email: email.trim(), firstName: firstName.trim(), lastName: lastName.trim(),
+        follows, types, lang, honeypot,
+      });
       if (res.ok) setDone(true);
       else setErr(t.alertsError);
     } catch {
@@ -59,6 +76,21 @@ export function AlertsModal({ leagueId, lang, t, teams, categories, onClose }) {
               aria-hidden="true"
             />
 
+            <div className="alerts-field alerts-row2">
+              <div>
+                <label className="alerts-label" htmlFor="al-first">{t.alertsFirstName} *</label>
+                <input id="al-first" type="text" className="alerts-inp" required
+                  value={firstName} onChange={e => setFirstName(e.target.value)}
+                  autoComplete="given-name" maxLength={60} />
+              </div>
+              <div>
+                <label className="alerts-label" htmlFor="al-last">{t.alertsLastName} *</label>
+                <input id="al-last" type="text" className="alerts-inp" required
+                  value={lastName} onChange={e => setLastName(e.target.value)}
+                  autoComplete="family-name" maxLength={60} />
+              </div>
+            </div>
+
             <div className="alerts-field">
               <label className="alerts-label" htmlFor="al-email">{t.alertsEmail} *</label>
               <input
@@ -69,53 +101,22 @@ export function AlertsModal({ leagueId, lang, t, teams, categories, onClose }) {
               />
             </div>
 
+            {/* Teams to follow */}
             <div className="alerts-field">
-              <label className="alerts-label" htmlFor="al-name">{t.alertsName}</label>
-              <input
-                id="al-name" type="text" className="alerts-inp"
-                value={name} onChange={e => setName(e.target.value)}
-                placeholder={lang === 'fr' ? 'Prénom (optionnel)' : 'First name (optional)'}
-                autoComplete="given-name"
-              />
+              <div className="alerts-label">{t.alertsTeams} *</div>
+              <FollowList follows={follows} categories={categories} lang={lang} onRemove={removeFollow} />
+              {picking ? (
+                <TeamFollowPicker
+                  categories={categories} teams={teams} follows={follows} lang={lang} t={t}
+                  onAdd={addFollow}
+                  onCancel={follows.length ? () => setPicking(false) : null}
+                />
+              ) : (
+                <button type="button" className="alerts-add-btn" onClick={() => setPicking(true)}>
+                  {t.alertsAddTeam}
+                </button>
+              )}
             </div>
-
-            {/* Categories */}
-            {categories.length > 0 && (
-              <div className="alerts-field">
-                <div className="alerts-label">{t.alertsCats}</div>
-                <div className="alerts-chips">
-                  {categories.map(c => (
-                    <button
-                      key={c.id} type="button"
-                      className={`alerts-chip${selCats.includes(c.id) ? ' selected' : ''}`}
-                      onClick={() => toggleCat(c.id)}
-                    >{c.name}</button>
-                  ))}
-                </div>
-                {categories.length > 0 && selCats.length === 0 && (
-                  <div className="alerts-hint">{t.alertsAllCats}</div>
-                )}
-              </div>
-            )}
-
-            {/* Teams */}
-            {teams.length > 0 && (
-              <div className="alerts-field">
-                <div className="alerts-label">{t.alertsTeams}</div>
-                <div className="alerts-chips">
-                  {teams.slice(0, 20).map(tm => (
-                    <button
-                      key={tm.id} type="button"
-                      className={`alerts-chip${selTeams.includes(tm.name) ? ' selected' : ''}`}
-                      onClick={() => toggleTeam(tm.name)}
-                    >{tm.name}</button>
-                  ))}
-                </div>
-                {selTeams.length === 0 && (
-                  <div className="alerts-hint">{t.alertsAllTeams}</div>
-                )}
-              </div>
-            )}
 
             {/* Alert types */}
             <div className="alerts-field">
@@ -149,10 +150,7 @@ export function AlertsModal({ leagueId, lang, t, teams, categories, onClose }) {
 
             {err && <div className="alerts-err" role="alert">{err}</div>}
 
-            <button
-              type="submit" className="btn alerts-btn"
-              disabled={busy || !email || !consent}
-            >
+            <button type="submit" className="btn alerts-btn" disabled={!canSubmit}>
               {busy ? '…' : t.alertsSubmit}
             </button>
           </form>

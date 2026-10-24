@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { loadPrefs, savePrefs, unsubscribe, confirmSub } from '../lib/alerts.js';
 import { siteUrl } from '../lib/firebase.js';
+import { TeamFollowPicker, FollowList } from './TeamFollowPicker.jsx';
 
 export function AlertsManage({ leagueId, token, action, lang, t, teams, categories }) {
   const [sub, setSub]         = useState(null);
@@ -9,6 +10,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
   const [saved, setSaved]     = useState(false);
   const [unsubDone, setUnsubDone] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [picking, setPicking]   = useState(false);
 
   // Confirmation flow
   useEffect(() => {
@@ -40,14 +42,20 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
   }, [token]);
 
   function updateSub(patch) { setSub(s => ({ ...s, ...patch })); }
-  function toggleCat(id) { updateSub({ categories: sub.categories.includes(id) ? sub.categories.filter(x => x !== id) : [...sub.categories, id] }); }
-  function toggleTeam(nm) { updateSub({ teams: sub.teams.includes(nm) ? sub.teams.filter(x => x !== nm) : [...sub.teams, nm] }); }
+  const follows = sub?.follows || [];
+  function addFollow(f) {
+    if (!follows.some(x => x.categoryId === f.categoryId && x.team === f.team)) updateSub({ follows: [...follows, f] });
+    setPicking(false);
+  }
+  function removeFollow(f) { updateSub({ follows: follows.filter(x => !(x.categoryId === f.categoryId && x.team === f.team)) }); }
   function toggleType(k) { updateSub({ types: { ...sub.types, [k]: !sub.types[k] } }); }
 
   async function handleSave(e) {
     e.preventDefault();
+    if (follows.length === 0) return;
     try {
-      await savePrefs({ token, leagueId, categories: sub.categories, teams: sub.teams, types: sub.types, lang: sub.lang });
+      const r = await savePrefs({ token, leagueId, follows, types: sub.types, lang: sub.lang });
+      if (!r.ok) throw new Error('save');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch { setError(t.alertsManageError); }
@@ -105,35 +113,22 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
         {sub.email && <p className="manage-email">{sub.email}</p>}
 
         <form onSubmit={handleSave}>
-          {/* Categories */}
-          {categories.length > 0 && (
-            <div className="alerts-field">
-              <div className="alerts-label">{t.alertsCats}</div>
-              <div className="alerts-chips">
-                {categories.map(c => (
-                  <button key={c.id} type="button"
-                    className={`alerts-chip${sub.categories.includes(c.id) ? ' selected' : ''}`}
-                    onClick={() => toggleCat(c.id)}>{c.name}</button>
-                ))}
-              </div>
-              {sub.categories.length === 0 && <div className="alerts-hint">{t.alertsAllCats}</div>}
-            </div>
-          )}
-
-          {/* Teams */}
-          {teams.length > 0 && (
-            <div className="alerts-field">
-              <div className="alerts-label">{t.alertsTeams}</div>
-              <div className="alerts-chips">
-                {teams.slice(0, 20).map(tm => (
-                  <button key={tm.id} type="button"
-                    className={`alerts-chip${sub.teams.includes(tm.name) ? ' selected' : ''}`}
-                    onClick={() => toggleTeam(tm.name)}>{tm.name}</button>
-                ))}
-              </div>
-              {sub.teams.length === 0 && <div className="alerts-hint">{t.alertsAllTeams}</div>}
-            </div>
-          )}
+          {/* Teams followed */}
+          <div className="alerts-field">
+            <div className="alerts-label">{t.alertsTeams}</div>
+            <FollowList follows={follows} categories={categories} lang={lang} onRemove={removeFollow} />
+            {picking || follows.length === 0 ? (
+              <TeamFollowPicker
+                categories={categories} teams={teams} follows={follows} lang={lang} t={t}
+                onAdd={addFollow}
+                onCancel={follows.length ? () => setPicking(false) : null}
+              />
+            ) : (
+              <button type="button" className="alerts-add-btn" onClick={() => setPicking(true)}>
+                {t.alertsAddTeam}
+              </button>
+            )}
+          </div>
 
           {/* Types */}
           <div className="alerts-field">
@@ -149,7 +144,7 @@ export function AlertsManage({ leagueId, token, action, lang, t, teams, categori
           </div>
 
           <div className="manage-btns">
-            <button type="submit" className="btn alerts-btn">
+            <button type="submit" className="btn alerts-btn" disabled={follows.length === 0}>
               {saved ? (lang === 'fr' ? 'Enregistré ✓' : 'Saved ✓') : t.alertsSave}
             </button>
           </div>

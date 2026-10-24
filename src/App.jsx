@@ -749,8 +749,10 @@ export default function App() {
   }, []);
 
   const alertsActive = !!ps.alertsActive;
-  const alertsTeams  = TEAMS.map(tm => ({ id: tm.id, name: tm.name }));
-  const alertsCats   = effectiveCats.filter(c => c.id !== '__all__').map(c => ({ id: c.id, name: displayCatName(c.name, t) }));
+  const alertsTeams  = TEAMS.map(tm => ({ id: tm.id, name: tm.name, categoryId: tm.categoryId != null ? String(tm.categoryId) : '' }));
+  const alertsCats   = enrichedCats.filter(c => c.id !== '__all__').map(c => ({
+    id: String(c.id), name: displayCatName(c.name, t), gender: c.gender, division: c.division, age: c.age || displayCatName(c.name, t),
+  }));
   const leagueIdStr  = String(LEAGUE_ID || '');
 
   if (manageToken) return (

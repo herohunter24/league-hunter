@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -26,7 +27,7 @@ function cors(req, res) {
     res.set('Access-Control-Allow-Origin', origin);
   }
   res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.status(204).send(''); return true; }
   return false;
 }
@@ -51,7 +52,50 @@ async function checkRateLimit(ip) {
 
 // Send via Resend
 async function send(resend, { to, subject, html }) {
-  return resend.emails.send({ from: FROM, to, subject, html });
+  const r = await resend.emails.send({ from: FROM, to, subject, html });
+  if (r && r.error) throw new Error('resend: ' + (r.error.message || JSON.stringify(r.error)));
+  return r;
+}
+
+// Normalize the list of followed teams: [{ categoryId, team }], max 20, no duplicates.
+function cleanFollows(follows) {
+  if (!Array.isArray(follows)) return [];
+  const out = [];
+  for (const f of follows.slice(0, 20)) {
+    const categoryId = String(f?.categoryId ?? '').trim().slice(0, 100);
+    const team = String(f?.team ?? '').trim().slice(0, 100);
+    if (!categoryId || !team) continue;
+    if (!out.some(x => x.categoryId === categoryId && x.team === team)) out.push({ categoryId, team });
+  }
+  return out;
+}
+
+// Does this subscriber follow this game?
+// New subscribers have `follows` (team + category). Old format: categories/teams arrays.
+function subFollowsGame(sub, game) {
+  const teams = [game.home, game.away];
+  if (Array.isArray(sub.follows) && sub.follows.length) {
+    return sub.follows.some(f => f.categoryId === String(game.categoryId ?? '') && teams.includes(f.team));
+  }
+  const cats = sub.categories || [];
+  const tms = sub.teams || [];
+  if (!cats.length && !tms.length) return true;
+  return cats.includes(game.categoryId) || teams.some(t => tms.includes(t));
+}
+
+// Admin endpoints: caller must send a Firebase ID token of a superadmin or the league owner.
+async function isAdminFor(req, leagueId) {
+  const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+  if (!m) return false;
+  try {
+    const decoded = await getAuth().verifyIdToken(m[1]);
+    const u = await db.collection('users').doc(decoded.uid).get();
+    if (!u.exists) return false;
+    const d = u.data();
+    return d.role === 'superadmin' || (d.role === 'owner' && String(d.leagueId) === String(leagueId));
+  } catch {
+    return false;
+  }
 }
 
 // ── SUBSCRIBE ────────────────────────────────────────────────────────────────
@@ -61,13 +105,16 @@ export const nlsSubscribe = onRequest(
     if (cors(req, res)) return;
     if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
 
-    const { leagueId, email, name, categories, teams, types, lang, honeypot } = req.body;
+    const { leagueId, email, firstName, lastName, follows, types, lang, honeypot } = req.body || {};
 
     // Honeypot: if filled, silently succeed (bot)
     if (honeypot) { res.json({ ok: true }); return; }
 
     // Validate
-    if (!leagueId || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const first = String(firstName || '').trim().slice(0, 60);
+    const last = String(lastName || '').trim().slice(0, 60);
+    const fl = cleanFollows(follows);
+    if (!leagueId || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !first || !last || !fl.length) {
       res.status(400).json({ error: 'invalid' }); return;
     }
 
@@ -102,9 +149,12 @@ export const nlsSubscribe = onRequest(
 
     await db.collection('leagues').doc(leagueId).collection('subscribers').doc(subId).set({
       email: email.toLowerCase(),
-      name: (name || '').trim(),
-      categories: categories || [],
-      teams: teams || [],
+      name: first,
+      firstName: first,
+      lastName: last,
+      follows: fl,
+      categories: [...new Set(fl.map(f => f.categoryId))],
+      teams: [...new Set(fl.map(f => f.team))],
       types: types || { reminder: true, scores: true, changes: true },
       lang: lang || 'fr',
       status: 'pending',
@@ -115,7 +165,7 @@ export const nlsSubscribe = onRequest(
     });
 
     const resend = new Resend(RESEND_KEY.value());
-    const tmpl = confirmEmail({ to: email, name: (name || '').trim(), leagueId, token, lang: lang || 'fr' });
+    const tmpl = confirmEmail({ to: email, name: first, leagueId, token, lang: lang || 'fr' });
     await send(resend, tmpl);
 
     res.json({ ok: true });
@@ -163,17 +213,25 @@ export const nlsPrefs = onRequest(
       // Return prefs but not raw email (first + last letter masked)
       const e = d.email;
       const masked = e.length > 4 ? e[0] + '***' + e.slice(-4) : '***';
-      res.json({ ok: true, sub: { email: masked, name: d.name, categories: d.categories, teams: d.teams, types: d.types, lang: d.lang, status: d.status } });
+      res.json({ ok: true, sub: { email: masked, name: d.name, follows: d.follows || [], types: d.types, lang: d.lang, status: d.status } });
       return;
     }
 
     if (req.method === 'PUT') {
-      const { token, leagueId, categories, teams, types, lang } = req.body;
-      if (!token || !leagueId) { res.status(400).json({ error: 'missing' }); return; }
+      const { token, leagueId, follows, types, lang } = req.body || {};
+      const fl = cleanFollows(follows);
+      if (!token || !leagueId || !fl.length) { res.status(400).json({ error: 'missing' }); return; }
       const snap = await db.collection('leagues').doc(leagueId)
         .collection('subscribers').where('token', '==', token).limit(1).get();
       if (snap.empty) { res.status(404).json({ error: 'not_found' }); return; }
-      await snap.docs[0].ref.update({ categories, teams, types, lang: lang || snap.docs[0].data().lang });
+      const t = types || {};
+      await snap.docs[0].ref.update({
+        follows: fl,
+        categories: [...new Set(fl.map(f => f.categoryId))],
+        teams: [...new Set(fl.map(f => f.team))],
+        types: { reminder: !!t.reminder, scores: !!t.scores, changes: !!t.changes },
+        lang: lang || snap.docs[0].data().lang,
+      });
       res.json({ ok: true });
       return;
     }
@@ -204,11 +262,16 @@ export const nlsAdminSubs = onRequest(
   { region: REGION },
   async (req, res) => {
     if (cors(req, res)) return;
-    const { league } = req.query;
+    const league = req.query.league || req.query.leagueId;
     if (!league) { res.status(400).json({ error: 'missing' }); return; }
+    if (!(await isAdminFor(req, league))) { res.status(403).json({ error: 'forbidden' }); return; }
     const snap = await db.collection('leagues').doc(league)
       .collection('subscribers').orderBy('createdAt', 'desc').limit(500).get();
-    const subs = snap.docs.map(d => ({ id: d.id, ...d.data(), token: undefined })); // don't expose token
+    const subs = snap.docs.map(d => {
+      const x = d.data();
+      const created = x.createdAt && typeof x.createdAt.toDate === 'function' ? x.createdAt.toDate().toISOString() : '';
+      return { id: d.id, ...x, createdAt: created, consentAt: undefined, token: undefined }; // don't expose token
+    });
     res.json({ ok: true, subs });
   }
 );
@@ -219,8 +282,10 @@ export const nlsAdminDelSub = onRequest(
   async (req, res) => {
     if (cors(req, res)) return;
     if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
-    const { league, subId } = req.body;
+    const { subId } = req.body || {};
+    const league = req.body?.league || req.body?.leagueId;
     if (!league || !subId) { res.status(400).json({ error: 'missing' }); return; }
+    if (!(await isAdminFor(req, league))) { res.status(403).json({ error: 'forbidden' }); return; }
     await db.collection('leagues').doc(league).collection('subscribers').doc(subId).delete();
     res.json({ ok: true });
   }
@@ -232,8 +297,11 @@ export const nlsAdminSend = onRequest(
   async (req, res) => {
     if (cors(req, res)) return;
     if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
-    const { league, subject, body, targetCategories, testEmail } = req.body;
+    const { subject, targetCategories, testEmail } = req.body || {};
+    const league = req.body?.league || req.body?.leagueId;
+    const body = req.body?.body || req.body?.message;
     if (!league || !subject || !body) { res.status(400).json({ error: 'missing' }); return; }
+    if (!(await isAdminFor(req, league))) { res.status(403).json({ error: 'forbidden' }); return; }
 
     const resend = new Resend(RESEND_KEY.value());
 
@@ -256,7 +324,7 @@ export const nlsAdminSend = onRequest(
     const subsSnap = await query.get();
     const targets = subsSnap.docs.filter(d => {
       if (!targetCategories || targetCategories.length === 0) return true;
-      return d.data().categories.some(c => targetCategories.includes(c));
+      return (d.data().categories || []).some(c => targetCategories.includes(c));
     });
 
     let sent = 0;
@@ -314,9 +382,7 @@ export const nlsReminders = onSchedule(
           const sub = subDoc.data();
           if (!sub.types?.reminder) continue;
 
-          const followsCategory = !sub.categories?.length || sub.categories.includes(game.categoryId);
-          const followsTeam = !sub.teams?.length || [game.home, game.away].some(t => sub.teams.includes(t));
-          if (!followsCategory && !followsTeam) continue;
+          if (!subFollowsGame(sub, game)) continue;
 
           // Don't resend for the same game
           if ((sub.lastSentReminders || []).includes(game.id)) continue;
@@ -367,9 +433,7 @@ export const nlsGameAlert = onDocumentUpdated(
 
     for (const subDoc of subsSnap.docs) {
       const sub = subDoc.data();
-      const followsCategory = !sub.categories?.length || sub.categories.includes(after.categoryId);
-      const followsTeam = !sub.teams?.length || [after.home, after.away].some(t => sub.teams.includes(t));
-      if (!followsCategory && !followsTeam) continue;
+      if (!subFollowsGame(sub, after)) continue;
 
       try {
         if (scoreAdded && sub.types?.scores) {

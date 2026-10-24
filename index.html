@@ -1762,10 +1762,16 @@ function App() {
   const [nlsAnnTargetEmail, setNlsAnnTargetEmail] = useState('');
   const [nlsSending, setNlsSending] = useState(false);
 
+  async function nlsAuthHeaders(extra) {
+    const u = (_auth || window.__wxAuth)?.currentUser;
+    const tok = u ? await u.getIdToken() : '';
+    return { ...(extra || {}), Authorization: 'Bearer ' + tok };
+  }
+
   async function nlsLoadSubs() {
     setNlsSubsLoading(true);
     try {
-      const r = await fetch(`${NLS_FN}/nlsAdminSubs?leagueId=${encodeURIComponent(String(selId))}`);
+      const r = await fetch(`${NLS_FN}/nlsAdminSubs?leagueId=${encodeURIComponent(String(selId))}`, { headers: await nlsAuthHeaders() });
       if (!r.ok) { setNlsSubs([]); return; }
       const d = await r.json();
       setNlsSubs(d.subs || []);
@@ -1776,7 +1782,7 @@ function App() {
   async function nlsDeleteSub(subId) {
     if (!confirm('Supprimer cet abonné ?')) return;
     try {
-      const r = await fetch(`${NLS_FN}/nlsAdminDelSub`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ leagueId: String(selId), subId }) });
+      const r = await fetch(`${NLS_FN}/nlsAdminDelSub`, { method:'POST', headers: await nlsAuthHeaders({'Content-Type':'application/json'}), body: JSON.stringify({ leagueId: String(selId), subId }) });
       const d = await r.json();
       if (d.ok) { setNlsSubs(prev => prev.filter(s=>s.id!==subId)); showToast('Abonné supprimé','success'); }
       else showToast('Erreur suppression','error');
@@ -1790,7 +1796,7 @@ function App() {
     try {
       const body = { leagueId: String(selId), subject: nlsAnnSubject, message: nlsAnnMsg };
       if (testOnly) body.testEmail = nlsAnnTargetEmail;
-      const r = await fetch(`${NLS_FN}/nlsAdminSend`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const r = await fetch(`${NLS_FN}/nlsAdminSend`, { method:'POST', headers: await nlsAuthHeaders({'Content-Type':'application/json'}), body: JSON.stringify(body) });
       const d = await r.json();
       if (d.ok) showToast(testOnly ? `Test envoyé à ${nlsAnnTargetEmail}` : `Annonce envoyée à ${d.sent||0} abonné(s)`,'success');
       else showToast(d.error||'Erreur envoi','error');
@@ -1801,8 +1807,8 @@ function App() {
   function nlsExportCsv() {
     const active = nlsSubs.filter(s=>s.status==='active');
     if (!active.length) { showToast('Aucun abonné actif','warning'); return; }
-    const rows = active.map(s=>`"${s.email}","${s.status}","${(s.categories||[]).join(';')}","${(s.teams||[]).join(';')}","${s.createdAt||''}"`);
-    const csv = 'Email,Status,Categories,Teams,Date\n' + rows.join('\n');
+    const rows = active.map(s=>`"${s.firstName||''}","${s.lastName||''}","${s.email}","${s.status}","${(s.categories||[]).join(';')}","${(s.teams||[]).join(';')}","${s.createdAt||''}"`);
+    const csv = 'Prenom,Nom,Email,Status,Categories,Teams,Date\n' + rows.join('\n');
     const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='abonnes-nls.csv'; a.click();
   }
 
@@ -6993,7 +6999,7 @@ service cloud.firestore {
                       <tbody>
                         {nlsSubs.map(s=>(
                           <tr key={s.id} style={{ borderBottom:`1px solid ${BORDER}`, opacity: s.status==='active' ? 1 : 0.45 }}>
-                            <td style={{ padding:"9px 12px", fontWeight:500 }}>{s.email}</td>
+                            <td style={{ padding:"9px 12px", fontWeight:500 }}>{s.firstName ? <div>{s.firstName} {s.lastName}</div> : null}<div style={s.firstName?{color:T2,fontSize:12,fontWeight:400}:null}>{s.email}</div></td>
                             <td style={{ padding:"9px 12px" }}>
                               <span style={{ fontSize:11, fontWeight:700, color: s.status==='active'?'#22c55e':s.status==='pending'?'#f59e0b':T2 }}>
                                 {s.status==='active'?'✅ Actif':s.status==='pending'?'⏳ En attente':'❌ Désinscrit'}

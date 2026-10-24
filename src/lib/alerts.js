@@ -1,11 +1,11 @@
 // Cloud Functions base URL — update after deploying
 export const FUNCTIONS_URL = 'https://us-east1-league-hunter.cloudfunctions.net';
 
-export async function subscribe({ leagueId, email, name, categories, teams, types, lang, honeypot }) {
+export async function subscribe({ leagueId, email, firstName, lastName, follows, types, lang, honeypot }) {
   const r = await fetch(`${FUNCTIONS_URL}/nlsSubscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ leagueId, email, name, categories, teams, types, lang, honeypot }),
+    body: JSON.stringify({ leagueId, email, firstName, lastName, follows, types, lang, honeypot }),
   });
   return r.json();
 }
@@ -20,11 +20,11 @@ export async function loadPrefs({ token, league }) {
   return r.json();
 }
 
-export async function savePrefs({ token, leagueId, categories, teams, types, lang }) {
+export async function savePrefs({ token, leagueId, follows, types, lang }) {
   const r = await fetch(`${FUNCTIONS_URL}/nlsPrefs`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, leagueId, categories, teams, types, lang }),
+    body: JSON.stringify({ token, leagueId, follows, types, lang }),
   });
   return r.json();
 }
