@@ -84,7 +84,8 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap, rankFn)
   return scored.map(s => {
     // Players with 0 games get Bronze; 1–2 games get at most Silver (not yet ranked)
     if (s.gp === 0) return { ...s, pctRank: 0, tier: 'bronze' };
-    if (s.gp < MIN_GAMES_FOR_TIER) return { ...s, pctRank: 0, tier: 'silver' };
+    // 1–2 matchs : Argent seulement si la moyenne par match le mérite, sinon Bronze
+    if (s.gp < MIN_GAMES_FOR_TIER) return { ...s, pctRank: 0, tier: getTierIdByScore(s.avgScore) === 'bronze' ? 'bronze' : 'silver' };
 
     const catGroup = (groups[s.categoryId] || []).filter(x => x.gp >= MIN_GAMES_FOR_TIER);
     if (catGroup.length < SMALL_GROUP_THRESHOLD) {
