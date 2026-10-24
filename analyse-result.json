@@ -1,3 +1,7 @@
+meta {"error":{"code":429,"message":"Quota exceeded.","status":"RESOURCE_EXHAUSTED"}}
+/teams {"code":429,"message":"Quota exceeded.","status":"RESOURCE_EXHAUSTED"}
+/players {"code":429,"message":"Quota exceeded.","status":"RESOURCE_EXHAUSTED"}
+/games {"code":429,"message":"Quota exceeded.","status":"RESOURCE_EXHAUSTED"}
 {
  "players": 0,
  "gamesTotal": 0,
