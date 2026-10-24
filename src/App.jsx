@@ -802,7 +802,7 @@ export default function App() {
           <div key={(dup ? 'd' : '') + i} className="potm-chip" aria-hidden={dup || undefined}
                onClick={() => openPlayerModal(x.player)}>
             <span className="potm-chip-name">{x.player.name}</span>
-            {effectiveCats.length > 1 && <span className="potm-chip-cat">{displayCatName(x.cat.name, t)}</span>}
+            {x.cat.id !== '__all__' && <span className="potm-chip-cat">{displayCatName(x.cat.name, t)}</span>}
           </div>
         );
         // durée proportionnelle au nombre de noms → vitesse de lecture constante
