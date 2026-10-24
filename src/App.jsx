@@ -739,6 +739,7 @@ export default function App() {
   }, []);
 
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [potmListOpen, setPotmListOpen] = useState(false);
   const [manageToken, setManageToken] = useState(null);
   const [manageAction, setManageAction] = useState(null);
   useEffect(() => {
@@ -793,27 +794,55 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── JOUEUR DU MOIS ticker ── */}
+      {/* ── JOUEUR DU MOIS ticker (défilant) ── */}
       {(ps.showPlayers !== false && ps.showPlayerCards !== false) && (() => {
         const validCards = potmCards.filter(x => (x.player.gp || 0) >= 1);
         if (!validCards.length) return null;
+        const chip = (x, i, dup) => (
+          <div key={(dup ? 'd' : '') + i} className="potm-chip" aria-hidden={dup || undefined}
+               onClick={() => openPlayerModal(x.player)}>
+            <span className="potm-chip-name">{x.player.name}</span>
+            {x.cat.id !== '__all__' && <span className="potm-chip-cat">{displayCatName(x.cat.name, t)}</span>}
+          </div>
+        );
+        // durée proportionnelle au nombre de noms → vitesse de lecture constante
+        const dur = Math.max(14, validCards.length * 5);
         return (
           <div className="potm-banner">
-            <div className="potm-track">
-              <span className="potm-label-inline">{t.potmTitle}</span>
-              {validCards.map((x, i) => {
-                const tColor = TIER_COLOR[x.player.tier] || 'var(--gold)';
-                return (
-                  <div key={i} className="potm-chip" onClick={() => openPlayerModal(x.player)}>
-                    <div className="potm-chip-name" style={{ color: tColor }}>{x.player.name}</div>
-                    {effectiveCats.length > 1 && <div className="potm-chip-cat">· {displayCatName(x.cat.name, t)}</div>}
-                  </div>
-                );
-              })}
+            <button className="potm-label-btn" onClick={() => setPotmListOpen(true)}
+                    aria-label={lang === 'fr' ? 'Voir tous les joueurs du mois' : 'See all players of the month'}>
+              {t.potmTitle} <span className="potm-label-arrow" aria-hidden="true">›</span>
+            </button>
+            <div className="potm-viewport">
+              <div className="potm-marquee" style={{ animationDuration: dur + 's' }}>
+                {validCards.map((x, i) => chip(x, i, false))}
+                {validCards.map((x, i) => chip(x, i, true))}
+              </div>
             </div>
           </div>
         );
       })()}
+
+      {/* ── JOUEURS DU MOIS — liste complète ── */}
+      {potmListOpen && (
+        <div className="modal-ov" onClick={e => { if (e.target.classList.contains('modal-ov')) setPotmListOpen(false); }}>
+          <div className="modal-bx potm-list-bx" role="dialog" aria-modal="true">
+            <button className="modal-close" onClick={() => setPotmListOpen(false)} aria-label="Fermer">✕</button>
+            <div className="sec-kicker">{t.potmTitle}</div>
+            <div className="potm-list-sub">{t.potmSub}</div>
+            <div className="potm-list">
+              {potmCards.filter(x => (x.player.gp || 0) >= 1).map((x, i) => (
+                <button key={i} className="potm-list-row"
+                        onClick={() => { setPotmListOpen(false); openPlayerModal(x.player); }}>
+                  <span className="potm-list-cat">{displayCatName(x.cat.name, t)}</span>
+                  <span className="potm-list-name">{x.player.name}</span>
+                  {x.player.team && <span className="potm-list-team">{x.player.team}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── FIXED PHOTO LAYER (home only) ── */}
       {isHome && <HeroSlideshow key={slideshowKey} />}
