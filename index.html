@@ -675,7 +675,7 @@ async function sendScoreNotification(db, FS, league, game, emailConfig) {
   // Deduplicate
   const allEmails = [...new Set([...activeScoreSubs.map(s => s.email), ...extraEmails])];
 
-  const publicUrl = `${window.location.origin}/public.html?league=${league.id}`;
+  const publicUrl = publicSiteUrl(league);
   let sent = 0;
   for (const email of allEmails) {
     const ok = await sendViaEmailJS(emailConfig, emailConfig.templateScores, {
@@ -688,7 +688,7 @@ async function sendScoreNotification(db, FS, league, game, emailConfig) {
       game_date: game.date || '',
       venue: game.venue || '',
       public_url: publicUrl,
-      unsubscribe_url: publicUrl + '&unsubscribe=' + (await hashEmail(email)),
+      unsubscribe_url: addUrlParam(publicUrl, 'unsubscribe', await hashEmail(email)),
     });
     if (ok) sent++;
   }
@@ -699,8 +699,8 @@ async function sendPotwNotification(db, FS, league, player, emailConfig) {
   if (!emailConfig || !emailConfig.templatePotw || league.notificationsPaused) return 0;
   const subs = await loadSubscribers(db, FS, league.id);
   const activeSubs = subs.filter(s => s.active && s.preferences && s.preferences.potw);
-  const publicUrl = `${window.location.origin}/public.html?league=${league.id}`;
-  const playerUrl = `${publicUrl}&player=${player.id}`;
+  const publicUrl = publicSiteUrl(league);
+  const playerUrl = playerPageUrl(league, player.id);
   let sent = 0;
   for (const sub of activeSubs) {
     const ok = await sendViaEmailJS(emailConfig, emailConfig.templatePotw, {
@@ -710,7 +710,7 @@ async function sendPotwNotification(db, FS, league, player, emailConfig) {
       player_team: player.team || '',
       player_card_url: playerUrl,
       public_url: publicUrl,
-      unsubscribe_url: publicUrl + '&unsubscribe=' + (await hashEmail(sub.email)),
+      unsubscribe_url: addUrlParam(publicUrl, 'unsubscribe', await hashEmail(sub.email)),
     });
     if (ok) sent++;
   }
@@ -933,6 +933,22 @@ function PasswordInput({ value, onChange, onKeyDown, placeholder, autoComplete, 
 // without spaces or accents (it becomes <id>@websitex.app in Firebase Auth).
 // Existing ids (a-z, 0-9, _) are unchanged by this.
 const COORD_TABS = ["today", "schedule", "scores"];
+// ── Site public : la ligue NLS a son propre domaine (nlsshowcases.com) ──
+const NLS_LEAGUE_ID  = "1781288565754";
+const NLS_PUBLIC_URL = "https://nlsshowcases.com";
+function defaultPublicSiteUrl(leagueId) {
+  if (String(leagueId) === NLS_LEAGUE_ID) return NLS_PUBLIC_URL;
+  return `${window.location.origin}/public.html?league=${leagueId}`;
+}
+function publicSiteUrl(league) {
+  if (league && String(league.id) === NLS_LEAGUE_ID) return NLS_PUBLIC_URL;
+  return ((league && league.customPublicSiteUrl) || '').trim() || defaultPublicSiteUrl(league && league.id);
+}
+function addUrlParam(url, key, value) {
+  const base = String(url).replace(/#.*$/, '');
+  return base + (base.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(value);
+}
+function playerPageUrl(league, playerId) { return addUrlParam(publicSiteUrl(league), 'player', playerId); }
 function toLoginId(v) {
   return (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
@@ -1986,7 +2002,7 @@ function App() {
   useEffect(() => {
     if (tab !== 'settings' || !selId) return;
     const lg = leagues.find(l => l.id === selId);
-    const qrUrl = ((lg && lg.customPublicSiteUrl) || '').trim() || `${window.location.origin}/public.html?league=${selId}`;
+    const qrUrl = publicSiteUrl(lg || { id: selId });
     const timer = setTimeout(() => {
       const qrEl = document.getElementById('admin-qr-code');
       if (!qrEl || typeof QRCode === 'undefined') return;
@@ -2489,7 +2505,7 @@ function App() {
   // 3) Firestore league data readable (what the public site actually pulls)
   async function testPublicSiteConnection(lg) {
     if (!lg || testingConn) return;
-    const url = (lg.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${lg.id}`;
+    const url = publicSiteUrl(lg);
     setTestingConn(true);
     let connected = false, error = '';
     let isFileUrl = false;
@@ -2698,12 +2714,18 @@ function App() {
           const parts = op.ref.path.split("/"); // leagues/{lid}/games/{gid}[/playerStats/{pid}]
           if (parts[0] !== "leagues" || parts[2] !== "games") return false;
           if (parts.length === 6 && parts[4] === "playerStats") return true;
-          if (parts.length !== 4) return false;
+          return parts.length === 4 && !!prev.games[parts[3]];
+        }).map(op => {
+          const parts = op.ref.path.split("/");
+          if (parts.length !== 4) return op;
+          // Game doc: write ONLY the changed score fields (merge), never the rest of the game
           const before = prev.games[parts[3]];
-          if (!before) return false;
-          const keys = new Set([...Object.keys(before), ...Object.keys(op.data)]);
-          return [...keys].every(k => COORD_GAME_KEYS.includes(k) || JSON.stringify(before[k]) === JSON.stringify(op.data[k]));
-        });
+          const data = {};
+          COORD_GAME_KEYS.forEach(k => {
+            if (op.data[k] !== undefined && JSON.stringify(before[k]) !== JSON.stringify(op.data[k])) data[k] = op.data[k];
+          });
+          return Object.keys(data).length ? { type: 'set', ref: op.ref, data, merge: true } : null;
+        }).filter(Boolean);
         ops.length = 0; ops.push(...keep);
       }
 
@@ -2714,7 +2736,7 @@ function App() {
         const chunk = ops.slice(i, i + 450);
         const batch = writeBatch(_db);
         for (const op of chunk) {
-          if (op.type === 'set') batch.set(op.ref, op.data);
+          if (op.type === 'set') { if (op.merge) batch.set(op.ref, op.data, { merge: true }); else batch.set(op.ref, op.data); }
           else batch.delete(op.ref);
         }
         await batch.commit();
@@ -3324,14 +3346,14 @@ function App() {
     setDirty(false);
     // Send welcome email if player has email and emailConfig is set
     if (nP.email && emailConfig) {
-      const playerUrl = `${window.location.origin}/public.html?league=${league.id}&player=${newPlayer.id}`;
+      const playerUrl = playerPageUrl(league, newPlayer.id);
       sendViaEmailJS(emailConfig, emailConfig.templateScores, {
         to_email: nP.email,
         league_name: league.name || 'League',
         player_name: nP.name,
         player_team: nP.team || '',
         player_card_url: playerUrl,
-        public_url: `${window.location.origin}/public.html?league=${league.id}`,
+        public_url: publicSiteUrl(league),
         unsubscribe_url: playerUrl,
       }).catch(()=>{});
     }
@@ -3453,14 +3475,14 @@ function App() {
     setDirty(false);
     // Send notification if email changed/added and emailConfig exists
     if (editPlayer.email && emailConfig) {
-      const playerUrl = `${window.location.origin}/public.html?league=${league.id}&player=${editPlayer.id}`;
+      const playerUrl = playerPageUrl(league, editPlayer.id);
       sendViaEmailJS(emailConfig, emailConfig.templateScores, {
         to_email: editPlayer.email,
         league_name: league.name || 'League',
         player_name: newName,
         player_team: editPlayer.team || '',
         player_card_url: playerUrl,
-        public_url: `${window.location.origin}/public.html?league=${league.id}`,
+        public_url: publicSiteUrl(league),
         unsubscribe_url: playerUrl,
       }).catch(()=>{});
     }
@@ -4127,11 +4149,8 @@ function App() {
                       const status = upcoming > 0 ? "Active" : completed > 0 ? "Terminée" : "En cours";
                       const statusColor = upcoming > 0 ? "#22c55e" : completed > 0 ? ACC : "#f59e0b";
                       const lPublicUrl = (() => {
-                        const custom = (l.customPublicSiteUrl || '').trim();
-                        if (custom && custom.startsWith('https://')) return custom;
-                        const origin = window.location.origin;
-                        if (origin.startsWith('https://')) return `${origin}/public.html?league=${l.id}`;
-                        return null;
+                        const u = publicSiteUrl(l);
+                        return u.startsWith('https://') ? u : null;
                       })();
                       return (
                         <tr key={l.id} style={{ borderBottom: i < visibleLeagues.length-1 ? `1px solid ${BORDER}` : "none", cursor: "pointer" }}
@@ -4767,7 +4786,7 @@ function App() {
                 {/* Quick actions */}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
                   {isCoord ? (
-                    <a href={((league.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${league.id}`).replace(/#statistiques$/, '')} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 7, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "9px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600, textDecoration: "none" }}>
+                    <a href={publicSiteUrl(league).replace(/#statistiques$/, '')} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 7, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, color: T1, padding: "9px 16px", fontSize: 13, cursor: "pointer", fontWeight: 600, textDecoration: "none" }}>
                       Ouvrir le site public ↗
                     </a>
                   ) : (<>
@@ -5998,7 +6017,7 @@ function App() {
           {/* ── PUBLIC SETTINGS ── */}
           {tab==="public" && (() => {
             const ps = getPublicSettings(league);
-            const publicUrl = ((league.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${league.id}`).replace(/#statistiques$/, '');
+            const publicUrl = publicSiteUrl(league).replace(/#statistiques$/, '');
             const PS_TOGGLES = [
               ['showStandings',   'Classement',       'Tableau de classement de la ligue avec les fiches des équipes'],
               ['showSchedule',    'Calendrier',       'Matchs à venir et résultats passés'],
@@ -6162,7 +6181,7 @@ function App() {
 
               {/* ── PUBLIC WEBSITE — custom URL + connection testing ── */}
               {(() => {
-                const defaultUrl   = `${window.location.origin}/public.html?league=${selId}`;
+                const defaultUrl   = defaultPublicSiteUrl(selId);
                 const customUrl    = (league.customPublicSiteUrl || '').trim();
                 const effectiveUrl = customUrl || defaultUrl;
                 const status       = league.publicSiteConnectionStatus || null;
@@ -6425,7 +6444,7 @@ function App() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, marginBottom: 10, fontFamily: "monospace", wordBreak: "break-all", color: ACC }}>
-                      {(league.customPublicSiteUrl || '').trim() || `${window.location.origin}/public.html?league=${selId}`}
+                      {publicSiteUrl(league)}
                     </div>
                     <div style={{ fontSize: 12, color: T2, marginBottom: 14, lineHeight: 1.6 }}>
                       Scanne ce code pour ouvrir la page de la ligue en direct. Compatible avec tous les téléphones.
