@@ -4829,12 +4829,35 @@ function App() {
                               <div style={{ fontWeight: 700, fontSize: 14 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
                               <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}</div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                               {isLive && <span style={{ background: ACC+"25", color: ACC, borderRadius: 6, padding: "3px 9px", fontSize: 11, fontWeight: 700 }}>EN DIRECT</span>}
                               {hasScore && <span style={{ fontWeight: 700, fontSize: 15 }}>{g.homeScore} – {g.awayScore}</span>}
                               {isPast && !hasScore && (
                                 <button onClick={() => setEditScore(g)} style={{ background: ACC, border: "none", borderRadius: 7, color: "#fff", padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Entrer le score</button>
                               )}
+                              {hasScore && <button onClick={() => setEditScore(g)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 7, color: T2, padding: "7px 14px", fontSize: 12, cursor: "pointer" }}>Modifier score</button>}
+                              {(() => {
+                                // Même bouton que dans Calendrier : entrer / modifier les stats du match
+                                const hasStats = Object.keys(g.playerStats || {}).length > 0;
+                                const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+                                if (!gamePlayers.length) return null;
+                                return (
+                                  <button onClick={() => {
+                                    const stats = {};
+                                    gamePlayers.forEach(p => {
+                                      const existing = (g.playerStats || {})[p.id] || {};
+                                      const def = getSportStats(sport, p);
+                                      const defaults = {};
+                                      def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
+                                      stats[p.id] = { ...defaults, ...existing };
+                                    });
+                                    setEditStats({ game: g, stats });
+                                    setStatsValidationError(null);
+                                  }} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 7, color: hasStats ? T2 : "#a78bfa", padding: "7px 14px", fontSize: 12, cursor: "pointer", fontWeight: hasStats ? 400 : 600 }}>
+                                    {hasStats ? "Stats" : "Entrer stats"}
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                         );
