@@ -4,13 +4,16 @@ import { getAuth } from 'firebase-admin/auth';
 import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentUpdated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { Resend } from 'resend';
 import { randomUUID } from 'crypto';
 import {
   confirmEmail, welcomeEmail, reminderEmail,
-  scoreEmail, changeEmail, announcementEmail,
+  scoreEmail, changeEmail, cancelEmail, announcementEmail,
 } from './templates.js';
+
+// Score fields are stored as homeScore/awayScore (number or string); empty = no score.
+const num = v => (v === undefined || v === null || v === '') ? null : +v;
 
 initializeApp();
 const db = getFirestore();
@@ -372,7 +375,7 @@ export const nlsReminders = onSchedule(
 
       for (const gameDoc of gamesSnap.docs) {
         const game = { id: gameDoc.id, ...gameDoc.data() };
-        if (game.hs != null) continue; // already played
+        if (num(game.homeScore) != null) continue; // already played
 
         // Get active subscribers with reminder enabled, following this game's category or teams
         const subsSnap = await db.collection('leagues').doc(leagueId)
@@ -417,10 +420,13 @@ export const nlsGameAlert = onDocumentUpdated(
     if (!psSnap.exists || psSnap.data().alertsActive !== true) return;
 
     const resend = new Resend(RESEND_KEY.value());
-    const game = { id: gameId, ...after };
+    const hsB = num(before.homeScore);
+    const hsA = num(after.homeScore);
+    const asA = num(after.awayScore);
+    const game = { id: gameId, ...after, hs: hsA, as: asA };
 
-    // Detect score added (hs/as go from null → number)
-    const scoreAdded = before.hs == null && after.hs != null && after.as != null;
+    // Detect score added (homeScore/awayScore go from empty → number)
+    const scoreAdded = hsB == null && hsA != null && asA != null;
 
     // Detect schedule changes (date, time, venue, status)
     const watched = ['date', 'time', 'venue', 'status'];
@@ -452,6 +458,57 @@ export const nlsGameAlert = onDocumentUpdated(
         }
       } catch (e) {
         console.error('game alert send error', subDoc.id, e);
+      }
+    }
+  }
+);
+
+// ── TRIGGER: GAME DELETED (= cancelled by the league owner) ─────────────────
+export const nlsGameCancelled = onDocumentDeleted(
+  { document: 'leagues/{leagueId}/games/{gameId}', region: REGION, secrets: [RESEND_KEY] },
+  async (event) => {
+    const leagueId = event.params.leagueId;
+    const gameId = event.params.gameId;
+    const data = event.data?.data();
+    if (!data) return;
+    const game = { id: gameId, ...data };
+
+    // Check alertsActive
+    const psSnap = await db.collection('leagues').doc(leagueId).collection('meta').doc('publicSettings').get();
+    if (!psSnap.exists || psSnap.data().alertsActive !== true) return;
+
+    // Already played or in the past (America/Toronto) → no cancel email
+    if (num(game.homeScore) != null) return;
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+    if (game.date && String(game.date) < today) return;
+
+    // Burst guard: when a league, category or team is deleted, its games are deleted too.
+    // Skip unless the league, the game's category and both teams still exist.
+    const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+    if (!leagueSnap.exists) return;
+    const cats = leagueSnap.data().categories || [];
+    if (game.categoryId != null && game.categoryId !== '' && cats.length
+      && !cats.some(c => String(c.id) === String(game.categoryId))) return;
+    const teamsSnap = await db.collection('leagues').doc(leagueId).collection('teams').get();
+    const teamNames = teamsSnap.docs.map(d => d.data().name);
+    if (!teamNames.includes(game.home) || !teamNames.includes(game.away)) return;
+
+    const resend = new Resend(RESEND_KEY.value());
+    const subsSnap = await db.collection('leagues').doc(leagueId)
+      .collection('subscribers').where('status', '==', 'active').get();
+
+    for (const subDoc of subsSnap.docs) {
+      const sub = subDoc.data();
+      if (!subFollowsGame(sub, game)) continue;
+      if (!sub.types?.changes) continue;
+      try {
+        const tmpl = cancelEmail({ to: sub.email, name: sub.name, leagueId, token: sub.token, lang: sub.lang, game });
+        await send(resend, tmpl);
+        await db.collection('leagues').doc(leagueId).collection('emailLog').add({
+          type: 'cancel', subId: subDoc.id, gameId, sentAt: FieldValue.serverTimestamp(), status: 'sent',
+        });
+      } catch (e) {
+        console.error('cancel alert send error', subDoc.id, e);
       }
     }
   }

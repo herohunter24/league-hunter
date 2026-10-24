@@ -176,6 +176,30 @@ export function changeEmail({ to, name, leagueId, token, lang, game, changes }) 
   return { to, subject, html: shell(content, unsub, prefs) };
 }
 
+// ── GAME CANCELLED ───────────────────────────────────────────────────────────
+export function cancelEmail({ to, name, leagueId, token, lang, game }) {
+  const prefs = manageUrl(leagueId, token);
+  const unsub = `${prefs}&unsub=1`;
+  let gameDate = game.date || '';
+  if (game.date) {
+    const d = new Date(game.date + 'T12:00');
+    if (!isNaN(d)) {
+      gameDate = d.toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+  }
+  const when = [gameDate, game.time].filter(Boolean).join(' · ');
+  const content = `
+    <p style="font-size:11px;font-weight:700;letter-spacing:0.2em;color:#C9A24A;text-transform:uppercase;margin:0 0 12px;">${lang === 'fr' ? 'Match annulé' : 'Game Cancelled'}</p>
+    <h1 style="font-family:'Arial Black',Arial,sans-serif;font-size:20px;font-weight:900;color:#F4F1EA;margin:0 0 20px;">${game.home} vs ${game.away}</h1>
+    <p style="font-size:15px;color:#C8C5BC;line-height:1.7;margin:0 0 16px;">${lang === 'fr'
+      ? `Le match${when ? ` du ${when}` : ''} a été annulé.`
+      : `The game${when ? ` on ${when}` : ''} has been cancelled.`}</p>`;
+  const subject = lang === 'fr'
+    ? `Match annulé : ${game.home} vs ${game.away}`
+    : `Game cancelled: ${game.home} vs ${game.away}`;
+  return { to, subject, html: shell(content, unsub, prefs) };
+}
+
 // ── ANNOUNCEMENT ─────────────────────────────────────────────────────────────
 export function announcementEmail({ to, leagueId, token, subject, body }) {
   const prefs = token ? manageUrl(leagueId, token) : null;
