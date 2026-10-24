@@ -748,7 +748,7 @@ export default function App() {
     if (tok) { setManageToken(tok); setManageAction(act || null); }
   }, []);
 
-  const alertsActive = !!ps.alertsActive || new URLSearchParams(window.location.search).get('alertes') === 'test';
+  const alertsActive = !!data.alertsActive || !!ps.alertsActive || new URLSearchParams(window.location.search).get('alertes') === 'test';
   const alertsTeams  = TEAMS.map(tm => ({ id: tm.id, name: tm.name, categoryId: tm.categoryId != null ? String(tm.categoryId) : '' }));
   const alertsCats   = enrichedCats.filter(c => c.id !== '__all__').map(c => ({
     id: String(c.id), name: displayCatName(c.name, t) + ' · ' + (c.division === 'diamond' ? t.divDiamond : t.divGold), gender: c.gender, division: c.division, age: c.age || displayCatName(c.name, t), ageNum: c.ageNum,
