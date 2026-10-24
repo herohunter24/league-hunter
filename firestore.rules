@@ -17,10 +17,12 @@ service cloud.firestore {
     }
 
     // League owner: role == 'owner' AND leagueId matches.
+    // users/{uid}.leagueId is stored as a NUMBER (league ids come from Date.now()),
+    // while {leagueId} from the path is a STRING — compare as strings or it never matches.
     function isLeagueOwner(leagueId) {
       return request.auth != null
           && callerDoc().role == 'owner'
-          && callerDoc().leagueId == leagueId;
+          && string(callerDoc().leagueId) == leagueId;
     }
 
     // Coordinator: role == 'coordinator' AND leagueId matches (shared account per league).
@@ -28,7 +30,7 @@ service cloud.firestore {
     function isLeagueCoordinator(leagueId) {
       return request.auth != null
           && callerDoc().role == 'coordinator'
-          && callerDoc().leagueId == leagueId;
+          && string(callerDoc().leagueId) == leagueId;
     }
 
     // Caller is a league owner (any league) — used for managing coordinator accounts.
