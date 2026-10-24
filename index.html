@@ -2705,18 +2705,23 @@ function App() {
       // Nothing reads meta/sync anymore (public site listens to the sub-collections directly).
       if (user?.role === "superadmin") ops.push({ type: 'set', ref: doc(_db, "meta", "sync"), data: { updatedAt: ts } });
 
-      // Coordonnateur : n'écrire que les scores (homeScore/awayScore/played) et les stats joueurs.
+      // Coordonnateur : n'écrire que les scores (homeScore/awayScore/played), les stats joueurs et les milestones.
       // Tout le reste est ignoré (les règles Firestore le refuseraient de toute façon).
       if (user?.role === "coordinator") {
         const COORD_GAME_KEYS = ["homeScore", "awayScore", "played"];
         const keep = ops.filter(op => {
           if (op.type !== 'set') return false;
           const parts = op.ref.path.split("/"); // leagues/{lid}/games/{gid}[/playerStats/{pid}]
-          if (parts[0] !== "leagues" || parts[2] !== "games") return false;
+          if (parts[0] !== "leagues") return false;
+          if (parts.length === 2) return true; // root league doc → only playerMilestones (below)
+          if (parts[2] !== "games") return false;
           if (parts.length === 6 && parts[4] === "playerStats") return true;
           return parts.length === 4 && !!prev.games[parts[3]];
         }).map(op => {
           const parts = op.ref.path.split("/");
+          // Root league doc: the rules let a coordinator change ONLY playerMilestones + _updatedAt
+          // (milestones = badges + RP bonuses on the player cards).
+          if (parts.length === 2) return { type: 'set', ref: op.ref, data: { playerMilestones: op.data.playerMilestones || {}, _updatedAt: op.data._updatedAt }, merge: true };
           if (parts.length !== 4) return op;
           // Game doc: write ONLY the changed score fields (merge), never the rest of the game
           const before = prev.games[parts[3]];
