@@ -1,5 +1,6 @@
 name: analyse-cartes (temp, lecture seule)
 on: { push: { branches: [chore/analyse-cartes-temp] } }
+permissions: { contents: write }
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -7,4 +8,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: node scripts/analyse-cartes.mjs
+      - run: node scripts/analyse-cartes.mjs > analyse-result.json 2>&1 || true
+      - run: |
+          git config user.name analyse-bot; git config user.email analyse-bot@users.noreply.github.com
+          git add analyse-result.json; git commit -m "temp: résultat analyse [skip ci]"; git push
