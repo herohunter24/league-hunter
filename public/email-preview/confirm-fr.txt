@@ -1,0 +1,22 @@
+Subject: Ligue NLS – Confirmez votre abonnement aux alertes
+
+LIGUE NLS · ALERTES DE MATCHS
+
+CONFIRMATION REQUISE
+Confirmez votre abonnement
+
+Bonjour Alex,
+
+Une demande d'abonnement aux alertes de matchs de la Ligue NLS a été faite avec cette adresse courriel. Pour l'activer, veuillez cliquer sur le bouton ci-dessous.
+
+Confirmer mon abonnement
+https://nlsshowcases.com/?manage=demo-token&action=confirm
+
+Si vous n'êtes pas à l'origine de cette demande, veuillez ignorer ce courriel ; aucune alerte ne vous sera envoyée.
+
+---
+Ce courriel a été envoyé automatiquement. Veuillez ne pas y répondre : les réponses ne sont pas consultées. Pour toute question, veuillez communiquer directement avec la Ligue NLS à info@nlscreation.com ou sur nlsshowcases.com.
+---
+Ce courriel fait suite à une demande d'abonnement faite avec cette adresse.
+Ligue NLS – No Limits Showcases · Québec
+Propulsé par League Hunter : https://league-hunter.vercel.app

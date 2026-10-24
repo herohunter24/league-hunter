@@ -1,0 +1,22 @@
+Subject: NLS League – Subscription confirmed
+
+NLS LEAGUE · GAME ALERTS
+
+SUBSCRIPTION ACTIVE
+Subscription confirmed
+
+Hello Alex, your subscription is now active. You will receive an email when a result is posted or when a game involving your teams is changed or cancelled.
+
+You may change your teams or unsubscribe at any time using the links at the bottom of this email.
+
+Manage my alerts
+https://nlsshowcases.com/?manage=demo-token
+
+---
+This is an automated message. Please do not reply; replies are not monitored. For any questions, please contact the NLS League directly at info@nlscreation.com or on nlsshowcases.com.
+---
+You are receiving this email because you subscribed to NLS League game alerts.
+Ligue NLS – No Limits Showcases · Québec
+Manage my alerts: https://nlsshowcases.com/?manage=demo-token
+Unsubscribe: https://nlsshowcases.com/?manage=demo-token&unsub=1
+Powered by League Hunter: https://league-hunter.vercel.app

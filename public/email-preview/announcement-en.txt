@@ -1,0 +1,19 @@
+Subject: Annonce : horaire de samedi
+
+NLS LEAGUE · GAME ALERTS
+
+MESSAGE FROM THE NLS LEAGUE
+Annonce : horaire de samedi
+
+Bonjour à tous,
+Les matchs de samedi sont maintenus.
+Test d'échappement : <b>ceci ne doit pas être en gras</b> & "guillemets".
+
+---
+This is an automated message. Please do not reply; replies are not monitored. For any questions, please contact the NLS League directly at info@nlscreation.com or on nlsshowcases.com.
+---
+You are receiving this email because you subscribed to NLS League game alerts.
+Ligue NLS – No Limits Showcases · Québec
+Manage my alerts: https://nlsshowcases.com/?manage=demo-token
+Unsubscribe: https://nlsshowcases.com/?manage=demo-token&unsub=1
+Powered by League Hunter: https://league-hunter.vercel.app
