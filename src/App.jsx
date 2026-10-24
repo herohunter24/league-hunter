@@ -244,7 +244,7 @@ export default function App() {
       if (/masculin|masculine|boys/.test(n) && !/femin/.test(n)) gender = 'm';
       else if (/femin|feminine|girls/.test(n)) gender = 'f';
     }
-    const division = cat.division || 'gold';
+    const rawD = String(cat.division || '').toLowerCase(); const division = /^(diamond|diamant)/.test(rawD) ? 'diamond' : 'gold';
     const ageLabel = cat.ageLabel || (() => {
       const m = (cat.name || '').match(/U\d+|Mini|Grad|Open/i);
       return m ? m[0].replace(/^u/i, 'U') : cat.name || null;
@@ -751,7 +751,7 @@ export default function App() {
   const alertsActive = !!ps.alertsActive || new URLSearchParams(window.location.search).get('alertes') === 'test';
   const alertsTeams  = TEAMS.map(tm => ({ id: tm.id, name: tm.name, categoryId: tm.categoryId != null ? String(tm.categoryId) : '' }));
   const alertsCats   = enrichedCats.filter(c => c.id !== '__all__').map(c => ({
-    id: String(c.id), name: displayCatName(c.name, t), gender: c.gender, division: c.division, age: c.age || displayCatName(c.name, t),
+    id: String(c.id), name: displayCatName(c.name, t) + ' · ' + (c.division === 'diamond' ? t.divDiamond : t.divGold), gender: c.gender, division: c.division, age: c.age || displayCatName(c.name, t), ageNum: c.ageNum,
   }));
   const leagueIdStr  = String(LEAGUE_ID || '');
 

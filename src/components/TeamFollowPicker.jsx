@@ -10,12 +10,12 @@ export function TeamFollowPicker({ categories, teams, follows, lang, t, onAdd, o
   const [catId, setCatId] = useState(null);
 
   const fr = lang === 'fr';
-  const genders = ['m', 'f'].filter(g => categories.some(c => c.gender === g));
   const genderCats = categories.filter(c => c.gender === gender);
   const divisions = ['gold', 'diamond'].filter(d => genderCats.some(c => c.division === d));
-  // Skip the division step when the genre has only one division
+  // Auto-select the division when the genre has only one
   const effDivision = division || (divisions.length === 1 ? divisions[0] : null);
-  const ageCats = genderCats.filter(c => c.division === effDivision);
+  const ageCats = genderCats.filter(c => c.division === effDivision)
+    .sort((a, b) => (a.ageNum ?? Infinity) - (b.ageNum ?? Infinity));
   const catTeams = teams
     .filter(tm => String(tm.categoryId) === String(catId))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -36,14 +36,27 @@ export function TeamFollowPicker({ categories, teams, follows, lang, t, onAdd, o
     </div>
   );
 
+  if (categories.length === 0) {
+    return (
+      <div className="alerts-picker">
+        <div className="alerts-hint">{fr ? "Aucune catégorie disponible pour l'instant." : 'No categories available yet.'}</div>
+        {onCancel && (
+          <button type="button" className="alerts-link-btn" onClick={() => { reset(); onCancel(); }}>
+            {fr ? 'Annuler' : 'Cancel'}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="alerts-picker">
       {step(fr ? '1. Genre' : '1. Gender',
-        genders.map(g => [g, g === 'm' ? t.pickerMale : t.pickerFemale]),
+        ['m', 'f'].map(g => [g, g === 'm' ? t.pickerMale : t.pickerFemale, !categories.some(c => c.gender === g)]),
         gender, g => { setGender(g); setDivision(null); setCatId(null); })}
 
-      {gender && divisions.length > 1 && step(fr ? '2. Division' : '2. Division',
-        divisions.map(d => [d, d.toUpperCase()]),
+      {gender && step(fr ? '2. Division' : '2. Division',
+        ['gold', 'diamond'].map(d => [d, d === 'gold' ? t.divGold : t.divDiamond, !divisions.includes(d)]),
         effDivision, d => { setDivision(d); setCatId(null); })}
 
       {gender && effDivision && step(fr ? '3. Catégorie' : '3. Category',
