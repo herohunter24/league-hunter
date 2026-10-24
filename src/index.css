@@ -51,13 +51,31 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .header-tab.active { color: var(--ink); border-bottom-color: var(--gold); }
 
 /* ── JOUEUR DU MOIS TICKER ── */
-.potm-banner { width: 100%; background: #0A0A0A; border-bottom: 1px solid var(--border); height: 40px; display: flex; align-items: center; padding: 0 16px; overflow: hidden; }
-.potm-track { display: flex; align-items: center; gap: 8px; overflow: hidden; }
-.potm-label-inline { font-size: 11px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); flex-shrink: 0; padding-right: 10px; border-right: 1px solid var(--border); margin-right: 4px; white-space: nowrap; }
-.potm-chip { display: flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer; padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); transition: border-color 0.2s, transform 0.2s; }
-.potm-chip:hover { border-color: var(--gold); transform: translateY(-2px); }
-.potm-chip-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
-.potm-chip-cat { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
+.potm-banner { width: 100%; background: #0A0A0A; border-bottom: 1px solid var(--border); height: 44px; display: flex; align-items: center; padding: 0 0 0 16px; overflow: hidden; gap: 10px; }
+.potm-label-btn { flex-shrink: 0; display: flex; align-items: center; gap: 6px; background: none; border: 1px solid rgba(201,162,74,0.45); border-radius: 4px; padding: 5px 10px; font: inherit; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); white-space: nowrap; cursor: pointer; transition: border-color .2s, background .2s; }
+.potm-label-btn:hover, .potm-label-btn:focus-visible { border-color: var(--gold); background: rgba(201,162,74,0.12); }
+.potm-label-arrow { color: var(--gold); font-size: 15px; line-height: 1; }
+.potm-viewport { flex: 1; min-width: 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 24px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 24px), transparent 100%); }
+.potm-marquee { display: flex; width: max-content; gap: 8px; padding-right: 8px; animation: potm-scroll 30s linear infinite; }
+.potm-viewport:hover .potm-marquee, .potm-viewport:active .potm-marquee { animation-play-state: paused; }
+@keyframes potm-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.potm-chip { display: flex; align-items: center; gap: 7px; flex-shrink: 0; cursor: pointer; padding: 5px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); transition: border-color 0.2s; }
+.potm-chip:hover { border-color: var(--gold); }
+.potm-chip-name { font-weight: 700; font-size: 12px; color: var(--ink); white-space: nowrap; }
+.potm-chip-cat { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .potm-marquee { animation: none; }
+  .potm-viewport { overflow-x: auto; }
+  .potm-marquee > [aria-hidden="true"] { display: none; }
+}
+/* Liste complète des joueurs du mois */
+.potm-list-sub { font-size: 13px; color: var(--ink-soft); margin: 4px 0 16px; }
+.potm-list { display: flex; flex-direction: column; gap: 8px; }
+.potm-list-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "cat cat" "name team"; gap: 2px 10px; text-align: left; width: 100%; background: var(--bg, #0A0A0A); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font: inherit; color: var(--ink); cursor: pointer; transition: border-color .2s; }
+.potm-list-row:hover, .potm-list-row:focus-visible { border-color: var(--gold); }
+.potm-list-cat { grid-area: cat; font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); }
+.potm-list-name { grid-area: name; font-size: 15px; font-weight: 700; }
+.potm-list-team { grid-area: team; align-self: center; font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
 
 /* ── SCROLL-DRIVEN DIM LAYER (home only, above slideshow z:0, below content z:1) ── */
 .hero-dim { position: fixed; inset: 0; z-index: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 120ms linear; }
@@ -113,8 +131,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 /* POTM ticker: transparent in home mode so it floats over the photo, no dark band */
 .home-mode .potm-banner { background: transparent; border-bottom-color: transparent; }
 .home-mode .potm-chip { background: rgba(10,10,12,0.5); border-color: rgba(201,162,74,0.4); }
-.home-mode .potm-label-inline { border-right-color: rgba(201,162,74,0.3); }
-.home-mode .potm-chip-name, .home-mode .potm-label-inline { text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+.home-mode .potm-label-btn { background: rgba(10,10,12,0.5); }
+.home-mode .potm-chip-name, .home-mode .potm-chip-cat, .home-mode .potm-label-btn { text-shadow: 0 1px 6px rgba(0,0,0,.8); }
 
 /* Swirl video: very subtle shimmer over photos */
 .hero-video {
