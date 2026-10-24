@@ -13,29 +13,24 @@ service cloud.firestore {
     // Superadmin: role field in users/{uid} doc.
     // No email_verified required — internal @websitex.app emails aren't verifiable.
     function isSuperAdmin() {
-      return request.auth != null && callerDoc().role == 'superadmin';
+      return request.auth != null && callerDoc().get('role', '') == 'superadmin';
     }
 
     // League owner: role == 'owner' AND leagueId matches.
-    // users/{uid}.leagueId is stored as a NUMBER (league ids come from Date.now()),
-    // while {leagueId} from the path is a STRING — compare as strings or it never matches.
+    // users/{uid}.leagueId can be a NUMBER (league ids come from Date.now()) while {leagueId}
+    // from the path is always a STRING — compare as strings or it never matches.
     function isLeagueOwner(leagueId) {
       return request.auth != null
-          && callerDoc().role == 'owner'
-          && string(callerDoc().leagueId) == leagueId;
+          && callerDoc().get('role', '') == 'owner'
+          && string(callerDoc().get('leagueId', '')) == leagueId;
     }
 
-    // Coordinator: role == 'coordinator' AND leagueId matches (shared account per league).
-    // Can only enter scores and player stats.
+    // League coordinator: role == 'coordinator' AND leagueId matches AND not deactivated.
     function isLeagueCoordinator(leagueId) {
       return request.auth != null
-          && callerDoc().role == 'coordinator'
-          && string(callerDoc().leagueId) == leagueId;
-    }
-
-    // Caller is a league owner (any league) — used for managing coordinator accounts.
-    function isOwnerRole() {
-      return request.auth != null && callerDoc().role == 'owner';
+          && callerDoc().get('role', '') == 'coordinator'
+          && string(callerDoc().get('leagueId', '')) == leagueId
+          && callerDoc().get('active', true) != false;
     }
 
     // Any signed-in user (for narrow public-site writes like votes and subscriptions)
@@ -43,8 +38,40 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Owner can create a coordinator doc for their own league only.
+    // Cannot create owner or superadmin docs (role must be 'coordinator').
+    function isOwnerCreatingCoordinator() {
+      return request.auth != null
+          && callerDoc().get('role', '') == 'owner'
+          && request.resource.data.get('role', '') == 'coordinator'
+          && request.resource.data.get('leagueId', '') == callerDoc().get('leagueId', '')
+          && request.resource.data.keys().hasOnly([
+               'role', 'leagueId', 'venue', 'displayName',
+               'active', 'mustChangePassword', 'username', 'createdAt'
+             ]);
+    }
 
-    // ── meta collection ──────────────────────────────────────────────────────
+    // Owner can update a coordinator doc for their own league (deactivate/reactivate/reset fields).
+    // The existing doc must have role=='coordinator' and the same leagueId as the owner.
+    function isOwnerUpdatingCoordinator() {
+      return request.auth != null
+          && callerDoc().get('role', '') == 'owner'
+          && resource.data.get('role', '') == 'coordinator'
+          && resource.data.get('leagueId', '') == callerDoc().get('leagueId', '')
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['active', 'mustChangePassword', 'username', 'venue', 'displayName']);
+    }
+
+    // Owner can delete a coordinator doc in their own league (used by resetCoordAccess).
+    function isOwnerDeletingCoordinator() {
+      return request.auth != null
+          && callerDoc().get('role', '') == 'owner'
+          && resource.data.get('role', '') == 'coordinator'
+          && resource.data.get('leagueId', '') == callerDoc().get('leagueId', '');
+    }
+
+
+    // ── meta collection (root-level) ─────────────────────────────────────────
     match /meta/superadmin {
       allow read:  if isSuperAdmin();
       allow write: if isSuperAdmin();
@@ -56,32 +83,29 @@ service cloud.firestore {
 
 
     // ── users collection ─────────────────────────────────────────────────────
-    // Doc ID == request.auth.uid.
-    // Create/delete: superadmin only (superadmin creates owner accounts from dashboard).
-    // Update: superadmin full access, OR owner updating ONLY mustChangePassword
-    //         from true → false (first-login password change confirmation).
+    // Doc ID == request.auth.uid (Firebase Auth UID).
+    // Superadmin: full access.
+    // Owner: may create/update/delete coordinator docs for their own league only.
+    // Self: may flip mustChangePassword true → false (first-login confirmation).
+    // Coordinator: cannot read other users, cannot create/modify any user doc.
     match /users/{userId} {
-      allow get:    if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId)
-                    || (isOwnerRole() && resource.data.leagueId == callerDoc().leagueId);
-      // Owners may list accounts of their own league (query must filter on leagueId).
-      allow list:   if isSuperAdmin()
-                    || (isOwnerRole() && resource.data.leagueId == callerDoc().leagueId);
-      // Owners may create the coordinator account of their own league only.
-      allow create: if isSuperAdmin()
-                    || (isOwnerRole()
-                        && request.resource.data.role == 'coordinator'
-                        && request.resource.data.leagueId == callerDoc().leagueId
-                        && request.resource.data.keys().hasOnly(['username','role','leagueId','mustChangePassword','createdAt']));
+      // allow read covers both get and list; resource.data conditions let Firestore
+      // validate a query's WHERE clauses at evaluation time, so an owner query must
+      // include where('leagueId','==',own) + where('role','==','coordinator') to pass.
+      allow read:   if isSuperAdmin()
+                    || (isSignedIn() && request.auth.uid == userId)
+                    || (isSignedIn() && callerDoc().get('role', '') == 'owner'
+                        && resource.data.get('role', '') == 'coordinator'
+                        && resource.data.get('leagueId', '') == callerDoc().get('leagueId', ''));
+      allow create: if isSuperAdmin() || isOwnerCreatingCoordinator();
       allow update: if isSuperAdmin()
+                    || isOwnerUpdatingCoordinator()
                     || (isSignedIn()
                         && request.auth.uid == userId
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword'])
                         && resource.data.mustChangePassword == true
                         && request.resource.data.mustChangePassword == false);
-      allow delete: if isSuperAdmin()
-                    || (isOwnerRole()
-                        && resource.data.role == 'coordinator'
-                        && resource.data.leagueId == callerDoc().leagueId);
+      allow delete: if isSuperAdmin() || isOwnerDeletingCoordinator();
     }
 
 
@@ -91,12 +115,77 @@ service cloud.firestore {
       // Root league doc — publicly readable (public site depends on this).
       allow read:  if true;
       allow write: if isSuperAdmin() || isLeagueOwner(leagueId)
-                   || isValidFanVoteUpdate();
+                   || isValidFanVoteUpdate()
+                   || isValidCoordinatorLeagueUpdate(leagueId);
 
       // ── Narrow public update: fan vote counter on leagues/{id} ────────────
       function isValidFanVoteUpdate() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allStar'])
             && request.resource.data.allStar.diff(resource.data.allStar).affectedKeys().hasOnly(['fanVotes']);
+      }
+
+      // ── Narrow coordinator update: only _updatedAt and playerMilestones ───
+      function isValidCoordinatorLeagueUpdate(leagueId) {
+        return isLeagueCoordinator(leagueId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['_updatedAt', 'playerMilestones']);
+      }
+
+      // ── Coordinator game update ───────────────────────────────────────────
+      // Coordinator can update ONLY unlocked games, ONLY these fields:
+      //   homeScore, awayScore, played, locked, lockedBy, lockedAt
+      // Lock action: coordinator may set locked=true (never unlock).
+      // When locking: lockedBy must be coordinator's uid, lockedAt must be request.time.
+      // Phase 3 code MUST use FieldValue.serverTimestamp() for lockedAt.
+      function isValidCoordinatorGameUpdate(leagueId) {
+        return isLeagueCoordinator(leagueId)
+            && resource.data.get('locked', false) != true
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['homeScore', 'awayScore', 'played', 'locked', 'lockedBy', 'lockedByName', 'lockedAt', 'draft'])
+            && isValidLockChange()
+            && isValidLockedByName()
+            && isValidDraftWrite();
+      }
+
+      // If any lock field is touched, it must be a proper lock-only action.
+      // Coordinator can never set locked to false (unlock = owner/superadmin only).
+      // Phase 3 code MUST use FieldValue.serverTimestamp() for lockedAt.
+      function isValidLockChange() {
+        let affected = request.resource.data.diff(resource.data).affectedKeys();
+        let touchingLock = affected.hasAny(['locked', 'lockedBy', 'lockedAt']);
+        return !touchingLock
+            || (request.resource.data.get('locked', false) == true
+                && request.resource.data.lockedBy == request.auth.uid
+                && request.resource.data.lockedAt == request.time);
+      }
+
+      // Anti-spoofing: lockedByName must equal the caller's real displayName.
+      function isValidLockedByName() {
+        let affected = request.resource.data.diff(resource.data).affectedKeys();
+        return !affected.hasAny(['lockedByName'])
+            || request.resource.data.lockedByName == callerDoc().get('displayName', '');
+      }
+
+      // Anti-spoofing: draft.savedBy must be caller's uid; draft.savedByName must
+      // equal caller's real displayName.
+      function isValidDraftWrite() {
+        let affected = request.resource.data.diff(resource.data).affectedKeys();
+        return !affected.hasAny(['draft'])
+            || (request.resource.data.draft.savedBy == request.auth.uid
+                && request.resource.data.draft.savedByName == callerDoc().get('displayName', ''));
+      }
+
+      // ── Coordinator playerStats write ─────────────────────────────────────
+      // Parent game must not be locked. Only valid stat keys allowed. No delete.
+      function isValidCoordinatorStatsWrite(leagueId, gameId) {
+        return isLeagueCoordinator(leagueId)
+            && get(/databases/$(database)/documents/leagues/$(leagueId)/games/$(gameId)).data.get('locked', false) != true
+            && request.resource.data.keys().hasOnly([
+                 'points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers',
+                 'threes', 'fgm', 'fga', 'ftm', 'fta', 'fgPct', 'ftPct',
+                 'goals', 'saves', 'goalsAgainst',
+                 'draft'
+               ]);
       }
 
       match /teams/{doc} {
@@ -109,22 +198,27 @@ service cloud.firestore {
       }
       match /games/{gameId} {
         allow read:  if true;
-        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
-        // Coordinator: update the score fields of an existing game only.
-        allow update: if isLeagueCoordinator(leagueId)
-                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['homeScore','awayScore','played']);
+        // Owner/superadmin: full write. Coordinator: update unlocked games with allowed fields only.
+        allow create, delete: if isSuperAdmin() || isLeagueOwner(leagueId);
+        allow update: if isSuperAdmin() || isLeagueOwner(leagueId)
+                      || isValidCoordinatorGameUpdate(leagueId);
 
         // Per-game player stats — sub-sub-collection.
-        // Both the admin panel and the public site read this path.
+        // Coordinator: write only if game is unlocked, stat keys only; no delete.
         match /playerStats/{pid} {
           allow read:  if true;
-          allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
-          allow create, update: if isLeagueCoordinator(leagueId);
+          allow delete: if isSuperAdmin() || isLeagueOwner(leagueId);
+          allow create, update: if isSuperAdmin() || isLeagueOwner(leagueId)
+                                || isValidCoordinatorStatsWrite(leagueId, gameId);
         }
       }
       match /meta/{doc} {
         allow read:  if true;
-        allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+        // Coordinator may write ONLY meta/sync with ONLY the updatedAt key.
+        // All other meta docs (categories, config, etc.) require owner/superadmin.
+        allow write: if isSuperAdmin() || isLeagueOwner(leagueId)
+                     || (doc == 'sync' && isLeagueCoordinator(leagueId)
+                         && request.resource.data.keys().hasOnly(['updatedAt']));
       }
 
       // Personal player contact info (email) — kept out of public players docs.
