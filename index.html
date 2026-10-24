@@ -1041,6 +1041,10 @@ function isGameToday(game) {
   const today = new Date();
   return today.toDateString() === gameDate.toDateString();
 }
+// Date du jour en heure de Montréal (YYYY-MM-DD) — utilisé seulement par la page Aujourd'hui
+function todayMontrealISO() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
 function isGameAwaiting(game) {
   return isGamePast(game) && (game.homeScore === undefined || game.awayScore === undefined);
 }
@@ -1649,6 +1653,7 @@ function App() {
   const [nPS, setNPS] = useState({});
   const [editGame, setEditGame] = useState(null);
   const [editScore, setEditScore] = useState(null);
+  const [todayVenue, setTodayVenue] = useState(""); // filtre gymnase de la page Aujourd'hui ("" = tous)
   const [editStats, setEditStats] = useState(null); // { game, stats: { pid: { key: val } } }
   const [dirty, setDirty] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
@@ -4559,23 +4564,37 @@ function App() {
 
           {/* ── AUJOURD'HUI ── */}
           {tab==="today" && (() => {
-            const todayGames = catSchedule.filter(g => isGameToday(g))
+            // Toutes catégories confondues — seul filtre : le gymnase
+            const allSchedule = league.schedule || [];
+            const gymOf = g => g.venue || g.gym || "Gymnase non précisé";
+            const todayVenueOptions = [...new Set(allSchedule.map(g => g.venue || g.gym).filter(Boolean))].sort();
+            const venueMatch = g => !todayVenue || gymOf(g) === todayVenue;
+            const todayISO = todayMontrealISO();
+            const catName = g => (league.categories||[]).find(c=>c.id===g.categoryId)?.name || "Sans catégorie";
+            const todayGames = allSchedule.filter(g => g.date === todayISO && venueMatch(g))
               .sort((a, b) => {
                 const da = getGameDateTime(a) || new Date((a.date||"9999")+"T00:00");
                 const db = getGameDateTime(b) || new Date((b.date||"9999")+"T00:00");
                 return da - db;
               });
-            const todayMissing = catSchedule.filter(g => isGamePast(g) && (g.homeScore === undefined || g.awayScore === undefined));
+            const todayMissing = allSchedule.filter(g => venueMatch(g) && isGamePast(g) && (g.homeScore === undefined || g.awayScore === undefined));
             // Group by gym
             const gymMap = {};
             todayGames.forEach(g => {
-              const gym = g.venue || g.gym || "Gymnase non précisé";
+              const gym = gymOf(g);
               if (!gymMap[gym]) gymMap[gym] = [];
               gymMap[gym].push(g);
             });
             return (
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Aujourd'hui</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>Aujourd'hui</div>
+                  <select style={{ ...inp, width: "auto", minWidth: 200 }} value={todayVenue} onChange={e => setTodayVenue(e.target.value)}>
+                    <option value="">Tous les gymnases</option>
+                    {todayVenue && !todayVenueOptions.includes(todayVenue) && <option value={todayVenue}>{todayVenue}</option>}
+                    {todayVenueOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
 
                 {/* Quick actions */}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
@@ -4594,7 +4613,7 @@ function App() {
                 {todayGames.length === 0 ? (
                   <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "32px 24px", textAlign: "center", marginBottom: 24 }}>
                     <div style={{ marginBottom: 10, color: T2, display: "flex", justifyContent: "center" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>Aucun match aujourd'hui</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: T1, marginBottom: 6 }}>{todayVenue ? `Aucun match aujourd'hui à ${todayVenue}` : "Aucun match aujourd'hui"}</div>
                     <div style={{ fontSize: 13, color: T2 }}>Les prochains matchs apparaîtront ici le jour même.</div>
                   </div>
                 ) : (
@@ -4608,8 +4627,9 @@ function App() {
                         return (
                           <div key={g.id} style={{ background: CARD, border: `1px solid ${isLive ? ACC+"60" : BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div><span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, color: ACC, background: ACC+"20", border: `1px solid ${ACC}40`, borderRadius: 5, padding: "1px 8px" }}>{catName(g)}</span></div>
                               <div style={{ fontWeight: 700, fontSize: 14 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
-                              <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}{g.categoryId ? ` · ${(league.categories||[]).find(c=>c.id===g.categoryId)?.name||""}` : ""}</div>
+                              <div style={{ fontSize: 12, color: T2 }}>{g.time || "Heure à confirmer"}</div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                               {isLive && <span style={{ background: ACC+"25", color: ACC, borderRadius: 6, padding: "3px 9px", fontSize: 11, fontWeight: 700 }}>EN DIRECT</span>}
@@ -4631,7 +4651,7 @@ function App() {
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", marginBottom: 10 }}>Scores manquants ({todayMissing.length})</div>
                     {todayMissing.slice(0, 5).map(g => (
                       <div key={g.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid #f59e0b20`, gap: 10 }}>
-                        <div style={{ fontSize: 13 }}>{g.home} vs {g.away} <span style={{ color: T2, fontSize: 11 }}>({g.date})</span></div>
+                        <div style={{ fontSize: 13 }}>{g.home} vs {g.away} <span style={{ color: T2, fontSize: 11 }}>({g.date} · {catName(g)})</span></div>
                         <button onClick={() => setEditScore(g)} style={{ background: "#f59e0b", border: "none", borderRadius: 7, color: "#000", padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Entrer</button>
                       </div>
                     ))}
