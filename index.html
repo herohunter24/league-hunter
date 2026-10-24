@@ -891,6 +891,52 @@ const btnDanger = () => ({ background: "none", border: "1px solid #EF444470", bo
 const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px 24px" };
 const lbl = { fontSize: 12, color: T2, fontWeight: 600, display: "block", marginBottom: 6 };
 
+function PasswordInput({ value, onChange, onKeyDown, placeholder, autoComplete, style }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        style={{ ...style, paddingRight: 48 }}
+      />
+      <button
+        type="button"
+        aria-label={show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+        onClick={() => setShow(s => !s)}
+        tabIndex={0}
+        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 44, minWidth: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T2, padding: 0, borderRadius: "0 8px 8px 0" }}
+      >
+        {show ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
+
+// Login id from what the admin types: "Jean Tremblay" -> "jean_tremblay".
+// Capitals and spaces are allowed when typing; the stored/login id stays lowercase
+// without spaces or accents (it becomes <id>@websitex.app in Firebase Auth).
+// Existing ids (a-z, 0-9, _) are unchanged by this.
+function toLoginId(v) {
+  return (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+
 // ── HELPERS ──
 // ── MIGRATION: Ensure league has categories array ──
 function migrateLeagueIfNeeded(league) {
@@ -2212,7 +2258,9 @@ function App() {
       setErr("Firebase pas prêt — réessaie dans un instant.");
       return;
     }
-    const u = (email || "").trim().toLowerCase();
+    // Same conversion as account creation (capitals/spaces/accents) but keeps any other
+    // character so older logins (e.g. with a dot) still work.
+    const u = (email || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, "_");
     const p = pass || "";
     if (!u) { setErr("Nom d'utilisateur requis."); return; }
     if (!p) { setErr("Mot de passe requis."); return; }
@@ -2707,7 +2755,7 @@ function App() {
 
   async function createOwner() {
     const { username: uname, password: p } = newOwner;
-    const u = (uname || "").trim().toLowerCase();
+    const u = toLoginId(uname);
     if (!u || !p) { setOwnerError("Nom d'utilisateur et mot de passe requis."); return; }
     if (p.length < 6) { setOwnerError("Le mot de passe doit contenir au moins 6 caractères."); return; }
     if (users.some(usr => usr.username === u)) { setOwnerError("Ce nom d'utilisateur est déjà utilisé."); return; }
@@ -2741,7 +2789,7 @@ function App() {
 
   async function resetAccess() {
     const { ownerId, newUsername, tempPassword } = resetAccessForm;
-    const u = (newUsername || "").trim().toLowerCase();
+    const u = toLoginId(newUsername);
     if (!u || !tempPassword) { setOwnerError("Nom d'utilisateur et mot de passe temporaire requis."); return; }
     if (tempPassword.length < 6) { setOwnerError("Le mot de passe doit contenir au moins 6 caractères."); return; }
     const secondaryAuth = window.__wxSecondaryAuth;
@@ -3682,7 +3730,7 @@ function App() {
           </div>
           <div>
             <label style={lbl}>Mot de passe</label>
-            <input type="password" style={inp} value={pass} onChange={e => setPass(e.target.value)}
+            <PasswordInput style={inp} value={pass} onChange={e => setPass(e.target.value)}
               onKeyDown={e => e.key === "Enter" && signIn()}
               placeholder="••••••••" autoComplete="current-password" />
           </div>
@@ -3713,13 +3761,13 @@ function App() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label style={lbl}>Nouveau mot de passe</label>
-              <input type="password" style={inp} value={newPw} onChange={e => setNewPw(e.target.value)}
+              <PasswordInput style={inp} value={newPw} onChange={e => setNewPw(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && changePassword(newPw, confirmPw)}
                 placeholder="6 caractères minimum" autoComplete="new-password" />
             </div>
             <div>
               <label style={lbl}>Confirmer le mot de passe</label>
-              <input type="password" style={inp} value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+              <PasswordInput style={inp} value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && changePassword(newPw, confirmPw)}
                 placeholder="••••••••" autoComplete="new-password" />
             </div>
@@ -4072,12 +4120,15 @@ function App() {
                     <div>
                       <label style={lbl}>Nom d'utilisateur</label>
                       <input style={inp} value={newOwner.username}
-                        onChange={e => setNewOwner(o => ({ ...o, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
-                        placeholder="ex: nls_owner" autoCapitalize="none" />
+                        onChange={e => setNewOwner(o => ({ ...o, username: e.target.value }))}
+                        placeholder="ex: Jean Tremblay" autoCapitalize="words" />
+                      {newOwner.username && toLoginId(newOwner.username) !== newOwner.username && (
+                        <div style={{ fontSize: 11, color: T2, marginTop: 4 }}>Identifiant de connexion : <strong>{toLoginId(newOwner.username)}</strong></div>
+                      )}
                     </div>
                     <div>
                       <label style={lbl}>Mot de passe temporaire</label>
-                      <input type="password" style={inp} value={newOwner.password}
+                      <PasswordInput style={inp} value={newOwner.password}
                         onChange={e => setNewOwner(o => ({ ...o, password: e.target.value }))}
                         placeholder="6 caractères minimum" autoComplete="new-password" />
                     </div>
@@ -4104,12 +4155,12 @@ function App() {
                       <div>
                         <label style={lbl}>Nouveau nom d'utilisateur</label>
                         <input style={inp} value={resetAccessForm.newUsername}
-                          onChange={e => setResetAccessForm(f => ({ ...f, newUsername: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                          onChange={e => setResetAccessForm(f => ({ ...f, newUsername: e.target.value }))}
                           placeholder={targetOwner?.username} autoCapitalize="none" />
                       </div>
                       <div>
                         <label style={lbl}>Nouveau mot de passe temporaire</label>
-                        <input type="password" style={inp} value={resetAccessForm.tempPassword}
+                        <PasswordInput style={inp} value={resetAccessForm.tempPassword}
                           onChange={e => setResetAccessForm(f => ({ ...f, tempPassword: e.target.value }))}
                           placeholder="6 caractères minimum" autoComplete="new-password" />
                       </div>
