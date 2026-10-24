@@ -19,7 +19,7 @@ const db = getFirestore();
 
 const RESEND_KEY = defineSecret('RESEND_API_KEY');
 const REGION = 'us-east1';
-const FROM = 'NLS <no-reply@nlsshowcases.com>';
+const FROM = 'NLS - Alertes de matchs <no-reply@nlsshowcases.com>';
 
 // CORS helper
 function cors(req, res) {
@@ -53,8 +53,8 @@ async function checkRateLimit(ip) {
 }
 
 // Send via Resend
-async function send(resend, { to, subject, html }) {
-  const r = await resend.emails.send({ from: FROM, to, subject, html });
+async function send(resend, { to, subject, html, text }) {
+  const r = await resend.emails.send({ from: FROM, to, subject, html, text });
   if (r && r.error) throw new Error('resend: ' + (r.error.message || JSON.stringify(r.error)));
   return r;
 }
@@ -308,7 +308,7 @@ export const nlsAdminSend = onRequest(
 
     // Test send to one address
     if (testEmail) {
-      const tmpl = announcementEmail({ to: testEmail, leagueId: league, token: null, subject, body });
+      const tmpl = announcementEmail({ to: testEmail, leagueId: league, token: null, subject, body, lang: 'fr' });
       await send(resend, tmpl);
       res.json({ ok: true, sent: 1 }); return;
     }
@@ -331,7 +331,7 @@ export const nlsAdminSend = onRequest(
     let sent = 0;
     for (const doc_ of targets) {
       const d = doc_.data();
-      const tmpl = announcementEmail({ to: d.email, leagueId: league, token: d.token, subject, body });
+      const tmpl = announcementEmail({ to: d.email, leagueId: league, token: d.token, subject, body, lang: d.lang || 'fr' });
       try {
         await send(resend, tmpl);
         await db.collection('leagues').doc(league).collection('emailLog').add({
@@ -373,6 +373,12 @@ export const nlsGameAlert = onDocumentUpdated(
     const changed = watched.filter(f => before[f] !== after[f]).map(f => ({ field: f, from: before[f], to: after[f] }));
 
     if (!scoreAdded && changed.length === 0) return;
+
+    // Category label for the email (read the league doc once)
+    const leagueSnap = await db.collection('leagues').doc(leagueId).get();
+    const cat = ((leagueSnap.exists && leagueSnap.data().categories) || [])
+      .find(c => String(c.id) === String(after.categoryId));
+    if (cat) { game.categoryLabel = cat.displayName || cat.name; game.division = cat.division; }
 
     const subsSnap = await db.collection('leagues').doc(leagueId)
       .collection('subscribers').where('status', '==', 'active').get();
@@ -429,6 +435,8 @@ export const nlsGameCancelled = onDocumentDeleted(
     const cats = leagueSnap.data().categories || [];
     if (game.categoryId != null && game.categoryId !== '' && cats.length
       && !cats.some(c => String(c.id) === String(game.categoryId))) return;
+    const cat = cats.find(c => String(c.id) === String(game.categoryId));
+    if (cat) { game.categoryLabel = cat.displayName || cat.name; game.division = cat.division; }
     const teamsSnap = await db.collection('leagues').doc(leagueId).collection('teams').get();
     const teamNames = teamsSnap.docs.map(d => d.data().name);
     if (!teamNames.includes(game.home) || !teamNames.includes(game.away)) return;
