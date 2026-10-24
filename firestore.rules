@@ -23,6 +23,19 @@ service cloud.firestore {
           && callerDoc().leagueId == leagueId;
     }
 
+    // Coordinator: role == 'coordinator' AND leagueId matches (shared account per league).
+    // Can only enter scores and player stats.
+    function isLeagueCoordinator(leagueId) {
+      return request.auth != null
+          && callerDoc().role == 'coordinator'
+          && callerDoc().leagueId == leagueId;
+    }
+
+    // Caller is a league owner (any league) — used for managing coordinator accounts.
+    function isOwnerRole() {
+      return request.auth != null && callerDoc().role == 'owner';
+    }
+
     // Any signed-in user (for narrow public-site writes like votes and subscriptions)
     function isSignedIn() {
       return request.auth != null;
@@ -46,16 +59,27 @@ service cloud.firestore {
     // Update: superadmin full access, OR owner updating ONLY mustChangePassword
     //         from true → false (first-login password change confirmation).
     match /users/{userId} {
-      allow get:    if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId);
-      allow list:   if isSuperAdmin();
-      allow create: if isSuperAdmin();
+      allow get:    if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId)
+                    || (isOwnerRole() && resource.data.leagueId == callerDoc().leagueId);
+      // Owners may list accounts of their own league (query must filter on leagueId).
+      allow list:   if isSuperAdmin()
+                    || (isOwnerRole() && resource.data.leagueId == callerDoc().leagueId);
+      // Owners may create the coordinator account of their own league only.
+      allow create: if isSuperAdmin()
+                    || (isOwnerRole()
+                        && request.resource.data.role == 'coordinator'
+                        && request.resource.data.leagueId == callerDoc().leagueId
+                        && request.resource.data.keys().hasOnly(['username','role','leagueId','mustChangePassword','createdAt']));
       allow update: if isSuperAdmin()
                     || (isSignedIn()
                         && request.auth.uid == userId
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword'])
                         && resource.data.mustChangePassword == true
                         && request.resource.data.mustChangePassword == false);
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin()
+                    || (isOwnerRole()
+                        && resource.data.role == 'coordinator'
+                        && resource.data.leagueId == callerDoc().leagueId);
     }
 
 
@@ -84,12 +108,16 @@ service cloud.firestore {
       match /games/{gameId} {
         allow read:  if true;
         allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+        // Coordinator: update the score fields of an existing game only.
+        allow update: if isLeagueCoordinator(leagueId)
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['homeScore','awayScore','played']);
 
         // Per-game player stats — sub-sub-collection.
         // Both the admin panel and the public site read this path.
         match /playerStats/{pid} {
           allow read:  if true;
           allow write: if isSuperAdmin() || isLeagueOwner(leagueId);
+          allow create, update: if isLeagueCoordinator(leagueId);
         }
       }
       match /meta/{doc} {
