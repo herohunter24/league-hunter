@@ -1,0 +1,19 @@
+{
+ "players": 0,
+ "gamesTotal": 0,
+ "gamesWithStats": 0,
+ "byTier": {},
+ "gpDist": {},
+ "avgQuantiles": {
+  "p10": "-",
+  "p25": "-",
+  "p50": "-",
+  "p75": "-",
+  "p90": "-",
+  "p95": "-",
+  "max": "-"
+ },
+ "playersWithAllZeroGames": 0,
+ "cats": {},
+ "top15": []
+}
