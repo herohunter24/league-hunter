@@ -342,6 +342,12 @@ const _ST         = window.__wxST                    || {};
 // These operate at module level (outside App) so they're accessible anywhere.
 
 // Load all sub-collections for one league and reassemble into a flat league object.
+// JSON stable (clés triées) — évite de réécrire des docs identiques quand Firestore renvoie les clés dans un autre ordre
+function stableStr(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(stableStr).join(",") + "]";
+  return "{" + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ":" + stableStr(v[k])).join(",") + "}";
+}
 async function loadFullLeague(leagueId) {
   if (!__fbReady) return null;
   const { doc, collection, getDocs, getDoc } = _FS;
@@ -366,6 +372,11 @@ async function loadFullLeague(leagueId) {
     });
     const games   = await Promise.all(gamesSnap.docs.map(async gDoc => {
       const game = gDoc.data();
+      // Optimisation lectures : les stats du match sont copiées dans le doc du match (statsMap).
+      // Si présent → pas besoin de lire la sous-collection playerStats (1 lecture au lieu de ~20).
+      if (game.statsMap && typeof game.statsMap === "object") {
+        return Object.keys(game.statsMap).length ? { ...game, playerStats: game.statsMap } : game;
+      }
       const statsSnap = await getDocs(collection(_db, "leagues", lid, "games", gDoc.id, "playerStats"));
       if (statsSnap.empty) return game;
       const playerStats = {};
@@ -2613,6 +2624,7 @@ function App() {
 
       // Collect all Firestore operations
       const ops = [];
+      const coordStatsOps = [];
 
       // Root meta doc — ALWAYS written (keeps _updatedAt current so public
       // site's onSnapshot detects every write). No arrays — sub-collections handle data.
@@ -2674,9 +2686,11 @@ function App() {
 
       // Games + playerStats sub-sub-collection
       for (const [gid, game] of Object.entries(newGames)) {
-        const { playerStats, ...gameWithoutStats } = game;
+        const { playerStats, ...gameRest } = game;
+        // Copie des stats dans le doc du match (statsMap) — le site public lit 1 doc au lieu de la sous-collection
+        const gameWithoutStats = { ...gameRest, statsMap: playerStats || {} };
         const prevGame = prev.games[gid] || {};
-        if (JSON.stringify(gameWithoutStats) !== JSON.stringify(prevGame)) {
+        if (stableStr(gameWithoutStats) !== stableStr(prevGame)) {
           ops.push({ type: 'set', ref: doc(_db, "leagues", lid, "games", gid), data: gameWithoutStats });
         }
         // PlayerStats sub-collection
@@ -2710,6 +2724,15 @@ function App() {
       // Tout le reste est ignoré (les règles Firestore le refuseraient de toute façon).
       if (user?.role === "coordinator") {
         const COORD_GAME_KEYS = ["homeScore", "awayScore", "played"];
+        // statsMap : écrit à part après la sauvegarde principale (voir plus bas)
+        ops.forEach(op => {
+          if (op.type !== 'set') return;
+          const parts = op.ref.path.split("/");
+          if (parts.length === 4 && parts[2] === "games" && prev.games[parts[3]] && op.data.statsMap !== undefined
+              && stableStr(op.data.statsMap) !== stableStr(prev.games[parts[3]].statsMap)) {
+            coordStatsOps.push({ ref: op.ref, statsMap: op.data.statsMap });
+          }
+        });
         const keep = ops.filter(op => {
           if (op.type !== 'set') return false;
           const parts = op.ref.path.split("/"); // leagues/{lid}/games/{gid}[/playerStats/{pid}]
@@ -2748,13 +2771,28 @@ function App() {
         await batch.commit();
       }
 
+      // Coordonnateur : copie des stats dans le doc du match (nécessite la règle Firestore « statsMap »).
+      // Si refusé, les stats sont quand même sauvegardées (sous-collection) — seul le site public peut être en retard.
+      if (coordStatsOps.length) {
+        try {
+          for (let i = 0; i < coordStatsOps.length; i += 450) {
+            const b2 = writeBatch(_db);
+            coordStatsOps.slice(i, i + 450).forEach(o => b2.set(o.ref, { statsMap: o.statsMap }, { merge: true }));
+            await b2.commit();
+          }
+        } catch (e) {
+          console.error("[statsMap] coordinator write refused:", e);
+          showToast("Stats enregistrées. Le site public pourrait tarder à se mettre à jour — avertis le responsable.", "info");
+        }
+      }
+
       // Update tracked state so next write can diff correctly
       subcolData.current[lid] = {
         teams:   newTeams,
         players: Object.fromEntries(Object.entries(newPlayers).map(([pid, p]) => { const { email: _e, ...pub } = p; return [pid, pub]; })),
         playersPrivate: Object.fromEntries(Object.entries(newPlayers).filter(([, p]) => p.email).map(([pid, p]) => [pid, { email: p.email }])),
         games:   Object.fromEntries(Object.entries(newGames).map(([gid, g]) => {
-          const { playerStats, ...rest } = g; return [gid, rest];
+          const { playerStats, ...rest } = g; return [gid, { ...rest, statsMap: playerStats || {} }];
         })),
         stats:   Object.fromEntries((updated.schedule || []).map(g => [String(g.id), g.playerStats || {}])),
       };

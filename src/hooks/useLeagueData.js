@@ -42,16 +42,22 @@ export function useLeagueData() {
 
     unsubs.push(onSnapshot(collection(db, 'leagues', lid, 'games'),
       snap => {
+        // Optimisation lectures : si le doc du match contient statsMap (copie des stats faite par Website X),
+        // on l'utilise directement → pas d'écoute de la sous-collection playerStats (1 lecture au lieu de ~20).
+        const hasMap = d => { const m = d.data().statsMap; return m && typeof m === 'object'; };
         setGames(prev => snap.docs.map(d => {
+          const data = d.data();
+          if (hasMap(d)) return { id: d.id, ...data, playerStats: data.statsMap };
           const existing = prev.find(g => String(g.id) === d.id);
-          return { id: d.id, ...d.data(), playerStats: (existing && existing.playerStats) || {} };
+          return { id: d.id, ...data, playerStats: (existing && existing.playerStats) || {} };
         }));
-        const ids = new Set(snap.docs.map(d => d.id));
+        const ids = new Set(snap.docs.filter(d => !hasMap(d)).map(d => d.id));
         for (const [gid, u] of psUnsubs.entries()) {
           if (!ids.has(gid)) { u(); psUnsubs.delete(gid); }
         }
         snap.docs.forEach(d => {
           const gid = d.id;
+          if (hasMap(d)) return; // stats déjà dans le doc du match
           if (!psUnsubs.has(gid)) {
             psUnsubs.set(gid, onSnapshot(collection(db, 'leagues', lid, 'games', gid, 'playerStats'),
               psSnap => {

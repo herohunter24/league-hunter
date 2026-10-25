@@ -3,7 +3,7 @@
 ## CRITICAL — Do not break these
 - This is a multi-tenant sports league SaaS using React + Firebase/Firestore + Vercel
 - Admin dashboard (Website X) writes to Firestore sub-collections
-- Public league pages MUST use direct `onSnapshot` listeners on each sub-collection
+- Public league pages MUST use direct `onSnapshot` listeners on each sub-collection. Exception (approved by Mike, oct. 2026, to cut Firestore reads): each game doc carries `statsMap` (copy of its playerStats written by Website X on every save); when present, read stats from it instead of listening to games/{id}/playerStats. The sub-collection stays written as the source of truth. Any new code that writes playerStats MUST also update the game's `statsMap`.
 - DO NOT use `_updatedAt` timestamp shortcuts, `reloadInProgress` locks, or localStorage fallbacks for data loading
 - Game status (upcoming/past) must always be RECOMPUTED from actual date+time on every render — never trust a stored `played` flag
 

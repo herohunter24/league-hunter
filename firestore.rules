@@ -141,7 +141,7 @@ service cloud.firestore {
         return isLeagueCoordinator(leagueId)
             && resource.data.get('locked', false) != true
             && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['homeScore', 'awayScore', 'played', 'locked', 'lockedBy', 'lockedByName', 'lockedAt', 'draft'])
+                .hasOnly(['homeScore', 'awayScore', 'played', 'locked', 'lockedBy', 'lockedByName', 'lockedAt', 'draft', 'statsMap'])
             && isValidLockChange()
             && isValidLockedByName()
             && isValidDraftWrite();
