@@ -513,7 +513,8 @@ function computeCardTiers(league) {
     const pool = scored.filter(x => x.cat === s.cat && x.gp >= CARD_MIN_GAMES);
     let tierId = 'bronze', pctRank = 0, mode = 'unranked';
     if (s.gp === 0) tierId = 'bronze';
-    else if (s.gp < CARD_MIN_GAMES) tierId = 'silver';
+    // 1–2 matchs : Argent seulement si la moyenne par match le mérite, sinon Bronze
+    else if (s.gp < CARD_MIN_GAMES) tierId = s.avg >= (CARD_TIERS_ADMIN.find(t => t.id === 'silver') || { minScore: 4 }).minScore ? 'silver' : 'bronze';
     else if (pool.length < CARD_SMALL_GROUP) {
       mode = 'fixed';
       CARD_TIERS_ADMIN.forEach(t => { if (s.avg >= t.minScore) tierId = t.id; });
@@ -3626,10 +3627,20 @@ function App() {
       finally { setSendingNotif(false); }
     }
   }
+  // Absents : si le match a déjà des stats, un joueur sans fiche de stats était absent.
+  function withAbsent(es) {
+    const saved = es.game.playerStats || {};
+    const absent = {};
+    if (Object.keys(saved).length > 0) Object.keys(es.stats).forEach(pid => { if (saved[pid] === undefined) absent[pid] = true; });
+    return { ...es, absent };
+  }
   // ── Shared stats-write helper (always saves, no validation) ──
   async function _doWriteStats() {
     const cleaned = {};
+    const absent = editStats.absent || {};
     Object.keys(editStats.stats).forEach(pid => {
+      // Joueur absent : aucune fiche de stats → ne compte pas comme match joué
+      if (absent[pid]) return;
       cleaned[pid] = {};
       Object.keys(editStats.stats[pid]).forEach(k => {
         const v = parseFloat(editStats.stats[pid][k]);
@@ -3693,7 +3704,7 @@ function App() {
     if (!skipCheck && league.sport === "Basketball") {
       const g = editStats.game;
       if (g.homeScore !== undefined && g.awayScore !== undefined) {
-        const allGamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+        const allGamePlayers = league.players.filter(p => (p.team === g.home || p.team === g.away) && !(editStats.absent || {})[p.id]);
         const mismatches = [g.home, g.away].map(teamName => {
           const teamPlayers = allGamePlayers.filter(p => p.team === teamName);
           const entered = teamPlayers.reduce((s, p) => s + (parseFloat(editStats.stats[p.id]?.points) || 0), 0);
@@ -4851,7 +4862,7 @@ function App() {
                                       def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
                                       stats[p.id] = { ...defaults, ...existing };
                                     });
-                                    setEditStats({ game: g, stats });
+                                    setEditStats(withAbsent({ game: g, stats }));
                                     setStatsValidationError(null);
                                   }} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 7, color: hasStats ? T2 : "#a78bfa", padding: "7px 14px", fontSize: 12, cursor: "pointer", fontWeight: hasStats ? 400 : 600 }}>
                                     {hasStats ? "Stats" : "Entrer stats"}
@@ -5162,7 +5173,7 @@ function App() {
                                                       def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
                                                       stats[pl.id] = { ...defaults, ...existing };
                                                     });
-                                                    setEditStats({ game: g, stats });
+                                                    setEditStats(withAbsent({ game: g, stats }));
                                                     setStatsValidationError(null);
                                                   }}
                                                   style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
@@ -5372,7 +5383,7 @@ function App() {
                                           def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
                                           stats[p.id] = { ...defaults, ...existing };
                                         });
-                                        setEditStats({ game: g, stats });
+                                        setEditStats(withAbsent({ game: g, stats }));
                                         setStatsValidationError(null);
                                       }} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 6, color: hasStats ? T2 : "#a78bfa", padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: hasStats ? 400 : 600 }}>
                                         {hasStats ? "Stats" : "Entrer stats"}
@@ -5516,7 +5527,7 @@ function App() {
                                         def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
                                         stats[p.id] = { ...defaults, ...existing };
                                       });
-                                      setEditStats({ game: g, stats });
+                                      setEditStats(withAbsent({ game: g, stats }));
                                       setStatsValidationError(null);
                                     }} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 6, color: hasStats ? T2 : "#a78bfa", padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: hasStats ? 400 : 600 }}>
                                       {hasStats ? "Modifier stats" : "Entrer stats"}
@@ -7504,12 +7515,14 @@ service cloud.firestore {
         {editStats && (() => {
           const g = editStats.game;
           const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+          const absentMap = editStats.absent || {};
+          const presentPlayers = gamePlayers.filter(p => !absentMap[p.id]);
           // Score verification bar (Basketball + game has a score)
           const hasScore = sport === "Basketball" && g.homeScore !== undefined && g.awayScore !== undefined;
           const hs = hasScore ? parseInt(g.homeScore) : 0;
           const as = hasScore ? parseInt(g.awayScore) : 0;
-          const homeTotal = hasScore ? gamePlayers.filter(p => p.team === g.home).reduce((s, p) => s + (parseFloat(editStats.stats[p.id]?.points) || 0), 0) : 0;
-          const awayTotal = hasScore ? gamePlayers.filter(p => p.team === g.away).reduce((s, p) => s + (parseFloat(editStats.stats[p.id]?.points) || 0), 0) : 0;
+          const homeTotal = hasScore ? presentPlayers.filter(p => p.team === g.home).reduce((s, p) => s + (parseFloat(editStats.stats[p.id]?.points) || 0), 0) : 0;
+          const awayTotal = hasScore ? presentPlayers.filter(p => p.team === g.away).reduce((s, p) => s + (parseFloat(editStats.stats[p.id]?.points) || 0), 0) : 0;
           const homeMatch = homeTotal === hs;
           const awayMatch = awayTotal === as;
           const bothMatch = homeMatch && awayMatch;
@@ -7552,8 +7565,10 @@ service cloud.firestore {
                           const activeStats = getActiveStats(sport, p, toggles);
                           const ps = editStats.stats[p.id] || {};
                           if (!activeStats.length) return null;
+                          const isAbsent = !!absentMap[p.id];
+                          const toggleAbsent = () => setEditStats(prev => ({ ...prev, absent: { ...(prev.absent || {}), [p.id]: !(prev.absent || {})[p.id] } }));
                           return (
-                            <div key={p.id} style={{ marginBottom: 16, padding: "12px 14px", background: "#ffffff06", borderRadius: 8, border: `1px solid ${BORDER}` }}>
+                            <div key={p.id} style={{ marginBottom: 16, padding: "12px 14px", background: "#ffffff06", borderRadius: 8, border: `1px solid ${isAbsent ? "#f59e0b55" : BORDER}`, opacity: isAbsent ? 0.75 : 1 }}>
                               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                                 {p.photoUrl
                                   ? <img src={p.photoUrl} alt={p.name} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: `1px solid ${BORDER}` }} />
@@ -7561,7 +7576,14 @@ service cloud.firestore {
                                 }
                                 {p.name}
                                 {isGoalie(p) && sport === "Hockey" && <span style={{ fontSize: 11, color: T2 }}> — G</span>}
+                                <button type="button" onClick={toggleAbsent} title="Le joueur n'était pas au match : ce match ne compte pas dans ses moyennes"
+                                  style={{ marginLeft: "auto", background: isAbsent ? "#f59e0b" : "none", border: `1px solid ${isAbsent ? "#f59e0b" : BORDER}`, borderRadius: 6, color: isAbsent ? "#111" : T2, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                  {isAbsent ? "Absent ✓" : "Absent"}
+                                </button>
                               </div>
+                              {isAbsent ? (
+                                <div style={{ fontSize: 12, color: "#f59e0b" }}>Absent — ce match ne compte pas dans ses matchs joués ni ses moyennes.</div>
+                              ) : (
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
                                 {activeStats.map(({ key, label, isPct, madeKey, attKey, madeLabel, attLabel }) => {
                                   // Percentage stat → two inputs (made / attempted), % auto-calculated
@@ -7611,6 +7633,7 @@ service cloud.firestore {
                                   );
                                 })}
                               </div>
+                              )}
                             </div>
                           );
                         })}
