@@ -28,10 +28,15 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
   const ftRaw = sumK('fta') > 0 ? (sumK('ftm') / sumK('fta') * 100) : null;
   const fgPct = fgRaw !== null ? fgRaw.toFixed(1) : null;
   const ftPct = ftRaw !== null ? ftRaw.toFixed(1) : null;
+  // 3 points et lancers francs par match (affichés même à 0)
+  const nG = pGames.length;
+  const perG = k => nG ? sumK(k) / nG : 0;
   const prog = getPlayerProgression(p.tier, p.pctRank ?? 0, p.rp, lang);
   const statCells = [
     [t.ppg, fmtN(p.ppg)], [t.rpg, fmtN(p.rpg)], [t.apg, fmtN(p.apg)],
     [t.spg, fmtN(p.spg || 0)], [t.bpg, fmtN(p.bpg || 0)],
+    [t.tpg, fmtN(perG('threes'))],
+    [t.ftpg, fmtN(perG('ftm')) + '/' + fmtN(perG('fta'))],
     ...(fgRaw !== null ? [[t.fgPct, fmtN(fgRaw) + pctSuffix]] : []),
     ...(ftRaw !== null ? [[t.ftPct, fmtN(ftRaw) + pctSuffix]] : []),
     [t.gp, String(p.gp || 0)],
@@ -86,7 +91,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
             {pGames.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
                 <table className="pm-log">
-                  <thead><tr><th>Date</th><th>{t.opponent}</th><th style={{ textAlign: 'center' }}>{t.ppg}</th><th style={{ textAlign: 'center' }}>{t.rpg}</th><th style={{ textAlign: 'center' }}>{t.apg}</th></tr></thead>
+                  <thead><tr><th>Date</th><th>{t.opponent}</th><th style={{ textAlign: 'center' }}>{t.ppg}</th><th style={{ textAlign: 'center' }}>{t.rpg}</th><th style={{ textAlign: 'center' }}>{t.apg}</th><th style={{ textAlign: 'center' }}>{t.threesCol}</th><th style={{ textAlign: 'center' }}>{t.ftCol}</th></tr></thead>
                   <tbody>
                     {pGames.map(g => {
                       const opp = g.home === p.team ? g.away : g.home;
@@ -98,6 +103,8 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
                           <td style={{ textAlign: 'center', fontWeight: 700 }}>{+(st.points || 0)}</td>
                           <td style={{ textAlign: 'center' }}>{+(st.rebounds || 0)}</td>
                           <td style={{ textAlign: 'center' }}>{+(st.assists || 0)}</td>
+                          <td style={{ textAlign: 'center' }}>{+(st.threes || 0)}</td>
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{+(st.ftm || 0)}/{+(st.fta || 0)}</td>
                         </tr>
                       );
                     })}
