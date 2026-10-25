@@ -36,9 +36,8 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
     [t.ppg, fmtN(p.ppg)], [t.rpg, fmtN(p.rpg)], [t.apg, fmtN(p.apg)],
     [t.spg, fmtN(p.spg || 0)], [t.bpg, fmtN(p.bpg || 0)],
     [t.tpg, fmtN(perG('threes'))],
-    [t.ftpg, fmtN(perG('ftm')) + '/' + fmtN(perG('fta'))],
     ...(fgRaw !== null ? [[t.fgPct, fmtN(fgRaw) + pctSuffix]] : []),
-    ...(ftRaw !== null ? [[t.ftPct, fmtN(ftRaw) + pctSuffix]] : []),
+    [t.ftPct, fmtN(ftRaw ?? 0) + pctSuffix],
     [t.gp, String(p.gp || 0)],
   ];
 
@@ -104,7 +103,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
                           <td style={{ textAlign: 'center' }}>{+(st.rebounds || 0)}</td>
                           <td style={{ textAlign: 'center' }}>{+(st.assists || 0)}</td>
                           <td style={{ textAlign: 'center' }}>{+(st.threes || 0)}</td>
-                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{+(st.ftm || 0)}/{+(st.fta || 0)}</td>
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{(+st.fta || 0) > 0 ? Math.round((+st.ftm || 0) / (+st.fta) * 100) : 0}{pctSuffix}</td>
                         </tr>
                       );
                     })}
