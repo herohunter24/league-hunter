@@ -4203,7 +4203,7 @@ function App() {
                               const urgentCount   = (l.schedule || []).filter(g => isGameAwaiting(g) && daysAgo(g) >= 2).length;
                               if (!awaitingCount) return <span style={{ fontSize: 12, color: "#22c55e" }}>✓ RAS</span>;
                               return (
-                                <button onClick={() => { setSelId(l.id); setPage("league"); setTab("schedule"); }}
+                                <button onClick={() => { setSelId(l.id); setPage("league"); setShowMissingModal(true); }}
                                   style={{ background: urgentCount ? "#ef444420" : "#f59e0b20", border: `1px solid ${urgentCount ? "#ef444450" : "#f59e0b50"}`, borderRadius: 6, color: urgentCount ? "#ef4444" : "#f59e0b", padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
                                   {awaitingCount} manquant{awaitingCount > 1 ? "s" : ""}
                                   {urgentCount > 0 && <span style={{ marginLeft: 4, color: "#ef4444" }}>· {urgentCount} urgent{urgentCount > 1 ? "s" : ""}</span>}
@@ -4634,7 +4634,7 @@ function App() {
               <span style={{ fontSize: 13, fontWeight: 600, color: urgent.length ? "#ef4444" : "#f59e0b", display: "flex", alignItems: "center", gap: 8 }}>
                 {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score{urgent.length ? ` — ${urgent.length} en retard 48h+` : ""}
               </span>
-              <button onClick={() => handleTabSwitch("schedule")}
+              <button onClick={() => setShowMissingModal(true)}
                 style={{ background: urgent.length ? "#ef4444" : "#f59e0b", border: "none", borderRadius: 7, color: "#fff", padding: "6px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                 Entrer les scores →
               </button>
@@ -8145,39 +8145,77 @@ service cloud.firestore {
           />
         )}
 
-        {/* ── MISSING SCORE MODAL (shown once per day on login) ── */}
+        {/* ── MISSING GAMES MODAL — liste des matchs sans score, avec date, lieu, score et stats ── */}
         {showMissingModal && (() => {
           const awaiting = (league.schedule || []).filter(g => isGameAwaiting(g)).sort((a,b) => daysAgo(b) - daysAgo(a));
           if (!awaiting.length) { setShowMissingModal(false); return null; }
+          const cats = league.categories || [];
+          const fmtDate = (d) => {
+            if (!d) return "Date à confirmer";
+            const dt = new Date(d + "T12:00");
+            if (isNaN(dt)) return d;
+            return dt.toLocaleDateString("fr-CA", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+          };
+          const openStats = (g) => {
+            const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+            const stats = {};
+            gamePlayers.forEach(p => {
+              const existing = (g.playerStats || {})[p.id] || {};
+              const def = getSportStats(sport, p);
+              const defaults = {};
+              def.forEach(({ key, madeKey, attKey }) => { defaults[key] = 0; if (madeKey) defaults[madeKey] = 0; if (attKey) defaults[attKey] = 0; });
+              stats[p.id] = { ...defaults, ...existing };
+            });
+            setEditStats(withAbsent({ game: g, stats }));
+            setStatsValidationError(null);
+          };
           return (
-            <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 350, padding: 20 }}>
-              <div style={{ width: 460, ...card, padding: 32 }}>
-                <div style={{ marginBottom: 12, color: "#f59e0b", display: "flex", justifyContent: "center" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-                <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
-                  {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score
+            <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 150, padding: 16 }}>
+              <div style={{ width: "100%", maxWidth: 640, maxHeight: "90vh", display: "flex", flexDirection: "column", ...card, padding: 24 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#f59e0b" }}>
+                    {awaiting.length} match{awaiting.length !== 1 ? "s" : ""} sans score
+                  </div>
+                  <button onClick={() => setShowMissingModal(false)} aria-label="Fermer" style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "4px 10px", fontSize: 13, cursor: "pointer" }}>✕</button>
                 </div>
-                <div style={{ fontSize: 13, color: T2, marginBottom: 20, lineHeight: 1.6 }}>
-                  Les joueurs et les fans attendent les résultats. Entre les scores pour mettre à jour le classement et envoyer les notifications.
+                <div style={{ fontSize: 13, color: T2, marginBottom: 16, lineHeight: 1.5 }}>
+                  Entre le score et les stats directement ici. Un match disparaît de la liste dès que son score est enregistré.
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24, maxHeight: 200, overflowY: "auto" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", flex: 1, minHeight: 0 }}>
                   {awaiting.map(g => {
                     const ago = daysAgo(g);
+                    const cat = cats.length > 1 ? cats.find(c => c.id === g.categoryId) : null;
+                    const hasStats = Object.keys(g.playerStats || {}).length > 0;
+                    const hasPlayers = league.players.some(p => p.team === g.home || p.team === g.away);
                     return (
-                      <div key={g.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: SURF, borderRadius: 8, border: "1px solid #ef444430" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>{g.home} vs {g.away}</span>
-                        <span style={{ fontSize: 11, color: ago >= 2 ? "#ef4444" : "#f59e0b", fontWeight: 600 }}>
-                          {ago === 0 ? "Aujourd'hui" : ago === 1 ? "Hier" : `Il y a ${ago} jours`}
-                        </span>
+                      <div key={g.id} style={{ padding: "12px 14px", background: SURF, borderRadius: 8, border: `1px solid ${ago >= 2 ? "#ef444440" : "#f59e0b40"}` }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700 }}>{g.home} <span style={{ color: T2, fontWeight: 400 }}>vs</span> {g.away}</div>
+                            <div style={{ fontSize: 12, color: T2, marginTop: 3 }}>
+                              {fmtDate(g.date)}{g.time ? " · " + formatTime12h(g.time) : ""}
+                            </div>
+                            <div style={{ fontSize: 12, color: T2, marginTop: 2 }}>
+                              {g.venue || "Lieu à confirmer"}{cat ? " · " + cat.name : ""}
+                            </div>
+                            <div style={{ fontSize: 11, color: ago >= 2 ? "#ef4444" : "#f59e0b", fontWeight: 600, marginTop: 4 }}>
+                              {ago === 0 ? "Aujourd'hui" : ago === 1 ? "Hier" : `Il y a ${ago} jours`}{hasStats ? " · stats entrées" : ""}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                            <button onClick={() => setEditScore(g)} style={{ background: "#ef4444", border: "none", borderRadius: 6, color: "#fff", padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Entrer score</button>
+                            {hasPlayers && (
+                              <button onClick={() => openStats(g)} style={{ background: "none", border: `1px solid ${hasStats ? BORDER : "#a78bfa55"}`, borderRadius: 6, color: hasStats ? T2 : "#a78bfa", padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{hasStats ? "Stats" : "Entrer stats"}</button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button style={{ ...btn("#ef4444"), flex: 2 }} onClick={() => { setShowMissingModal(false); handleTabSwitch("schedule"); }}>
-                    Entrer les scores →
-                  </button>
+                <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
                   <button style={{ ...btn("#252540"), flex: 1 }} onClick={() => setShowMissingModal(false)}>
-                    Me le rappeler
+                    Fermer
                   </button>
                 </div>
               </div>
