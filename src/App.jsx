@@ -396,6 +396,14 @@ export default function App() {
       .sort((a, b) => a.date.localeCompare(b.date));
     if (schedFilter === 'upcoming') g = g.filter(x => x.hs === null);
     if (schedFilter === 'past') g = g.filter(x => x.hs !== null).reverse();
+    // « Tous » : prochains matchs en haut (plus proche d'abord), matchs finis en bas (plus récent d'abord)
+    if (schedFilter === 'all') {
+      const mins = t => { const m = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(t || ''); if (!m) return 0; let h = +m[1] % 12; if (!m[3] || m[3].toUpperCase() === 'PM') h += (m[3] ? 12 : +m[1] - (+m[1] % 12)); return h * 60 + +m[2]; };
+      const byDateTime = (x, y) => x.date.localeCompare(y.date) || mins(x.time) - mins(y.time);
+      const upcoming = g.filter(x => x.hs === null).sort(byDateTime);
+      const past = g.filter(x => x.hs !== null).sort((x, y) => byDateTime(y, x));
+      g = [...upcoming, ...past];
+    }
     if (schedTeam !== 'all') g = g.filter(x => x.home === schedTeam || x.away === schedTeam);
     return g;
   }, [schedFilter, schedTeam, GAMES, selectedCat, catTeamNames]);
