@@ -3176,7 +3176,7 @@ function App() {
 
   // ── Roster editor helpers ──
   function openRosterEditor(team) {
-    const teamPlayers = (league?.players || []).filter(p => p.team === team.name || String(p.teamId) === String(team.id));
+    const teamPlayers = (league?.players || []).filter(p => (p.team === team.name && (!p.categoryId || !team.categoryId || String(p.categoryId) === String(team.categoryId))) || String(p.teamId) === String(team.id));
     const rows = teamPlayers.map(p => {
       const nameParts = (p.name || '').trim().split(/\s+/);
       const firstName = nameParts[0] || '';
@@ -3305,14 +3305,14 @@ function App() {
     const remainingTeams = league.teams.filter(t => t.id !== team.id);
     let remainingPlayers = league.players;
     if (delTeamDeletePlayers) {
-      remainingPlayers = league.players.filter(p => p.team !== team.name && String(p.teamId) !== String(team.id));
+      remainingPlayers = league.players.filter(p => !((p.team === team.name && (!p.categoryId || !team.categoryId || String(p.categoryId) === String(team.categoryId))) || String(p.teamId) === String(team.id)));
     }
     if (__fbReady && _db) {
       try {
         const { deleteDoc, doc } = _FS;
         await deleteDoc(doc(_db, 'leagues', String(league.id), 'teams', String(team.id)));
         if (delTeamDeletePlayers) {
-          const toRemove = league.players.filter(p => p.team === team.name || String(p.teamId) === String(team.id));
+          const toRemove = league.players.filter(p => (p.team === team.name && (!p.categoryId || !team.categoryId || String(p.categoryId) === String(team.categoryId))) || String(p.teamId) === String(team.id));
           for (const p of toRemove) await deleteDoc(doc(_db, 'leagues', String(league.id), 'players', String(p.id)));
         }
       } catch(e) { console.error('[League Hunter] confirmDelTeam direct delete failed:', e); }
@@ -3338,7 +3338,7 @@ function App() {
   }
   async function addPlayer() {
     if (!nP.name || !nP.team || !league) { if (!nP.team) showToast("Sélectionne une équipe pour ce joueur."); return; }
-    const team = league.teams.find(t => t.name === nP.team);
+    const team = league.teams.find(t => t.name === nP.team && (!activeCatId || t.categoryId === activeCatId)) || league.teams.find(t => t.name === nP.team);
     const catId = team?.categoryId || activeCatId || (league.categories?.[0]?.id) || null;
     const units = league.units || 'imperial';
     const { heightFt, heightIn, heightCm, weight: weightRaw, ...npRest } = nP;
@@ -3464,17 +3464,18 @@ function App() {
     const newName = editPlayer.name.trim();
     if (!newName) return;
     // Jersey number uniqueness within same team
-    const teamPlayers = league.players.filter(p => p.team === editPlayer.team && p.id !== editPlayer.id);
+    const _curCat = league.players.find(p => p.id === editPlayer.id)?.categoryId;
+    const teamPlayers = league.players.filter(p => p.team === editPlayer.team && p.id !== editPlayer.id && (!_curCat || !p.categoryId || String(p.categoryId) === String(_curCat)));
     if (editPlayer.number && teamPlayers.some(p => String(p.number) === String(editPlayer.number))) {
       showToast(`Le numéro #${editPlayer.number} est déjà pris dans ${editPlayer.team}`);
       return;
     }
-    const team = league.teams.find(t => t.name === editPlayer.team);
+    const team = league.teams.find(t => t.name === editPlayer.team && (!_curCat || t.categoryId === _curCat)) || league.teams.find(t => t.name === editPlayer.team);
     const _saveUnits = league.units || 'imperial';
     const _saveH = _saveUnits==='metric' ? (editPlayer.heightCm?parseInt(editPlayer.heightCm)||undefined:undefined) : ((editPlayer.heightFt||editPlayer.heightIn)?(parseInt(editPlayer.heightFt||0)*12+parseInt(editPlayer.heightIn||0))||undefined:undefined);
     const _saveW = editPlayer.weight ? parseInt(editPlayer.weight)||undefined : undefined;
     const updatedPlayers = league.players.map(p => p.id === editPlayer.id
-      ? { ...p, name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : { height: undefined }), ...(_saveW != null ? { weight: _saveW } : { weight: undefined }) }
+      ? { ...(({ height: _h, weight: _w, ...rest }) => rest)(p), name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : {}), ...(_saveW != null ? { weight: _saveW } : {}) }
       : p);
     const updated = { ...league, players: updatedPlayers };
     await writeLeagueNow(updated);
@@ -8026,7 +8027,7 @@ service cloud.firestore {
                     </>
                   );
                 }
-                const playerCount = (league?.players || []).filter(p => p.team === team.name || String(p.teamId) === String(team.id)).length;
+                const playerCount = (league?.players || []).filter(p => (p.team === team.name && (!p.categoryId || !team.categoryId || String(p.categoryId) === String(team.categoryId))) || String(p.teamId) === String(team.id)).length;
                 const canConfirm = delTeamTyped.trim().toLowerCase() === team.name.trim().toLowerCase();
                 return (
                   <>
