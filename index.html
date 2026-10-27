@@ -3474,7 +3474,7 @@ function App() {
     const _saveH = _saveUnits==='metric' ? (editPlayer.heightCm?parseInt(editPlayer.heightCm)||undefined:undefined) : ((editPlayer.heightFt||editPlayer.heightIn)?(parseInt(editPlayer.heightFt||0)*12+parseInt(editPlayer.heightIn||0))||undefined:undefined);
     const _saveW = editPlayer.weight ? parseInt(editPlayer.weight)||undefined : undefined;
     const updatedPlayers = league.players.map(p => p.id === editPlayer.id
-      ? { ...p, name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : { height: undefined }), ...(_saveW != null ? { weight: _saveW } : { weight: undefined }) }
+      ? { ...(({ height: _h, weight: _w, ...rest }) => rest)(p), name: newName, number: editPlayer.number, position: editPlayer.position, team: editPlayer.team, teamId: team?.id || p.teamId, categoryId: team?.categoryId || p.categoryId, email: editPlayer.email || p.email || "", ...(_saveH != null ? { height: _saveH } : {}), ...(_saveW != null ? { weight: _saveW } : {}) }
       : p);
     const updated = { ...league, players: updatedPlayers };
     await writeLeagueNow(updated);
