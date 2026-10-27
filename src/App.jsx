@@ -392,7 +392,7 @@ export default function App() {
   const catTeamNames = useMemo(() => new Set(TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => tm.name)), [TEAMS, selectedCat]);
   const games = useMemo(() => {
     let g = [...GAMES]
-      .filter(x => catMatch(x.categoryId) || catTeamNames.has(x.home) || catTeamNames.has(x.away))
+      .filter(x => catMatch(x.categoryId) || (!x.categoryId && (catTeamNames.has(x.home) || catTeamNames.has(x.away))))
       .sort((a, b) => a.date.localeCompare(b.date));
     if (schedFilter === 'upcoming') g = g.filter(x => x.hs === null);
     if (schedFilter === 'past') g = g.filter(x => x.hs !== null).reverse();
