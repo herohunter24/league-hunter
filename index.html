@@ -3603,15 +3603,23 @@ function App() {
 
   async function saveEditScore() {
     if (!editScore || !league) return;
-    const hs = parseInt(editScore.homeScore);
-    const as = parseInt(editScore.awayScore);
+    // Forfait : ffWinner = 'home' | 'away' | '' (non défini = garder le forfait existant du match)
+    const origGame = league.schedule.find(g => g.id === editScore.id);
+    const ffWinner = editScore.ffWinner !== undefined ? editScore.ffWinner : (origGame?.forfeit?.winner || '');
+    let hs = parseInt(editScore.homeScore);
+    let as = parseInt(editScore.awayScore);
+    if (ffWinner === 'home' || ffWinner === 'away') { hs = ffWinner === 'home' ? 20 : 0; as = ffWinner === 'away' ? 20 : 0; }
     if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0) {
       showToast("Les scores doivent être des nombres non négatifs.");
       return;
     }
-    const updated = { ...league, schedule: league.schedule.map(g =>
-      g.id === editScore.id ? { ...g, homeScore: hs, awayScore: as, played: true } : g
-    )};
+    const updated = { ...league, schedule: league.schedule.map(g => {
+      if (g.id !== editScore.id) return g;
+      const { forfeit, ...rest } = g;
+      const next = { ...rest, homeScore: hs, awayScore: as, played: true };
+      if (ffWinner === 'home' || ffWinner === 'away') next.forfeit = { winner: ffWinner, winnerScore: 20, loserScore: 0 };
+      return next;
+    })};
     await writeLeagueNow(updated);
     setDirty(false);
     setEditScore(null);
@@ -7475,19 +7483,38 @@ service cloud.firestore {
 
         {editScore && (() => {
           const g = league.schedule.find(x => x.id===editScore.id);
+          const ffWinner = editScore.ffWinner !== undefined ? editScore.ffWinner : (g?.forfeit?.winner || '');
+          const setFF = w => setEditScore(w
+            ? { ...editScore, ffWinner: w, homeScore: w === 'home' ? 20 : 0, awayScore: w === 'away' ? 20 : 0 }
+            : { ...editScore, ffWinner: '' });
           return (
             <div style={{ position: "fixed", inset: 0, background: "#00000095", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
               <div style={{ width: 400, ...card, padding: 32 }}>
                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Modifier le score</div>
                 <div style={{ fontSize: 13, color: T2, marginBottom: 24 }}>{g?.home} vs {g?.away} · {g?.date}</div>
                 <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
-                  <div style={{ flex: 1 }}><label style={lbl}>{g?.home}</label><input type="number" min="0" style={inp} value={editScore.homeScore} onChange={e=>setEditScore({...editScore,homeScore:e.target.value})} /></div>
-                  <div style={{ flex: 1 }}><label style={lbl}>{g?.away}</label><input type="number" min="0" style={inp} value={editScore.awayScore} onChange={e=>setEditScore({...editScore,awayScore:e.target.value})} /></div>
+                  <div style={{ flex: 1 }}><label style={lbl}>{g?.home}</label><input type="number" min="0" style={inp} disabled={!!ffWinner} value={ffWinner ? (ffWinner === 'home' ? 20 : 0) : editScore.homeScore} onChange={e=>setEditScore({...editScore,homeScore:e.target.value})} /></div>
+                  <div style={{ flex: 1 }}><label style={lbl}>{g?.away}</label><input type="number" min="0" style={inp} disabled={!!ffWinner} value={ffWinner ? (ffWinner === 'away' ? 20 : 0) : editScore.awayScore} onChange={e=>setEditScore({...editScore,awayScore:e.target.value})} /></div>
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T1, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!ffWinner} onChange={e => setFF(e.target.checked ? 'home' : '')} />
+                    Victoire par forfait (20-0)
+                  </label>
+                  {ffWinner && (
+                    <div style={{ marginTop: 10 }}>
+                      <label style={lbl}>Équipe gagnante</label>
+                      <select style={inp} value={ffWinner} onChange={e => setFF(e.target.value)}>
+                        <option value="home">{g?.home}</option>
+                        <option value="away">{g?.away}</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
                   <button style={{ ...btn(), flex: 1 }} onClick={() => {
                     if (!editScore || !g) return;
-                    const newH = parseInt(editScore.homeScore), newA = parseInt(editScore.awayScore);
+                    const newH = ffWinner ? (ffWinner === 'home' ? 20 : 0) : parseInt(editScore.homeScore), newA = ffWinner ? (ffWinner === 'away' ? 20 : 0) : parseInt(editScore.awayScore);
                     if (isNaN(newH) || isNaN(newA) || newH < 0 || newA < 0) return;
                     const newWinner = newH > newA ? g.home : (newA > newH ? g.away : 'Tie');
                     editConfirm.ask({
@@ -7496,7 +7523,7 @@ service cloud.firestore {
                       details: [
                         { label: 'Date',              value: g.date },
                         { label: 'Score précédent',   value: `${g.homeScore} – ${g.awayScore}` },
-                        { label: 'Nouveau score',     value: `${newH} – ${newA}` },
+                        { label: 'Nouveau score',     value: `${newH} – ${newA}${ffWinner ? ' (forfait)' : ''}` },
                         { label: 'Nouveau gagnant',   value: newWinner === 'Tie' ? 'Égalité' : newWinner },
                       ],
                       confirmLabel: 'Oui, corriger',
