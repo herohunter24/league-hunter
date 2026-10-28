@@ -106,15 +106,24 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
   const rankFn     = getRankFn(sport);
 
   const games = (rawGames || []).map(g => {
-    const hs = (g.homeScore !== undefined && g.homeScore !== null && g.homeScore !== '') ? +g.homeScore : null;
-    const as = (g.awayScore !== undefined && g.awayScore !== null && g.awayScore !== '') ? +g.awayScore : null;
+    let hs = (g.homeScore !== undefined && g.homeScore !== null && g.homeScore !== '') ? +g.homeScore : null;
+    let as = (g.awayScore !== undefined && g.awayScore !== null && g.awayScore !== '') ? +g.awayScore : null;
+    // Forfait : le score vient du champ forfeit (gagnant 20, perdant 0 par défaut)
+    const ff = g.forfeit && (g.forfeit.winner === 'home' || g.forfeit.winner === 'away') ? g.forfeit : null;
+    if (ff) {
+      const ws = (ff.winnerScore != null && ff.winnerScore !== '') ? +ff.winnerScore : 20;
+      const ls = (ff.loserScore  != null && ff.loserScore  !== '') ? +ff.loserScore  : 0;
+      hs = ff.winner === 'home' ? ws : ls;
+      as = ff.winner === 'away' ? ws : ls;
+    }
     return {
       id: g.id, date: g.date || '', time: g.time || '',
       home: g.home || '', away: g.away || '', venue: g.venue || '',
       categoryId: g.categoryId != null ? String(g.categoryId) : '',
       hs, as,
       playerStats: g.playerStats || {},
-      homeScore: g.homeScore, awayScore: g.awayScore,
+      homeScore: ff ? hs : g.homeScore, awayScore: ff ? as : g.awayScore,
+      forfeit: !!ff,
     };
   });
 

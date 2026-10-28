@@ -1228,7 +1228,7 @@ export default function App() {
                       {g.id === nextGameId && <div className="next-game-badge">{t.nextGame}</div>}
                       <div className="game-date">
                         <span>{fmtDate(g.date, lang)} · {g.time}</span>
-                        <span className={`game-pill${played ? ' pill-final' : ' pill-upcoming'}`}>{played ? t.final : t.upcoming}</span>
+                        <span>{g.forfeit && <span className="game-pill pill-upcoming" style={{ marginRight: 6 }}>{t.forfeitBadge}</span>}<span className={`game-pill${played ? ' pill-final' : ' pill-upcoming'}`}>{played ? t.final : t.upcoming}</span></span>
                       </div>
                       <div className="game-matchup">
                         <div className="game-team">
@@ -1458,7 +1458,7 @@ export default function App() {
             <div className="modal-bx">
               <button className="modal-close" onClick={closeGameModal}>✕</button>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 18 }}>
-                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}
+                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}{g.forfeit && <> · {t.forfeitBadge}</>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 16, margin: '22px 0' }}>
                 <div style={{ textAlign: 'center' }}>
