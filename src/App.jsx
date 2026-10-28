@@ -1328,6 +1328,7 @@ export default function App() {
             ['ppg', t.ppg], ['rpg', t.rpg], ['apg', t.apg],
             ...(statPlayers.some(p => (p.spg || 0) > 0) ? [['spg', t.spg]] : []),
             ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.bpg]] : []),
+            ...(statPlayers.some(p => (p.tpg || 0) > 0) ? [['tpg', t.tpg]] : []),
           ];
           const dir = statSortDir === 'asc' ? -1 : 1;
           const sortedPlayers = [...statPlayers].sort((a, b) => {
@@ -1341,6 +1342,7 @@ export default function App() {
                   ['ppg', t.topScorers], ['rpg', t.topRebounders], ['apg', t.topPlaymakers],
                   ...(statPlayers.some(p => (p.spg || 0) > 0) ? [['spg', t.topSteals]] : []),
                   ...(statPlayers.some(p => (p.bpg || 0) > 0) ? [['bpg', t.topBlocks]] : []),
+                  ...(statPlayers.some(p => (p.tpg || 0) > 0) ? [['tpg', t.topThrees]] : []),
                 ].map(([key, title]) => {
                   const top = leaders5(key);
                   if (!top.length) return null;

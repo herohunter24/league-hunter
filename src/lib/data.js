@@ -164,6 +164,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
     const apg  = gp ? sum('assists')  / gp : 0;
     const spg  = gp ? sum('steals')   / gp : 0;
     const bpg  = gp ? sum('blocks')   / gp : 0;
+    const tpg  = gp ? sum('threes')   / gp : 0;
 
     const td      = tierMap[pid] || { score: 0, pctRank: 0, tier: 'bronze' };
     const tier    = td.tier;
@@ -177,7 +178,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
       categoryId: p.categoryId != null ? String(p.categoryId) : '',
       tier,
       arch: deriveArchetype(tier, ppg, rpg, apg),
-      ppg, rpg, apg, spg, bpg, gp,
+      ppg, rpg, apg, spg, bpg, tpg, gp,
       rp,       // raw performance score (used for sorting / modal display)
       pctRank,  // percentile within peer group (used for tier + modal progress bar)
     };
