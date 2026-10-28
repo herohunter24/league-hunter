@@ -88,7 +88,7 @@
     alertsBackToSite: "← Retour au site",
     alertsManageLoading: "Chargement…",
     alertsManageError: "Lien invalide ou expiré.",
-    pageTitle: "NLS · La Ligue",
+    pageTitle: "NLS Showcase — Ligue de basketball au Québec",
     copyright: "© 2026 NLS CRÉATION — LA PERSONNALISATION SANS LIMITE",
     catNames: {
       'Général': 'Général',
@@ -196,7 +196,7 @@
     alertsBackToSite: "← Back to site",
     alertsManageLoading: "Loading…",
     alertsManageError: "Invalid or expired link.",
-    pageTitle: "NLS · The League",
+    pageTitle: "NLS Showcase — Basketball League in Quebec",
     copyright: "© 2026 NLS CRÉATION — CUSTOMIZATION WITHOUT LIMITS",
     catNames: {
       'Général': 'General',
