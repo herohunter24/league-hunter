@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>League Hunter</title>
+<meta name="description" content="League Hunter : site public, horaire, classements, statistiques et alertes courriel pour les ligues sportives. Mise en place et service mensuel inclus."/>
+<link rel="icon" type="image/png" href="/logo/league-hunter-mark.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy: #0B1220;
+    --navy-2: #111A2C;
+    --line: #1E2A40;
+    --ink: #FFFFFF;
+    --ink-2: #A9B4C7;
+    --ink-3: #6E7A90;
+    --acc: #2F7BFF;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--navy); color: var(--ink);
+    font-family: Inter, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 16px; line-height: 1.6; overflow-x: hidden;
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 720px) { .wrap { padding: 0 32px; } }
+  .skip { position: absolute; left: -9999px; }
+  .skip:focus { left: 16px; top: 12px; background: var(--acc); color: #fff; padding: 8px 12px; z-index: 10; }
+
+  /* Header */
+  header.top { border-bottom: 1px solid var(--line); }
+  .top .wrap { display: -webkit-box; display: flex; -webkit-box-align: center; align-items: center; -webkit-box-pack: justify; justify-content: space-between; height: 68px; }
+  .brand { display: -webkit-box; display: flex; -webkit-box-align: center; align-items: center; text-decoration: none; }
+  .brand svg { width: 36px; height: 24px; display: block; margin-right: 12px; }
+  .brand span { font-family: Oswald, Impact, sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .actions { display: -webkit-box; display: flex; -webkit-box-align: center; align-items: center; }
+  .lang { background: none; border: 1px solid var(--line); color: var(--ink-2); font: 600 12px Inter, sans-serif; letter-spacing: 0.08em; padding: 7px 10px; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+  .lang b { color: var(--ink); font-weight: 600; }
+  .lang:hover { border-color: var(--ink-3); }
+  .btn { display: inline-block; font: 600 14px Inter, sans-serif; text-decoration: none; padding: 10px 16px; border-radius: 4px; border: 1px solid transparent; cursor: pointer; }
+  .btn-acc { background: var(--acc); color: #fff; }
+  .btn-acc:hover { background: #1F6AEE; }
+  .btn-line { border-color: var(--line); color: var(--ink); background: transparent; }
+  .btn-line:hover { border-color: var(--ink-3); }
+  .top .btn { padding: 8px 14px; font-size: 13px; }
+
+  /* Hero */
+  .hero { padding: 72px 0 80px; border-bottom: 1px solid var(--line); }
+  .hero .wrap { display: -webkit-box; display: flex; -webkit-box-align: center; align-items: center; }
+  .hero-text { -webkit-box-flex: 1; flex: 1 1 0; padding-right: 56px; min-width: 0; }
+  .kicker { font: 600 12px Inter, sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: var(--acc); margin: 0 0 20px; }
+  h1 { font-family: Oswald, Impact, sans-serif; font-weight: 600; text-transform: uppercase; font-size: 54px; line-height: 1.04; letter-spacing: 0.01em; margin: 0 0 22px; }
+  .lead { font-size: 18px; color: var(--ink-2); max-width: 520px; margin: 0 0 32px; }
+  .hero .btn { margin-right: 10px; margin-bottom: 10px; padding: 13px 20px; font-size: 15px; }
+
+  /* Scoreboard mock */
+  .board { width: 420px; background: var(--navy-2); border: 1px solid var(--line); border-radius: 6px; }
+  .board-head { display: -webkit-box; display: flex; -webkit-box-pack: justify; justify-content: space-between; -webkit-box-align: center; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  .live { color: #fff; background: #D93A3A; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.1em; }
+  .final { color: var(--ink-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px; letter-spacing: 0.1em; }
+  .game { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .game-row { display: -webkit-box; display: flex; -webkit-box-pack: justify; justify-content: space-between; -webkit-box-align: center; align-items: center; height: 34px; }
+  .game-row .t { font-weight: 500; font-size: 15px; }
+  .game-row .t.lose { color: var(--ink-3); }
+  .digits { font-family: Oswald, Impact, sans-serif; font-weight: 500; font-size: 28px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .digits.lose { color: var(--ink-3); }
+  .game-meta { display: -webkit-box; display: flex; -webkit-box-pack: justify; justify-content: space-between; font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }
+  table.stand { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .stand th { text-align: right; font-weight: 600; font-size: 10.5px; letter-spacing: 0.12em; color: var(--ink-3); padding: 10px 16px 6px 0; text-transform: uppercase; }
+  .stand th:first-child, .stand td:first-child { text-align: left; padding-left: 16px; }
+  .stand td { text-align: right; padding: 7px 16px 7px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .stand td.n { font-family: Oswald, Impact, sans-serif; font-size: 15px; }
+  .stand .pos { display: inline-block; width: 18px; color: var(--ink-3); font-family: Oswald, Impact, sans-serif; }
+  .stand tr.me td { color: #fff; }
+  .stand tr.me td:first-child { box-shadow: inset 2px 0 0 var(--acc); }
+  .board-foot { padding: 10px 16px; font-size: 11px; color: var(--ink-3); border-top: 1px solid var(--line); }
+
+  /* Sections */
+  section.s { padding: 88px 0; border-bottom: 1px solid var(--line); }
+  .s-head { display: -webkit-box; display: flex; -webkit-box-align: baseline; align-items: baseline; margin-bottom: 40px; }
+  .num { font-family: Oswald, Impact, sans-serif; font-weight: 500; font-size: 15px; color: var(--acc); letter-spacing: 0.08em; width: 72px; flex-shrink: 0; }
+  h2 { font-family: Oswald, Impact, sans-serif; font-weight: 600; text-transform: uppercase; font-size: 36px; line-height: 1.1; letter-spacing: 0.01em; margin: 0; }
+  .indent { padding-left: 72px; }
+  .intro { font-size: 18px; color: var(--ink-2); max-width: 680px; margin: 0 0 40px; }
+  p { margin: 0 0 16px; }
+  .muted { color: var(--ink-2); }
+
+  /* Problem list */
+  .problems { border-top: 1px solid var(--line); max-width: 860px; }
+  .problem { display: -webkit-box; display: flex; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .problem h3 { width: 280px; flex-shrink: 0; margin: 0; padding-right: 24px; font-size: 17px; font-weight: 600; }
+  .problem p { margin: 0; color: var(--ink-2); -webkit-box-flex: 1; flex: 1; }
+
+  /* Included */
+  .inc { display: -webkit-box; display: flex; }
+  .inc-main { -webkit-box-flex: 1; flex: 1 1 0; min-width: 0; }
+  .inc-row { display: -webkit-box; display: flex; padding: 20px 0; border-top: 1px solid var(--line); }
+  .inc-row:last-child { border-bottom: 1px solid var(--line); }
+  .inc-row h3 { width: 300px; flex-shrink: 0; margin: 0; padding-right: 24px; font-size: 17px; font-weight: 600; }
+  .inc-row p { margin: 0; color: var(--ink-2); -webkit-box-flex: 1; flex: 1; }
+  .tiers { margin-top: 10px; font-size: 13px; color: var(--ink-3); letter-spacing: 0.02em; }
+  .tiers span { white-space: nowrap; }
+
+  /* Steps */
+  .steps { display: -webkit-box; display: flex; border-top: 1px solid var(--line); }
+  .step { -webkit-box-flex: 1; flex: 1 1 0; padding: 28px 28px 0 0; min-width: 0; }
+  .step + .step { padding-left: 28px; border-left: 1px solid var(--line); }
+  .step .big { font-family: Oswald, Impact, sans-serif; font-weight: 500; font-size: 64px; line-height: 1; color: var(--acc); margin-bottom: 18px; font-variant-numeric: tabular-nums; }
+  .step h3 { font-size: 18px; margin: 0 0 10px; }
+  .step p { color: var(--ink-2); margin: 0; }
+
+  /* Leagues */
+  .two { display: -webkit-box; display: flex; }
+  .two > div { -webkit-box-flex: 1; flex: 1 1 0; min-width: 0; }
+  .two > div + div { margin-left: 48px; }
+  .types { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
+  .types li { padding: 16px 0; border-bottom: 1px solid var(--line); display: -webkit-box; display: flex; -webkit-box-pack: justify; justify-content: space-between; }
+  .types li b { font-weight: 600; }
+  .types li span { color: var(--ink-3); font-size: 14px; text-align: right; padding-left: 16px; }
+  blockquote { margin: 0; padding: 4px 0 0 24px; border-left: 2px solid var(--acc); }
+  blockquote p { font-size: 20px; line-height: 1.5; margin-bottom: 12px; }
+  blockquote cite { font-style: normal; color: var(--ink-3); font-size: 14px; }
+
+  /* Price */
+  .price { display: -webkit-box; display: flex; -webkit-box-align: center; align-items: center; -webkit-box-pack: justify; justify-content: space-between; border: 1px solid var(--line); border-radius: 6px; padding: 32px; background: var(--navy-2); }
+  .price .p-big { font-family: Oswald, Impact, sans-serif; font-weight: 600; font-size: 34px; text-transform: uppercase; line-height: 1.1; margin-bottom: 8px; }
+  .price p { margin: 0; color: var(--ink-2); max-width: 560px; }
+  .price .btn { flex-shrink: 0; margin-left: 24px; padding: 13px 20px; }
+
+  /* FAQ */
+  .faq { border-top: 1px solid var(--line); max-width: 860px; }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary { cursor: pointer; list-style: none; padding: 20px 40px 20px 0; font-weight: 600; font-size: 17px; position: relative; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; position: absolute; right: 4px; top: 16px; font-family: Oswald, Impact, sans-serif; font-size: 24px; color: var(--acc); }
+  .faq details[open] summary::after { content: "\2212"; }
+  .faq details p { color: var(--ink-2); margin: 0 0 20px; max-width: 720px; }
+
+  /* Form */
+  .contact { display: -webkit-box; display: flex; }
+  .contact-side { width: 320px; flex-shrink: 0; padding-right: 48px; }
+  .contact-side p { color: var(--ink-2); }
+  .contact-main { -webkit-box-flex: 1; flex: 1 1 0; min-width: 0; }
+  form { display: block; }
+  .fields { display: -webkit-box; display: flex; flex-wrap: wrap; margin: 0 -8px; }
+  .f { width: 50%; padding: 0 8px; margin-bottom: 18px; }
+  .f.full { width: 100%; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink); }
+  label .opt { color: var(--ink-3); font-weight: 400; }
+  input, select, textarea {
+    width: 100%; background: var(--navy); color: var(--ink); border: 1px solid #2A3852; border-radius: 4px;
+    font: 400 15px Inter, sans-serif; padding: 11px 12px; -webkit-appearance: none; appearance: none;
+  }
+  select { background-image: linear-gradient(45deg, transparent 50%, #A9B4C7 50%), linear-gradient(135deg, #A9B4C7 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+  textarea { min-height: 130px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--acc); outline: none; box-shadow: 0 0 0 3px rgba(47,123,255,0.25); }
+  input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #E5534B; }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .form-actions { display: -webkit-box; display: flex; -webkit-box-align: center; align-items: center; flex-wrap: wrap; }
+  .form-actions .btn { margin-right: 12px; margin-bottom: 8px; padding: 13px 20px; font-size: 15px; }
+  .form-actions small { color: var(--ink-3); font-size: 13px; margin-bottom: 8px; }
+  .msg { margin-top: 16px; padding: 14px 16px; border-radius: 4px; border: 1px solid var(--line); display: none; }
+  .msg.show { display: block; }
+  .msg.ok { border-color: #2E7D4F; background: rgba(46,125,79,0.12); }
+  .msg.err { border-color: #E5534B; background: rgba(229,83,75,0.10); }
+  .msg a { color: #fff; font-weight: 600; }
+  button[disabled] { opacity: 0.6; cursor: default; }
+
+  footer.bottom { padding: 32px 0 40px; color: var(--ink-3); font-size: 13px; }
+  footer.bottom .wrap { display: -webkit-box; display: flex; -webkit-box-pack: justify; justify-content: space-between; flex-wrap: wrap; }
+  footer.bottom a { color: var(--ink-2); text-decoration: none; }
+  footer.bottom .wrap > * { margin: 4px 24px 4px 0; }
+  footer.bottom a:hover { color: #fff; }
+
+  /* Responsive */
+  @media (max-width: 960px) {
+    .hero .wrap { display: block; }
+    .hero-text { padding-right: 0; }
+    .board { width: 100%; max-width: 460px; margin-top: 48px; }
+    .contact { display: block; }
+    .contact-side { width: auto; padding-right: 0; margin-bottom: 24px; }
+    .inc-row h3 { width: 240px; }
+  }
+  @media (max-width: 720px) {
+    h1 { font-size: 38px; }
+    .lead { font-size: 17px; }
+    .hero { padding: 48px 0 56px; }
+    section.s { padding: 60px 0; }
+    h2 { font-size: 28px; }
+    .num { width: 48px; font-size: 14px; }
+    .indent { padding-left: 0; }
+    .s-head { margin-bottom: 28px; }
+    .intro { font-size: 16px; }
+    .problem, .inc-row { display: block; }
+    .problem h3, .inc-row h3 { width: auto; padding-right: 0; margin-bottom: 6px; }
+    .steps { display: block; }
+    .step, .step + .step { padding: 24px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+    .step .big { font-size: 48px; margin-bottom: 12px; }
+    .two { display: block; }
+    .two > div + div { margin-left: 0; margin-top: 40px; }
+    .price { display: block; padding: 24px 20px; }
+    .price .btn { margin: 20px 0 0; }
+    .f { width: 100%; }
+    .brand span { font-size: 16px; }
+    .brand svg { margin-right: 8px; width: 30px; height: 20px; }
+    .lang { margin-right: 8px; padding: 7px 8px; }
+    .top .btn { padding: 8px 10px; }
+    .game-row .t { font-size: 14px; }
+    .digits { font-size: 24px; }
+  }
+  @media (max-width: 360px) {
+    .brand span { display: none; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Aller au contenu</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="League Hunter">
+      <svg viewBox="0 0 30 20" fill="#FFFFFF" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="2.5" height="8.5" rx="1"/>
+        <rect x="0.5" y="10.5" width="2.5" height="8.5" rx="1"/>
+        <rect x="3.5" y="16.5" width="8" height="2.5" rx="1"/>
+        <rect x="17" y="0.5" width="2.5" height="8.5" rx="1"/>
+        <rect x="17" y="10.5" width="2.5" height="8.5" rx="1"/>
+        <rect x="27" y="0.5" width="2.5" height="8.5" rx="1"/>
+        <rect x="27" y="10.5" width="2.5" height="8.5" rx="1"/>
+        <rect x="17" y="8" width="13" height="3" rx="1" fill="#2F7BFF"/>
+      </svg>
+      <span>League Hunter</span>
+    </a>
+    <div class="actions">
+      <button type="button" class="lang" id="langBtn" aria-label="Switch to English"><b>FR</b> / EN</button>
+      <a class="btn btn-line" id="loginLink" href="https://websitex.vercel.app/" data-i18n="login">Connexion</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-text">
+        <p class="kicker" data-i18n="kicker">Pour les ligues sportives</p>
+        <h1 data-i18n="h1">Votre ligue, en ligne et à jour après chaque match.</h1>
+        <p class="lead" data-i18n="lead">League Hunter vous donne un site public pour votre ligue et un espace d'administration simple : horaire, résultats, classements, statistiques et alertes courriel. On s'occupe de la mise en place et du service chaque mois.</p>
+        <a class="btn btn-acc" href="#contact" data-i18n="ctaDemo">Demander une démo</a>
+        <a class="btn btn-line" href="#inclus" data-i18n="ctaSee">Voir ce qui est inclus</a>
+      </div>
+
+      <div class="board" aria-hidden="true">
+        <div class="board-head"><span data-i18n="bTonight">Ce soir · U16 masculin</span><span class="live" data-i18n="bLive">En direct</span></div>
+        <div class="game">
+          <div class="game-meta"><span data-i18n="bQ">4e quart · 03:12</span><span data-i18n="bGym">Gymnase 2</span></div>
+          <div class="game-row"><span class="t" data-i18n="tA">Équipe A</span><span class="digits">58</span></div>
+          <div class="game-row"><span class="t lose" data-i18n="tB">Équipe B</span><span class="digits lose">54</span></div>
+        </div>
+        <div class="game">
+          <div class="game-meta"><span data-i18n="bEarlier">19 h 00</span><span class="final" data-i18n="bFinal">Final</span></div>
+          <div class="game-row"><span class="t lose" data-i18n="tC">Équipe C</span><span class="digits lose">61</span></div>
+          <div class="game-row"><span class="t" data-i18n="tD">Équipe D</span><span class="digits">67</span></div>
+        </div>
+        <table class="stand">
+          <thead><tr><th data-i18n="thTeam">Classement</th><th data-i18n="thGP">PJ</th><th data-i18n="thW">V</th><th data-i18n="thL">D</th><th data-i18n="thPct">%</th></tr></thead>
+          <tbody>
+            <tr class="me"><td><span class="pos">1</span><span data-i18n="tD">Équipe D</span></td><td class="n">9</td><td class="n">8</td><td class="n">1</td><td class="n">.889</td></tr>
+            <tr><td><span class="pos">2</span><span data-i18n="tA">Équipe A</span></td><td class="n">9</td><td class="n">7</td><td class="n">2</td><td class="n">.778</td></tr>
+            <tr><td><span class="pos">3</span><span data-i18n="tC">Équipe C</span></td><td class="n">9</td><td class="n">4</td><td class="n">5</td><td class="n">.444</td></tr>
+            <tr><td><span class="pos">4</span><span data-i18n="tB">Équipe B</span></td><td class="n">9</td><td class="n">3</td><td class="n">6</td><td class="n">.333</td></tr>
+          </tbody>
+        </table>
+        <div class="board-foot" data-i18n="bFoot">Exemple d'affichage · données fictives</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="probleme" aria-labelledby="h-prob">
+    <div class="wrap">
+      <div class="s-head"><span class="num">01</span><h2 id="h-prob" data-i18n="probH">Le problème</h2></div>
+      <div class="indent">
+        <p class="intro" data-i18n="probIntro">La plupart des ligues tournent grâce à quelques bénévoles et à beaucoup de bricolage. Ça fonctionne, jusqu'au jour où ça ne fonctionne plus.</p>
+        <div class="problems">
+          <div class="problem"><h3 data-i18n="p1h">Des tableurs partout</h3><p data-i18n="p1p">L'horaire dans un fichier, les résultats dans un autre, les classements calculés à la main. Une erreur et tout est à refaire.</p></div>
+          <div class="problem"><h3 data-i18n="p2h">Tout passe par les groupes de discussion</h3><p data-i18n="p2p">Un match déplacé ou annulé se perd entre deux messages. Les parents et les joueurs demandent la même information dix fois.</p></div>
+          <div class="problem"><h3 data-i18n="p3h">Aucune présence publique</h3><p data-i18n="p3p">Pas d'endroit officiel pour voir l'horaire, les résultats ou les joueurs. Difficile de recruter des équipes ou de présenter la ligue à des partenaires.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="inclus" aria-labelledby="h-inc">
+    <div class="wrap">
+      <div class="s-head"><span class="num">02</span><h2 id="h-inc" data-i18n="incH">Ce qui est inclus</h2></div>
+      <div class="indent">
+        <p class="intro" data-i18n="incIntro">Seulement ce qui existe aujourd'hui et que des ligues utilisent déjà.</p>
+        <div class="inc-main">
+          <div class="inc-row"><h3 data-i18n="i1h">Un site public pour votre ligue</h3><p data-i18n="i1p">À votre nom, sur votre propre nom de domaine. Vos joueurs, parents et partisans y trouvent tout au même endroit, sur ordinateur comme sur téléphone.</p></div>
+          <div class="inc-row"><h3 data-i18n="i2h">Website X, l'espace d'administration</h3><p data-i18n="i2p">Une connexion pour le propriétaire de la ligue, et un compte coordonnateur pour entrer les pointages le jour des matchs, sans accès au reste.</p></div>
+          <div class="inc-row"><h3 data-i18n="i3h">Horaire, classements et statuts</h3><p data-i18n="i3p">Horaire par catégorie, classements calculés automatiquement, matchs affichés à venir, en direct ou finaux selon la date et l'heure réelles.</p></div>
+          <div class="inc-row"><h3 data-i18n="i4h">Statistiques</h3><p data-i18n="i4p">Statistiques par joueur et par équipe pour le basketball et le hockey. Autres sports sur demande.</p></div>
+          <div class="inc-row"><h3 data-i18n="i5h">Cartes de joueurs</h3><p><span data-i18n="i5p">Chaque joueur a sa carte, avec un rang qui évolue selon ses performances, sur 9 niveaux.</span><span class="tiers" style="display:block" data-i18n="i5t">Bronze · Argent · Or · Émeraude · Saphir · Rubis · Améthyste · Diamant · Légende</span></p></div>
+          <div class="inc-row"><h3 data-i18n="i6h">Alertes courriel</h3><p data-i18n="i6p">Les abonnés reçoivent un courriel lors d'un changement d'horaire, d'une annulation ou d'un pointage final. Ils choisissent leurs équipes et peuvent modifier ou annuler leur abonnement en tout temps.</p></div>
+          <div class="inc-row"><h3 data-i18n="i7h">Statistiques de visites</h3><p data-i18n="i7p">Voyez combien de personnes consultent le site de votre ligue.</p></div>
+          <div class="inc-row"><h3 data-i18n="i8h">Recherche de joueurs</h3><p data-i18n="i8p">Retrouvez un joueur rapidement, avec sa fiche et ses statistiques.</p></div>
+          <div class="inc-row"><h3 data-i18n="i9h">Français et anglais</h3><p data-i18n="i9p">Le site public s'affiche dans les deux langues, au choix du visiteur.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="fonctionnement" aria-labelledby="h-how">
+    <div class="wrap">
+      <div class="s-head"><span class="num">03</span><h2 id="h-how" data-i18n="howH">Comment ça marche</h2></div>
+      <div class="indent">
+        <div class="steps">
+          <div class="step"><div class="big">1</div><h3 data-i18n="s1h">Mise en place</h3><p data-i18n="s1p">On configure votre site, vos catégories, votre nom de domaine et vos accès. Vous validez avant la mise en ligne.</p></div>
+          <div class="step"><div class="big">2</div><h3 data-i18n="s2h">Intégration des équipes et joueurs</h3><p data-i18n="s2p">On importe vos équipes, vos joueurs et votre horaire à partir de ce que vous avez déjà, même si c'est un tableur.</p></div>
+          <div class="step"><div class="big">3</div><h3 data-i18n="s3h">Service mensuel</h3><p data-i18n="s3p">Hébergement, mises à jour et soutien pendant la saison. Vous avez une personne à joindre quand vous avez une question.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="ligues" aria-labelledby="h-who">
+    <div class="wrap">
+      <div class="s-head"><span class="num">04</span><h2 id="h-who" data-i18n="whoH">Pour quelles ligues</h2></div>
+      <div class="indent two">
+        <div>
+          <ul class="types">
+            <li><b data-i18n="w1">Ligues jeunesse</b><span data-i18n="w1s">plusieurs catégories d'âge</span></li>
+            <li><b data-i18n="w2">Ligues senior</b><span data-i18n="w2s">adultes, saisons régulières</span></li>
+            <li><b data-i18n="w3">Compétitives ou récréatives</b><span data-i18n="w3s">du niveau élite au loisir</span></li>
+          </ul>
+        </div>
+        <div>
+          <blockquote>
+            <p data-i18n="quote">Utilisé en ce moment par une ligue de basketball au Québec, pour l'horaire, les résultats, les statistiques et les alertes de toute sa saison.</p>
+            <cite data-i18n="quoteCite">Référence disponible sur demande</cite>
+          </blockquote>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="tarifs" aria-labelledby="h-price">
+    <div class="wrap">
+      <div class="s-head"><span class="num">05</span><h2 id="h-price" data-i18n="priceH">Tarifs</h2></div>
+      <div class="indent">
+        <div class="price">
+          <div>
+            <div class="p-big" data-i18n="priceBig">Sur demande</div>
+            <p data-i18n="priceP">Selon la taille de votre ligue : nombre d'équipes, de catégories et de matchs. Un frais de mise en place, puis un service mensuel.</p>
+          </div>
+          <a class="btn btn-acc" href="#contact" data-i18n="priceCta">Obtenir un prix</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s" id="faq" aria-labelledby="h-faq">
+    <div class="wrap">
+      <div class="s-head"><span class="num">06</span><h2 id="h-faq" data-i18n="faqH">Questions fréquentes</h2></div>
+      <div class="indent"><div class="faq">
+        <details><summary data-i18n="q1">Combien de temps prend la mise en place ?</summary><p data-i18n="a1">Ça dépend surtout de l'état de vos données. Avec un horaire et des listes d'équipes prêts, comptez habituellement quelques semaines. On vous donne un délai précis après un premier appel.</p></details>
+        <details><summary data-i18n="q2">Qui gère le site au quotidien ?</summary><p data-i18n="a2">Vous ou vos coordonnateurs, à partir de Website X. L'entrée des pointages se fait en quelques secondes le jour des matchs. Pour le reste, on est là pendant toute la saison.</p></details>
+        <details><summary data-i18n="q3">Est-ce que le site peut être sur notre propre nom de domaine ?</summary><p data-i18n="a3">Oui. Le site public est installé sur le nom de domaine de votre ligue. Si vous n'en avez pas encore, on vous aide à en choisir un.</p></details>
+        <details><summary data-i18n="q4">Quels sports sont supportés ?</summary><p data-i18n="a4">Le basketball et le hockey, avec leurs statistiques propres. Pour un autre sport, parlez-nous-en : on évalue ce qu'il faut adapter.</p></details>
+        <details><summary data-i18n="q5">À qui appartiennent nos données, et y a-t-il un contrat ?</summary><p data-i18n="a5">Les données de votre ligue restent les vôtres et on peut vous les remettre sur demande. Les conditions du service mensuel sont définies avec vous avant de commencer.</p></details>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="s" id="contact" aria-labelledby="h-contact">
+    <div class="wrap">
+      <div class="s-head"><span class="num">07</span><h2 id="h-contact" data-i18n="cH">Demander une démo</h2></div>
+      <div class="indent contact">
+        <div class="contact-side">
+          <p data-i18n="cP">Parlez-nous de votre ligue. On vous répond par courriel, habituellement en moins de deux jours ouvrables.</p>
+          <p data-i18n="cP2">Vous préférez écrire directement ?</p>
+          <a class="btn btn-line" href="mailto:leaguehunter.project@gmail.com" data-i18n="cMail">Écrire un courriel</a>
+        </div>
+        <div class="contact-main">
+          <form id="leadForm" novalidate>
+            <div class="fields">
+              <div class="f"><label for="f-nom" data-i18n="lNom">Nom</label><input id="f-nom" name="nom" type="text" maxlength="200" autocomplete="name" required/></div>
+              <div class="f"><label for="f-ligue" data-i18n="lLigue">Nom de la ligue</label><input id="f-ligue" name="ligue" type="text" maxlength="200" autocomplete="organization" required/></div>
+              <div class="f"><label for="f-sport" data-i18n="lSport">Sport</label>
+                <select id="f-sport" name="sport">
+                  <option value="Basketball" data-i18n="oBask">Basketball</option>
+                  <option value="Hockey" data-i18n="oHock">Hockey</option>
+                  <option value="Autre" data-i18n="oOther">Autre</option>
+                </select>
+              </div>
+              <div class="f"><label for="f-equipes" data-i18n="lEq">Nombre d'équipes (approx.)</label><input id="f-equipes" name="equipes" type="text" inputmode="numeric" maxlength="200"/></div>
+              <div class="f"><label for="f-courriel" data-i18n="lMail">Courriel</label><input id="f-courriel" name="courriel" type="email" maxlength="200" autocomplete="email" required/></div>
+              <div class="f"><label for="f-tel"><span data-i18n="lTel">Téléphone</span> <span class="opt" data-i18n="lOpt">(facultatif)</span></label><input id="f-tel" name="telephone" type="tel" maxlength="200" autocomplete="tel"/></div>
+              <div class="f full"><label for="f-msg" data-i18n="lMsg">Message</label><textarea id="f-msg" name="message" maxlength="2000"></textarea></div>
+              <div class="hp" aria-hidden="true"><label for="f-website">Website</label><input id="f-website" name="website" type="text" tabindex="-1" autocomplete="off"/></div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-acc" id="submitBtn" data-i18n="send">Envoyer la demande</button>
+              <small data-i18n="req">Nom, ligue et courriel sont requis.</small>
+            </div>
+            <div class="msg" id="formMsg" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="bottom">
+  <div class="wrap">
+    <span>© <span id="year">2026</span> League Hunter</span>
+    <a href="mailto:leaguehunter.project@gmail.com">leaguehunter.project@gmail.com</a>
+  </div>
+</footer>
+
+<script>
+  // Change these if the Website X hostname or the form endpoint changes.
+  var WEBSITE_X_URL = 'https://websitex.vercel.app/';
+  var LEAD_ENDPOINT = 'https://us-east1-league-hunter.cloudfunctions.net/lhLead';
+  var CONTACT_EMAIL = 'leaguehunter.project@gmail.com';
+
+  var EN = {
+    skip: 'Skip to content',
+    login: 'Log in',
+    kicker: 'For sports leagues',
+    h1: 'Your league, online and up to date after every game.',
+    lead: 'League Hunter gives your league a public website and a simple admin space: schedule, results, standings, stats and email alerts. We handle the setup and the service every month.',
+    ctaDemo: 'Request a demo',
+    ctaSee: "See what's included",
+    bTonight: 'Tonight · U16 boys', bLive: 'Live', bQ: '4th quarter · 03:12', bGym: 'Gym 2',
+    bEarlier: '7:00 PM', bFinal: 'Final', tA: 'Team A', tB: 'Team B', tC: 'Team C', tD: 'Team D',
+    thTeam: 'Standings', thGP: 'GP', thW: 'W', thL: 'L', thPct: '%', bFoot: 'Display example · sample data',
+    probH: 'The problem',
+    probIntro: 'Most leagues run on a few volunteers and a lot of workarounds. It works, until the day it doesn’t.',
+    p1h: 'Spreadsheets everywhere', p1p: 'The schedule in one file, results in another, standings worked out by hand. One mistake and it all has to be redone.',
+    p2h: 'Everything goes through group chats', p2p: 'A moved or cancelled game gets lost between two messages. Parents and players ask for the same information ten times.',
+    p3h: 'No public presence', p3p: 'No official place to see the schedule, results or players. Hard to recruit teams or present the league to partners.',
+    incH: "What's included", incIntro: 'Only what exists today and leagues already use.',
+    i1h: 'A public website for your league', i1p: 'Under your name, on your own domain. Players, parents and fans find everything in one place, on desktop and on mobile.',
+    i2h: 'Website X, the admin space', i2p: 'A login for the league owner, and a coordinator account to enter scores on game day, with no access to anything else.',
+    i3h: 'Schedule, standings and statuses', i3p: 'Schedule by division, standings calculated automatically, games shown as upcoming, live or final based on the actual date and time.',
+    i4h: 'Stats', i4p: 'Player and team stats for basketball and hockey. Other sports on request.',
+    i5h: 'Player cards', i5p: 'Every player gets a card, with a rank that moves with their performance, across 9 tiers.',
+    i5t: 'Bronze · Silver · Gold · Emerald · Sapphire · Ruby · Amethyst · Diamond · Legend',
+    i6h: 'Email alerts', i6p: 'Subscribers get an email when the schedule changes, a game is cancelled or a final score is in. They pick their teams and can change or cancel their subscription at any time.',
+    i7h: 'Visitor stats', i7p: 'See how many people visit your league’s website.',
+    i8h: 'Player search', i8p: 'Find any player quickly, with their profile and stats.',
+    i9h: 'French and English', i9p: 'The public site is available in both languages, at the visitor’s choice.',
+    howH: 'How it works',
+    s1h: 'Setup', s1p: 'We configure your site, divisions, domain name and access. You approve it before it goes live.',
+    s2h: 'Teams and players onboarding', s2p: 'We import your teams, players and schedule from what you already have, even if it’s a spreadsheet.',
+    s3h: 'Monthly service', s3p: 'Hosting, updates and support throughout the season. You have a real person to reach when you have a question.',
+    whoH: 'Which leagues',
+    w1: 'Youth leagues', w1s: 'several age groups', w2: 'Senior leagues', w2s: 'adults, regular seasons', w3: 'Competitive or recreational', w3s: 'from elite to casual',
+    quote: 'Currently used by a basketball league in Quebec for the schedule, results, stats and alerts of its whole season.',
+    quoteCite: 'Reference available on request',
+    priceH: 'Pricing', priceBig: 'On request',
+    priceP: 'Based on the size of your league: number of teams, divisions and games. A one-time setup fee, then a monthly service.',
+    priceCta: 'Get a price',
+    faqH: 'Frequently asked questions',
+    q1: 'How long does setup take?', a1: 'It mostly depends on the state of your data. With a schedule and team lists ready, it usually takes a few weeks. We give you a precise timeline after a first call.',
+    q2: 'Who runs the site day to day?', a2: 'You or your coordinators, from Website X. Entering scores on game day takes seconds. For everything else, we’re there all season.',
+    q3: 'Can the site be on our own domain name?', a3: 'Yes. The public site runs on your league’s domain. If you don’t have one yet, we help you pick one.',
+    q4: 'Which sports are supported?', a4: 'Basketball and hockey, each with its own stats. For another sport, tell us about it and we’ll look at what needs to be adapted.',
+    q5: 'Who owns our data, and is there a contract?', a5: 'Your league’s data stays yours and we can hand it over on request. The terms of the monthly service are agreed with you before we start.',
+    cH: 'Request a demo',
+    cP: 'Tell us about your league. We reply by email, usually within two business days.',
+    cP2: 'Prefer to write directly?', cMail: 'Send an email',
+    lNom: 'Name', lLigue: 'League name', lSport: 'Sport', oBask: 'Basketball', oHock: 'Hockey', oOther: 'Other',
+    lEq: 'Number of teams (approx.)', lMail: 'Email', lTel: 'Phone', lOpt: '(optional)', lMsg: 'Message',
+    send: 'Send request', req: 'Name, league and email are required.'
+  };
+  var MSG = {
+    fr: {
+      invalid: 'Merci de remplir le nom, le nom de la ligue et un courriel valide.',
+      sending: 'Envoi…',
+      ok: 'Merci ! Votre demande a bien été envoyée. On vous répond par courriel sous peu.',
+      fail: 'L’envoi n’a pas fonctionné. Vous pouvez nous écrire directement : ',
+      failLink: 'ouvrir un courriel prérempli',
+      subj: 'Demande de démo League Hunter — '
+    },
+    en: {
+      invalid: 'Please fill in your name, the league name and a valid email.',
+      sending: 'Sending…',
+      ok: 'Thank you! Your request has been sent. We’ll get back to you by email shortly.',
+      fail: 'Sending didn’t work. You can write to us directly: ',
+      failLink: 'open a prefilled email',
+      subj: 'League Hunter demo request — '
+    }
+  };
+
+  var FR = {};
+  var nodes = document.querySelectorAll('[data-i18n]');
+  for (var i = 0; i < nodes.length; i++) FR[nodes[i].getAttribute('data-i18n')] = nodes[i].textContent;
+
+  var lang = 'fr';
+  try { if (localStorage.getItem('lh_lang') === 'en') lang = 'en'; } catch (e) {}
+
+  function applyLang() {
+    var dict = lang === 'en' ? EN : FR;
+    for (var i = 0; i < nodes.length; i++) {
+      var k = nodes[i].getAttribute('data-i18n');
+      if (dict[k] !== undefined) nodes[i].textContent = dict[k];
+    }
+    document.documentElement.lang = lang;
+    var btn = document.getElementById('langBtn');
+    btn.innerHTML = lang === 'en' ? 'FR / <b>EN</b>' : '<b>FR</b> / EN';
+    btn.setAttribute('aria-label', lang === 'en' ? 'Passer en français' : 'Switch to English');
+    var m = document.getElementById('formMsg');
+    if (m.className.indexOf('show') === -1) m.innerHTML = '';
+  }
+
+  document.getElementById('langBtn').addEventListener('click', function () {
+    lang = lang === 'en' ? 'fr' : 'en';
+    try { localStorage.setItem('lh_lang', lang); } catch (e) {}
+    applyLang();
+  });
+  document.getElementById('loginLink').href = WEBSITE_X_URL;
+  document.getElementById('year').textContent = new Date().getFullYear();
+  applyLang();
+
+  var form = document.getElementById('leadForm');
+  var msg = document.getElementById('formMsg');
+  var submitBtn = document.getElementById('submitBtn');
+
+  function val(name) { return (form.elements[name].value || '').trim(); }
+  function show(kind, html) { msg.className = 'msg show ' + kind; msg.innerHTML = html; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  function mailtoFallback(d) {
+    var t = MSG[lang];
+    var body = [
+      (lang === 'en' ? 'Name: ' : 'Nom : ') + d.nom,
+      (lang === 'en' ? 'League: ' : 'Ligue : ') + d.ligue,
+      'Sport : ' + d.sport,
+      (lang === 'en' ? 'Teams: ' : 'Équipes : ') + d.equipes,
+      (lang === 'en' ? 'Email: ' : 'Courriel : ') + d.courriel,
+      (lang === 'en' ? 'Phone: ' : 'Téléphone : ') + d.telephone,
+      '',
+      d.message
+    ].join('\n');
+    return 'mailto:' + CONTACT_EMAIL + '?subject=' + encodeURIComponent(t.subj + d.ligue) + '&body=' + encodeURIComponent(body);
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var t = MSG[lang];
+    var d = {
+      nom: val('nom'), ligue: val('ligue'), sport: val('sport'), equipes: val('equipes'),
+      courriel: val('courriel'), telephone: val('telephone'), message: val('message'),
+      website: form.elements['website'].value, lang: lang
+    };
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.courriel);
+    var bad = [];
+    form.elements['nom'].setAttribute('aria-invalid', d.nom ? 'false' : 'true'); if (!d.nom) bad.push('nom');
+    form.elements['ligue'].setAttribute('aria-invalid', d.ligue ? 'false' : 'true'); if (!d.ligue) bad.push('ligue');
+    form.elements['courriel'].setAttribute('aria-invalid', emailOk ? 'false' : 'true'); if (!emailOk) bad.push('courriel');
+    if (bad.length) { show('err', esc(t.invalid)); form.elements[bad[0]].focus(); return; }
+
+    submitBtn.disabled = true;
+    var label = submitBtn.textContent;
+    submitBtn.textContent = t.sending;
+
+    function fail() {
+      show('err', esc(t.fail) + '<a href="' + esc(mailtoFallback(d)) + '">' + esc(t.failLink) + '</a>.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = label;
+    }
+
+    fetch(LEAD_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('http ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (!j || !j.ok) throw new Error('not ok');
+      form.reset();
+      show('ok', esc(t.ok));
+      submitBtn.textContent = label;
+    }).catch(fail);
+  });
+</script>
+</body>
+</html>

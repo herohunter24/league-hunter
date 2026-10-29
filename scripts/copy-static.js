@@ -5,6 +5,7 @@ const DIST = 'dist';
 
 const staticFiles = [
   'index.html',
+  'sales.html',
   'public.html',
   'search.html',
   'trading-cards-tiers.html',

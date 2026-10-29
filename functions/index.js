@@ -53,8 +53,10 @@ async function checkRateLimit(ip) {
 }
 
 // Send via Resend
-async function send(resend, { to, subject, html, text }) {
-  const r = await resend.emails.send({ from: FROM, to, subject, html, text });
+async function send(resend, { to, subject, html, text, from, reply_to }) {
+  const msg = { from: from || FROM, to, subject, html, text };
+  if (reply_to) msg.reply_to = reply_to;
+  const r = await resend.emails.send(msg);
   if (r && r.error) throw new Error('resend: ' + (r.error.message || JSON.stringify(r.error)));
   return r;
 }
@@ -99,6 +101,68 @@ async function isAdminFor(req, leagueId) {
     return false;
   }
 }
+
+// ── LEAGUE HUNTER SALES LEAD (sales.html contact form) ──────────────────────
+const LH_FROM = 'League Hunter <no-reply@nlsshowcases.com>';
+const LH_TO = 'leaguehunter.project@gmail.com';
+const escHtml = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+export const lhLead = onRequest(
+  { region: REGION, secrets: [RESEND_KEY] },
+  async (req, res) => {
+    if (cors(req, res)) return;
+    if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
+
+    const b = req.body || {};
+    // Honeypot: if filled, silently succeed (bot)
+    if (b.website) { res.json({ ok: true }); return; }
+
+    const clip = (v, n) => String(v ?? '').trim().slice(0, n);
+    const lead = {
+      nom: clip(b.nom, 200),
+      ligue: clip(b.ligue, 200),
+      sport: clip(b.sport, 200),
+      equipes: clip(b.equipes, 200),
+      courriel: clip(b.courriel, 200),
+      telephone: clip(b.telephone, 200),
+      message: clip(b.message, 2000),
+      lang: b.lang === 'en' ? 'en' : 'fr',
+    };
+    if (!lead.nom || !lead.ligue || !lead.courriel || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.courriel)) {
+      res.status(400).json({ error: 'invalid' }); return;
+    }
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const ok = await checkRateLimit(ip);
+    if (!ok) { res.status(429).json({ error: 'rate_limit' }); return; }
+
+    const rows = [
+      ['Nom', lead.nom], ['Ligue', lead.ligue], ['Sport', lead.sport], ["Nombre d'équipes", lead.equipes],
+      ['Courriel', lead.courriel], ['Téléphone', lead.telephone], ['Langue', lead.lang],
+    ];
+    const text = rows.map(([k, v]) => `${k}: ${v || '—'}`).join('\n') + `\n\nMessage:\n${lead.message || '—'}`;
+    const html = '<table cellpadding="6" style="font-family:Arial,sans-serif;font-size:14px;border-collapse:collapse">'
+      + rows.map(([k, v]) => `<tr><td style="color:#666">${escHtml(k)}</td><td><strong>${escHtml(v || '—')}</strong></td></tr>`).join('')
+      + '</table>'
+      + `<p style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">${escHtml(lead.message || '—')}</p>`;
+
+    try {
+      const resend = new Resend(RESEND_KEY.value());
+      await send(resend, {
+        from: LH_FROM,
+        to: LH_TO,
+        reply_to: lead.courriel,
+        subject: `Nouvelle demande League Hunter — ${lead.ligue.replace(/[\r\n]+/g, ' ')}`,
+        html,
+        text,
+      });
+    } catch (e) {
+      console.error('lhLead send failed', e);
+      res.status(500).json({ error: 'send' }); return;
+    }
+    res.json({ ok: true });
+  }
+);
 
 // ── SUBSCRIBE ────────────────────────────────────────────────────────────────
 export const nlsSubscribe = onRequest(

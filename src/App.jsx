@@ -1439,7 +1439,7 @@ export default function App() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} NLS Création · {t.footerPowered} League Hunter</span>
+          <span>© {new Date().getFullYear()} NLS Création · {t.footerPowered} <a href="https://league-hunter.vercel.app/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>League Hunter</a></span>
         </div>
       </footer>
 
