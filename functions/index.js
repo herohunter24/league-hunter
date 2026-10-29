@@ -409,9 +409,17 @@ export const nlsGameAlert = onDocumentUpdated(
   }
 );
 
+// Pure decision for the cancel guard (bulk delete / recreated game → no email).
+function shouldSkipCancel({ recentCount, sameIdExists, twinExists }) {
+  if (recentCount > 2) return 'bulk delete';
+  if (sameIdExists) return 'same id recreated';
+  if (twinExists) return 'twin recreated';
+  return null;
+}
+
 // ── TRIGGER: GAME DELETED (= cancelled by the league owner) ─────────────────
 export const nlsGameCancelled = onDocumentDeleted(
-  { document: 'leagues/{leagueId}/games/{gameId}', region: REGION, secrets: [RESEND_KEY] },
+  { document: 'leagues/{leagueId}/games/{gameId}', region: REGION, secrets: [RESEND_KEY], timeoutSeconds: 120 },
   async (event) => {
     const leagueId = event.params.leagueId;
     const gameId = event.params.gameId;
@@ -423,10 +431,59 @@ export const nlsGameCancelled = onDocumentDeleted(
     const psSnap = await db.collection('leagues').doc(leagueId).collection('meta').doc('publicSettings').get();
     if (!psSnap.exists || psSnap.data().alertsActive !== true) return;
 
+    // Cancel guard marker (counts recent deletes to detect bulk deletes / re-imports)
+    const now = Date.now();
+    const guardRef = db.collection('leagues').doc(leagueId).collection('fnState').doc('cancelGuard');
+    try {
+      await guardRef.collection('deletes').doc(gameId).set({
+        deletedAt: now, home: game.home || null, away: game.away || null,
+        date: game.date || null, time: game.time || null,
+      });
+    } catch (e) {
+      console.error('cancel guard marker error', leagueId, gameId, e);
+      return;
+    }
+
     // Already played or in the past (America/Toronto) → no cancel email
     if (num(game.homeScore) != null) return;
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
     if (game.date && String(game.date) < today) return;
+
+    // Wait, then skip if this was a bulk delete or the game was recreated (edit = delete + add)
+    await new Promise(r => setTimeout(r, 45000));
+    try {
+      const recentQ = guardRef.collection('deletes').where('deletedAt', '>=', now - 120000);
+      let recentCount;
+      try { recentCount = (await recentQ.count().get()).data().count; }
+      catch (e) { recentCount = (await recentQ.get()).size; }
+      const gamesCol = db.collection('leagues').doc(leagueId).collection('games');
+      const sameIdExists = (await gamesCol.doc(gameId).get()).exists;
+      let twinExists = false;
+      if (!sameIdExists && game.date) {
+        const twinSnap = await gamesCol.where('date', '==', game.date).get();
+        twinExists = twinSnap.docs.some(d => {
+          const g = d.data();
+          return String(g.home) === String(game.home) && String(g.away) === String(game.away)
+            && String(g.time) === String(game.time);
+        });
+      }
+      const skip = shouldSkipCancel({ recentCount, sameIdExists, twinExists });
+      if (skip) {
+        console.log('cancel skipped: ' + skip, leagueId, gameId, { recentCount });
+        return;
+      }
+    } catch (e) {
+      console.error('cancel guard check error (not sending)', leagueId, gameId, e);
+      return;
+    }
+
+    // Housekeeping: remove markers older than 24 h
+    try {
+      const oldSnap = await guardRef.collection('deletes').where('deletedAt', '<', now - 86400000).limit(50).get();
+      await Promise.all(oldSnap.docs.map(d => d.ref.delete()));
+    } catch (e) {
+      console.error('cancel guard cleanup error', e);
+    }
 
     // Burst guard: when a league, category or team is deleted, its games are deleted too.
     // Skip unless the league, the game's category and both teams still exist.
