@@ -304,7 +304,7 @@
           <div class="inc-row"><h3 data-i18n="i1h">Un site public pour votre ligue</h3><p data-i18n="i1p">À votre nom, sur votre propre nom de domaine. Vos joueurs, parents et partisans y trouvent tout au même endroit, sur ordinateur comme sur téléphone.</p></div>
           <div class="inc-row"><h3 data-i18n="i2h">Website X, l'espace d'administration</h3><p data-i18n="i2p">Une connexion pour le propriétaire de la ligue, et un compte coordonnateur pour entrer les pointages le jour des matchs, sans accès au reste.</p></div>
           <div class="inc-row"><h3 data-i18n="i3h">Horaire, classements et statuts</h3><p data-i18n="i3p">Horaire par catégorie, classements calculés automatiquement, matchs affichés à venir, en direct ou finaux selon la date et l'heure réelles.</p></div>
-          <div class="inc-row"><h3 data-i18n="i4h">Statistiques</h3><p data-i18n="i4p">Statistiques par joueur et par équipe pour le basketball et le hockey. Autres sports sur demande.</p></div>
+          <div class="inc-row"><h3 data-i18n="i4h">Statistiques</h3><p data-i18n="i4p">Statistiques par joueur et par équipe, configurées selon votre sport lors de la mise en place (ex. basketball, hockey, soccer, volleyball, baseball…).</p></div>
           <div class="inc-row"><h3 data-i18n="i5h">Cartes de joueurs</h3><p><span data-i18n="i5p">Chaque joueur a sa carte, avec un rang qui évolue selon ses performances, sur 9 niveaux.</span><span class="tiers" style="display:block" data-i18n="i5t">Bronze · Argent · Or · Émeraude · Saphir · Rubis · Améthyste · Diamant · Légende</span></p></div>
           <div class="inc-row"><h3 data-i18n="i6h">Alertes courriel</h3><p data-i18n="i6p">Les abonnés reçoivent un courriel lors d'un changement d'horaire, d'une annulation ou d'un pointage final. Ils choisissent leurs équipes et peuvent modifier ou annuler leur abonnement en tout temps.</p></div>
           <div class="inc-row"><h3 data-i18n="i7h">Statistiques de visites</h3><p data-i18n="i7p">Voyez combien de personnes consultent le site de votre ligue.</p></div>
@@ -371,7 +371,7 @@
         <details><summary data-i18n="q1">Combien de temps prend la mise en place ?</summary><p data-i18n="a1">Ça dépend surtout de l'état de vos données. Avec un horaire et des listes d'équipes prêts, comptez habituellement quelques semaines. On vous donne un délai précis après un premier appel.</p></details>
         <details><summary data-i18n="q2">Qui gère le site au quotidien ?</summary><p data-i18n="a2">Vous ou vos coordonnateurs, à partir de Website X. L'entrée des pointages se fait en quelques secondes le jour des matchs. Pour le reste, on est là pendant toute la saison.</p></details>
         <details><summary data-i18n="q3">Est-ce que le site peut être sur notre propre nom de domaine ?</summary><p data-i18n="a3">Oui. Le site public est installé sur le nom de domaine de votre ligue. Si vous n'en avez pas encore, on vous aide à en choisir un.</p></details>
-        <details><summary data-i18n="q4">Quels sports sont supportés ?</summary><p data-i18n="a4">Le basketball et le hockey, avec leurs statistiques propres. Pour un autre sport, parlez-nous-en : on évalue ce qu'il faut adapter.</p></details>
+        <details><summary data-i18n="q4">Quels sports sont supportés ?</summary><p data-i18n="a4">Tous les sports. L'horaire, les résultats, les classements, les cartes de joueurs et les alertes fonctionnent pour n'importe quel sport. Les statistiques par joueur sont configurées selon votre sport lors de la mise en place (ex. basketball, hockey, soccer, volleyball, baseball…).</p></details>
         <details><summary data-i18n="q5">À qui appartiennent nos données, et y a-t-il un contrat ?</summary><p data-i18n="a5">Les données de votre ligue restent les vôtres et on peut vous les remettre sur demande. Les conditions du service mensuel sont définies avec vous avant de commencer.</p></details>
       </div></div>
     </div>
@@ -395,6 +395,9 @@
                 <select id="f-sport" name="sport">
                   <option value="Basketball" data-i18n="oBask">Basketball</option>
                   <option value="Hockey" data-i18n="oHock">Hockey</option>
+                  <option value="Soccer" data-i18n="oSoc">Soccer</option>
+                  <option value="Volleyball" data-i18n="oVol">Volleyball</option>
+                  <option value="Baseball" data-i18n="oBase">Baseball</option>
                   <option value="Autre" data-i18n="oOther">Autre</option>
                 </select>
               </div>
@@ -449,7 +452,7 @@
     i1h: 'A public website for your league', i1p: 'Under your name, on your own domain. Players, parents and fans find everything in one place, on desktop and on mobile.',
     i2h: 'Website X, the admin space', i2p: 'A login for the league owner, and a coordinator account to enter scores on game day, with no access to anything else.',
     i3h: 'Schedule, standings and statuses', i3p: 'Schedule by division, standings calculated automatically, games shown as upcoming, live or final based on the actual date and time.',
-    i4h: 'Stats', i4p: 'Player and team stats for basketball and hockey. Other sports on request.',
+    i4h: 'Stats', i4p: 'Player and team stats, configured for your sport during setup (e.g. basketball, hockey, soccer, volleyball, baseball…).',
     i5h: 'Player cards', i5p: 'Every player gets a card, with a rank that moves with their performance, across 9 tiers.',
     i5t: 'Bronze · Silver · Gold · Emerald · Sapphire · Ruby · Amethyst · Diamond · Legend',
     i6h: 'Email alerts', i6p: 'Subscribers get an email when the schedule changes, a game is cancelled or a final score is in. They pick their teams and can change or cancel their subscription at any time.',
@@ -471,12 +474,12 @@
     q1: 'How long does setup take?', a1: 'It mostly depends on the state of your data. With a schedule and team lists ready, it usually takes a few weeks. We give you a precise timeline after a first call.',
     q2: 'Who runs the site day to day?', a2: 'You or your coordinators, from Website X. Entering scores on game day takes seconds. For everything else, we’re there all season.',
     q3: 'Can the site be on our own domain name?', a3: 'Yes. The public site runs on your league’s domain. If you don’t have one yet, we help you pick one.',
-    q4: 'Which sports are supported?', a4: 'Basketball and hockey, each with its own stats. For another sport, tell us about it and we’ll look at what needs to be adapted.',
+    q4: 'Which sports are supported?', a4: 'All sports. The schedule, results, standings, player cards and alerts work for any sport. Player stats are configured for your sport during setup (e.g. basketball, hockey, soccer, volleyball, baseball…).',
     q5: 'Who owns our data, and is there a contract?', a5: 'Your league’s data stays yours and we can hand it over on request. The terms of the monthly service are agreed with you before we start.',
     cH: 'Request a demo',
     cP: 'Tell us about your league. We reply by email, usually within two business days.',
     cP2: 'Prefer to write directly?', cMail: 'Send an email',
-    lNom: 'Name', lLigue: 'League name', lSport: 'Sport', oBask: 'Basketball', oHock: 'Hockey', oOther: 'Other',
+    lNom: 'Name', lLigue: 'League name', lSport: 'Sport', oBask: 'Basketball', oHock: 'Hockey', oSoc: 'Soccer', oVol: 'Volleyball', oBase: 'Baseball', oOther: 'Other',
     lEq: 'Number of teams (approx.)', lMail: 'Email', lTel: 'Phone', lOpt: '(optional)', lMsg: 'Message',
     send: 'Send request', req: 'Name, league and email are required.'
   };
