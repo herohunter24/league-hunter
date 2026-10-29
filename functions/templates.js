@@ -3,7 +3,7 @@
 
 const BASE_URL = process.env.NLS_PUBLIC_URL || 'https://nlsshowcases.com';
 const LOGO_URL = BASE_URL + '/logo/nls-crest.png';           // 766x925
-const LOGO_SMALL_URL = BASE_URL + '/logo/nls-logo-black.png'; // 371x189
+const LH_LOGO_URL = BASE_URL + '/logo/league-hunter-mark.png'; // 304x224
 const LH_URL = 'https://league-hunter.vercel.app';
 const NLS_CONTACT_EMAIL = 'info@nlscreation.com';
 
@@ -166,11 +166,10 @@ ${blocks.map(b => b.html).filter(Boolean).join('\n')}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:24px 0;"><tr><td bgcolor="#F7F5EF" style="background:#F7F5EF;border-left:3px solid ${GOLD};padding:12px 16px;font-family:${FONT};font-size:13px;line-height:1.6;color:#555555;">${esc(notice[0])}<a href="mailto:${NLS_CONTACT_EMAIL}" style="color:#555555;text-decoration:underline;">${NLS_CONTACT_EMAIL}</a>${esc(notice[1])}</td></tr></table>
 </td></tr>
 <tr><td align="center" bgcolor="#FAFAF8" style="background:#FAFAF8;border-top:1px solid #ECEAE4;padding:20px 24px;text-align:center;font-family:${FONT};font-size:12px;color:#777777;line-height:1.6;">
-<img src="${LOGO_SMALL_URL}" width="64" height="33" alt="NLS" style="display:block;margin:0 auto 10px;border:0;outline:none;">
 ${reason ? `<div>${esc(reason)}</div>` : ''}
 <div>${esc(org)}</div>
 ${linkParts.length ? `<div>${linkParts.join(' · ')}</div>` : ''}
-<div><a href="${LH_URL}" style="${linkStyle}">${esc(powered)}</a></div>
+<div><a href="${LH_URL}" style="${linkStyle}"><img src="${LH_LOGO_URL}" width="38" height="28" alt="League Hunter" style="display:block;margin:8px auto 4px;border:0;outline:none;">${esc(powered)}</a></div>
 </td></tr>
 </table>
 </td></tr>
