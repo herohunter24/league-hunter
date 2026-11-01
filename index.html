@@ -4663,8 +4663,17 @@ function App() {
       const hg = gamesWithScore.filter(g => g.home===t.name), ag = gamesWithScore.filter(g => g.away===t.name);
       const wins = hg.filter(g=>parseInt(g.homeScore)>parseInt(g.awayScore)).length + ag.filter(g=>parseInt(g.awayScore)>parseInt(g.homeScore)).length;
       const losses = hg.filter(g=>parseInt(g.homeScore)<parseInt(g.awayScore)).length + ag.filter(g=>parseInt(g.awayScore)<parseInt(g.homeScore)).length;
-      return { name: t.name, emoji: t.emoji, gp: wins+losses, wins, losses };
-    }).sort((a,b) => b.wins-a.wins);
+      let pf = 0, pa = 0;
+      hg.forEach(g => { pf += parseInt(g.homeScore) || 0; pa += parseInt(g.awayScore) || 0; });
+      ag.forEach(g => { pf += parseInt(g.awayScore) || 0; pa += parseInt(g.homeScore) || 0; });
+      const gp = wins+losses;
+      return { name: t.name, emoji: t.emoji, gp, wins, losses, pct: gp ? wins/gp : 0, diff: pf-pa, pf, pa };
+    }).sort((a,b) =>
+      (b.pct - a.pct) ||
+      (a.pct > 0 ? (b.gp - a.gp) : (a.gp - b.gp)) ||
+      (b.diff - a.diff) ||
+      (b.pf - a.pf) || (a.pa - b.pa) ||
+      String(a.name).localeCompare(String(b.name), 'fr'));
 
     // Card tiers — same result as the public player cards
     const cardTierMap = computeCardTiers(league);

@@ -90,6 +90,13 @@ function computeSeason(meta) {
   return String(new Date().getFullYear());
 }
 
+const rankCmp = (a, b) =>
+  (b.pct - a.pct) ||
+  (a.pct > 0 ? (b.gp - a.gp) : (a.gp - b.gp)) ||
+  (b.diff - a.diff) ||
+  ((b.pf || 0) - (a.pf || 0)) || ((a.pa || 0) - (b.pa || 0)) ||
+  String(a.name).localeCompare(String(b.name), 'fr');
+
 export default function App() {
   const [lang, setLang] = useState(() => {
     try { return localStorage.getItem('nls_lang') || DEFAULT_LANG; } catch { return DEFAULT_LANG; }
@@ -376,13 +383,13 @@ export default function App() {
     const src = TEAMS.filter(tm => catMatch(tm.categoryId));
     const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0, gp: tm.w + tm.l, diff: (tm.pf || 0) - (tm.pa || 0) }));
     const dir = sortDir === 'asc' ? -1 : 1;
-    if (sortKey === 'wins')  rows.sort((a, b) => dir * (b.w - a.w));
-    else if (sortKey === 'pct')  rows.sort((a, b) => dir * (b.pct - a.pct));
-    else if (sortKey === 'pf')   rows.sort((a, b) => dir * ((b.pf || 0) - (a.pf || 0)));
-    else if (sortKey === 'pa')   rows.sort((a, b) => dir * ((b.pa || 0) - (a.pa || 0)));
-    else if (sortKey === 'diff') rows.sort((a, b) => dir * (b.diff - a.diff));
-    else if (sortKey === 'gp')   rows.sort((a, b) => dir * (b.gp - a.gp));
-    else rows.sort((a, b) => dir * (b.pct - a.pct));
+    if (sortKey === 'wins')  rows.sort((a, b) => (dir * (b.w - a.w)) || rankCmp(a, b));
+    else if (sortKey === 'pct')  rows.sort((a, b) => dir * rankCmp(a, b));
+    else if (sortKey === 'pf')   rows.sort((a, b) => (dir * ((b.pf || 0) - (a.pf || 0))) || rankCmp(a, b));
+    else if (sortKey === 'pa')   rows.sort((a, b) => (dir * ((b.pa || 0) - (a.pa || 0))) || rankCmp(a, b));
+    else if (sortKey === 'diff') rows.sort((a, b) => (dir * (b.diff - a.diff)) || rankCmp(a, b));
+    else if (sortKey === 'gp')   rows.sort((a, b) => (dir * (b.gp - a.gp)) || rankCmp(a, b));
+    else rows.sort((a, b) => dir * rankCmp(a, b));
     return rows;
   }, [sortKey, sortDir, TEAMS, selectedCat]);
 
@@ -1187,6 +1194,7 @@ export default function App() {
           </table>
           </div>
         </div>
+        <p className="standings-note">{t.standingsTiebreak}</p>
       </section>
       )}
 
