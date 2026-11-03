@@ -3854,44 +3854,63 @@ function App() {
       const blocks = (data.teams || []).map((t, i) => {
         const nums = new Set((t.players || []).map(p => norm(p.number)).filter(Boolean));
         const rn = { home: rosterNums("home"), away: rosterNums("away") };
-        const num = {}, uniq = {}, name = {}, score = {};
+        const num = {}, uniq = {}, uniqNums = {}, name = {}, score = {};
         SIDES.forEach(sd => {
           const ot = sd === "home" ? "away" : "home";
-          num[sd] = 0; uniq[sd] = 0;
-          nums.forEach(n => { if (rn[sd].has(n)) { num[sd]++; if (!rn[ot].has(n)) uniq[sd]++; } });
+          num[sd] = 0; uniqNums[sd] = new Set();
+          nums.forEach(n => { if (rn[sd].has(n)) { num[sd]++; if (!rn[ot].has(n)) uniqNums[sd].add(n); } });
+          uniq[sd] = uniqNums[sd].size;
           name[sd] = teamNameMatch(t.nameOnSheet, nameBySide[sd]) ? 1 : 0;
           score[sd] = uniq[sd] * 10 + num[sd] * 2 + name[sd];
         });
-        return { t, i, num, uniq, name, score, side: null };
+        const sharedOnly = uniq.home === 0 && uniq.away === 0;
+        return { t, i, num, uniq, uniqNums, name, score, sharedOnly, side: null };
       });
+      // Bloc "numéros communs seulement" : rattachable à s SEULEMENT si s est le seul côté ayant un bloc
+      // avec des numéros propres, que ce bloc y est attribué, et que son nom ne correspond pas à l'autre équipe
+      const anchorSidesOf = k => SIDES.filter(sd => blocks.some((o, j) => j !== k && o.uniq[sd] > 0));
+      const sharedOk = (k, sd, ch) => {
+        const bk = blocks[k], ot = sd === "home" ? "away" : "home";
+        const anchors = anchorSidesOf(k);
+        return bk.sharedOnly && bk.num[sd] > 0 && anchors.length === 1 && anchors[0] === sd && bk.name[ot] === 0 &&
+          blocks.some((o, j) => j !== k && ch[j] === sd && o.uniq[sd] > 0);
+      };
       // Toutes les combinaisons domicile / visiteur / aucune (≤ 4 blocs → 81 cas max)
-      let best = null;
+      let bestTotal = -1, tops = [];
       const choice = new Array(blocks.length).fill(null);
       const evaluate = () => {
         for (let k = 0; k < blocks.length; k++) {
           const sd = choice[k];
           if (!sd) continue;
-          const bk = blocks[k];
-          if (bk.uniq[sd] > 0) continue;
-          const sharedOnly = bk.uniq.home === 0 && bk.uniq.away === 0 && bk.num[sd] > 0;
-          const anchored = blocks.some((o, j) => j !== k && choice[j] === sd && o.uniq[sd] > 0);
-          if (!(sharedOnly && anchored)) return;
+          if (blocks[k].uniq[sd] > 0) continue;
+          if (!sharedOk(k, sd, choice)) return;
         }
-        let total = 0, count = 0;
-        choice.forEach((sd, k) => { if (sd) { total += blocks[k].score[sd]; count++; } });
-        if (!best || total > best.total || (total === best.total && count < best.count)) best = { total, count, choice: choice.slice() };
+        let total = 0;
+        choice.forEach((sd, k) => { if (sd) total += blocks[k].score[sd]; });
+        if (total > bestTotal) { bestTotal = total; tops = [choice.slice()]; }
+        else if (total === bestTotal) tops.push(choice.slice());
       };
       const enumerate = k => {
         if (k === blocks.length) { evaluate(); return; }
         for (const sd of [...SIDES, null]) { choice[k] = sd; enumerate(k + 1); }
       };
       enumerate(0);
-      if (best) best.choice.forEach((sd, k) => { blocks[k].side = sd; });
+      // Plusieurs meilleures attributions à égalité : un bloc qui n'a pas le même côté partout → aucun
+      blocks.forEach((b, k) => { b.side = tops.length && tops.every(c => c[k] === tops[0][k]) ? tops[0][k] : null; });
+      // Re-vérifie les blocs "numéros communs" après ces retraits
+      blocks.forEach((b, k) => {
+        if (b.side && b.uniq[b.side] === 0 && !sharedOk(k, b.side, blocks.map(o => o.side))) b.side = null;
+      });
       blocks.forEach(b => {
         const label = b.t.nameOnSheet || stellaT("sans nom", "unnamed");
         if (!b.side) {
           flags.push(stellaT(`Bloc « ${label} » sur la feuille : impossible de savoir quelle équipe (${g.home} ou ${g.away}). Rien n'a été rempli ni marqué Absent pour ce bloc.`,
                              `Block "${label}" on the sheet: can't tell which team (${g.home} or ${g.away}). Nothing was filled or marked Absent for this block.`));
+          return;
+        }
+        if (b.sharedOnly) {
+          flags.push(stellaT(`Bloc « ${label} » (numéros communs seulement) fusionné avec ${nameBySide[b.side]} — vérifie.`,
+                             `Block "${label}" (shared numbers only) merged with ${nameBySide[b.side]} — check it.`));
           return;
         }
         const ot = b.side === "home" ? "away" : "home";
@@ -3918,7 +3937,9 @@ function App() {
         // Blocs de cette équipe, du meilleur score au moins bon : le meilleur gagne en cas de conflit
         const mine = blocks.filter(b => b.side === side).sort((x, y) => y.score[side] - x.score[side]);
         if (!mine.length) return;
-        const anchoredSide = mine.some(b => b.uniq[side] > 0);
+        // Absents auto seulement si les blocs de cette équipe ont au moins 2 numéros propres à elle
+        const ownNums = new Set(); mine.forEach(b => b.uniqNums[side].forEach(n => ownNums.add(n)));
+        const anchoredSide = ownNums.size >= 2;
         teamsFound[side] = true;
         const roster = rosterBySide[side];
         const team = nameBySide[side];
@@ -3995,7 +4016,11 @@ function App() {
           });
         });
         // Joueurs du roster absents de la feuille → Absent (seulement si un bloc est clairement à cette équipe)
-        if (anchoredSide) roster.forEach(p => { if (!matchedPids[p.id]) autoAbsent[p.id] = true; });
+        // Un numéro présent dans un bloc non attribué ne rend personne Absent (le joueur était peut-être là)
+        const unassignedNums = new Set(); blocks.filter(b => !b.side).forEach(b => (b.t.players || []).forEach(sp => { const n = norm(sp.number); if (n) unassignedNums.add(n); }));
+        if (anchoredSide) roster.forEach(p => { if (!matchedPids[p.id] && !unassignedNums.has(norm(p.number))) autoAbsent[p.id] = true; });
+        else if (roster.some(p => !matchedPids[p.id])) flags.push(stellaT(`${team} : trop peu de numéros propres à cette équipe sur la feuille. Personne n'a été marqué Absent automatiquement.`,
+                                `${team}: too few numbers unique to this team on the sheet. Nobody was marked Absent automatically.`));
         const saved = side === "home" ? g.homeScore : g.awayScore;
         const savedN = saved !== undefined && saved !== "" ? parseInt(saved) : NaN;
         const tps = mine.map(b => b.t.teamPointsOnSheet).find(v => Number.isInteger(v));
