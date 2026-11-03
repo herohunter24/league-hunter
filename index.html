@@ -1131,18 +1131,27 @@ function stellaT(fr, en) {
   try { return localStorage.getItem("nls_lang") === "en" ? en : fr; } catch { return fr; }
 }
 // Redimensionne une photo (côté long 1600px, JPEG 0.8) → { media_type, data(base64) }
-function stellaResizeImage(file) {
+// Image > 1,6 Mo après redimensionnement → nouvel essai à 1280px / 0.7, sinon erreur "too_heavy"
+async function stellaPrepareImage(file) {
+  const MAX = 1600 * 1024;
+  const a = await stellaResizeImage(file, 1600, 0.8);
+  if (a.data.length <= MAX) return a;
+  const b = await stellaResizeImage(file, 1280, 0.7);
+  if (b.data.length <= MAX) return b;
+  throw new Error("too_heavy");
+}
+function stellaResizeImage(file, maxEdge = 1600, quality = 0.8) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       try {
-        const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
         const w = Math.max(1, Math.round(img.naturalWidth * scale)), h = Math.max(1, Math.round(img.naturalHeight * scale));
         const c = document.createElement("canvas");
         c.width = w; c.height = h;
         c.getContext("2d").drawImage(img, 0, 0, w, h);
-        const dataUrl = c.toDataURL("image/jpeg", 0.8);
+        const dataUrl = c.toDataURL("image/jpeg", quality);
         URL.revokeObjectURL(url);
         resolve({ media_type: "image/jpeg", data: dataUrl.split(",")[1] || "" });
       } catch (e) { URL.revokeObjectURL(url); reject(e); }
@@ -1709,7 +1718,7 @@ function App() {
   // Stella (remplissage auto du formulaire de stats) — rien n'est enregistré ici
   const [stellaBusy, setStellaBusy] = useState(false);
   const [stellaErr, setStellaErr] = useState("");
-  const [stellaMarks, setStellaMarks] = useState(null); // { gameId, nullCells: {pid:{key:true}}, autoAbsent: {pid:true}, flags: [string] }
+  const [stellaMarks, setStellaMarks] = useState(null); // { gameId, amberCells: {pid:{key:true}}, autoAbsent: {pid:true}, nameMismatch: {pid:true}, flags: [string] }
   const [stellaBanner, setStellaBanner] = useState(false);
   const stellaFileRef = useRef(null);
   useEffect(() => { setStellaBusy(false); setStellaErr(""); setStellaMarks(null); setStellaBanner(false); }, [editStats?.game?.id]);
@@ -3754,9 +3763,18 @@ function App() {
     return { ...es, absent };
   }
   // ── Stella : lit 1-2 photos de feuilles papier et REMPLIT le formulaire (aucun enregistrement) ──
+  function stellaClearCell(pid, key) {
+    setStellaMarks(prev => {
+      if (!prev || !prev.amberCells?.[pid]?.[key]) return prev;
+      const cells = { ...prev.amberCells[pid] };
+      delete cells[key];
+      return { ...prev, amberCells: { ...prev.amberCells, [pid]: cells } };
+    });
+  }
   async function stellaScan(fileList) {
     const files = Array.from(fileList || []);
     if (!files.length || !editStats || !league || stellaBusy) return;
+    setStatsValidationError(null);
     if (files.length > 2) {
       setStellaErr(stellaT("Maximum 2 photos (la feuille officielle et la feuille de stats). Réessaie avec 2 photos ou moins.",
                            "Maximum 2 photos (the official sheet and the stats sheet). Try again with 2 photos or fewer."));
@@ -3766,19 +3784,22 @@ function App() {
     const gameId = g.id;
     const sport = league.sport;
     const toggles = getToggles(league);
+    const activeDefs = getActiveStats(sport, null, toggles);
     // Clés actives du formulaire ; les % (FG%, FT%) deviennent réussis/tentés
     const statKeys = [];
-    getActiveStats(sport, null, toggles).forEach(s => {
-      if (s.madeKey && s.attKey) statKeys.push(s.madeKey, s.attKey); else statKeys.push(s.key);
-    });
+    activeDefs.forEach(s => { if (s.madeKey && s.attKey) statKeys.push(s.madeKey, s.attKey); else statKeys.push(s.key); });
     const homePlayers = league.players.filter(p => p.team === g.home);
     const awayPlayers = league.players.filter(p => p.team === g.away);
+    // Le formulaire contient déjà des chiffres ? → confirmation avant de remplacer
+    const hasExisting = [...homePlayers, ...awayPlayers].some(p => statKeys.some(k => (parseFloat(editStats.stats[p.id]?.[k]) || 0) !== 0));
+    if (hasExisting && !window.confirm(stellaT(`${AGENT_NAME} va remplacer les stats déjà entrées. Continuer ?`,
+                                               `${AGENT_NAME} will replace the stats already entered. Continue?`))) return;
     const rosterOf = list => list.map(p => ({ number: String(p.number ?? ""), name: p.name || "" }));
     setStellaErr("");
     setStellaBusy(true);
     try {
       const images = [];
-      for (const f of files) images.push(await stellaResizeImage(f));
+      for (const f of files) images.push(await stellaPrepareImage(f));
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 75000);
       let r;
@@ -3801,72 +3822,181 @@ function App() {
         throw new Error("server");
       }
 
-      // ── Correspondance côté client : côté → équipe, puis numéro de chandail ──
+      // ── Correspondance côté client (on ne fait jamais confiance au "side" du modèle) ──
       const flags = [];
-      const nullCells = {}, autoAbsent = {}, merged = {}, matchedPids = {};
-      const teamsFound = {};
+      const amberCells = {}, autoAbsent = {}, merged = {}, matchedPids = {}, nameMismatch = {};
+      const keyLabel = k => { for (const d of activeDefs) { if (d.key === k) return d.label; if (d.madeKey === k) return d.madeLabel; if (d.attKey === k) return d.attLabel; } return k; };
+      const markCell = (pid, k) => { (amberCells[pid] = amberCells[pid] || {})[k] = true; };
+      const SIDES = ["home", "away"];
       const rosterBySide = { home: homePlayers, away: awayPlayers };
       const nameBySide = { home: g.home, away: g.away };
-      const norm = s => String(s ?? "").trim().replace(/^#/, "").replace(/^0+(?=\d)/, "");
-      (data.teams || []).forEach(t => {
-        let side = t.side;
-        if (side !== "home" && side !== "away") {
-          // Côté inconnu : on choisit l'équipe dont le roster partage le plus de numéros
-          const nums = (t.players || []).map(p => norm(p.number));
-          const hits = s => rosterBySide[s].filter(p => nums.includes(norm(p.number))).length;
-          const h = hits("home"), a = hits("away");
-          side = h > a ? "home" : a > h ? "away" : null;
-          if (!side) { flags.push(stellaT(`Équipe « ${t.nameOnSheet || "?"} » sur la feuille : impossible de savoir si c'est ${g.home} ou ${g.away}. Non remplie.`,
-                                           `Team "${t.nameOnSheet || "?"}" on the sheet: can't tell if it's ${g.home} or ${g.away}. Not filled.`)); return; }
+      // Numéro : sans espaces ni "#", zéros de tête retirés sauf si le numéro n'est que des zéros ("0" ≠ "00")
+      const norm = n => {
+        const s = String(n ?? "").replace(/\s+/g, "").replace(/^#/, "");
+        if (!s || /^0+$/.test(s)) return s;
+        return s.replace(/^0+/, "");
+      };
+      const txt = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const words = s => txt(s).split(/[^a-z0-9]+/).filter(Boolean);
+      const teamNameMatch = (sheetName, teamName) => {
+        const a = txt(sheetName).replace(/[^a-z0-9]/g, ""), b = txt(teamName).replace(/[^a-z0-9]/g, "");
+        if (!a || !b) return false;
+        if (a.includes(b) || b.includes(a)) return true;
+        const wb = words(teamName).filter(w => w.length >= 3);
+        return words(sheetName).some(w => w.length >= 3 && wb.includes(w));
+      };
+      const rosterNums = side => new Set(rosterBySide[side].map(p => norm(p.number)).filter(Boolean));
+      const blockScore = (t, side) => {
+        const nums = new Set((t.players || []).map(p => norm(p.number)).filter(Boolean));
+        const rn = rosterNums(side);
+        let ov = 0; nums.forEach(n => { if (rn.has(n)) ov++; });
+        return ov + (teamNameMatch(t.nameOnSheet, nameBySide[side]) ? 3 : 0);
+      };
+      const blocks = (data.teams || []).map((t, i) => {
+        const sc = { home: blockScore(t, "home"), away: blockScore(t, "away") };
+        let side = sc.home > sc.away ? "home" : sc.away > sc.home ? "away" : (sc.home > 0 && SIDES.includes(t.side) ? t.side : null);
+        return { t, i, sc, side };
+      });
+      // Deux blocs sur le même côté et l'autre côté vide → le bloc le plus plausible pour l'autre côté y va
+      SIDES.forEach(side => {
+        const other = side === "home" ? "away" : "home";
+        const here = blocks.filter(b => b.side === side);
+        if (here.length >= 2 && !blocks.some(b => b.side === other)) {
+          const cand = here.slice().sort((x, y) => (y.sc[other] - y.sc[side]) - (x.sc[other] - x.sc[side]))[0];
+          if (cand.sc[other] > 0) cand.side = other;
         }
-        if (teamsFound[side]) { flags.push(stellaT(`Deux blocs de la feuille semblent être ${nameBySide[side]}. Seul le premier a été utilisé.`,
-                                                   `Two sheet blocks look like ${nameBySide[side]}. Only the first was used.`)); return; }
+      });
+      blocks.forEach(b => {
+        const label = b.t.nameOnSheet || "?";
+        if (!b.side) {
+          flags.push(stellaT(`Bloc « ${label} » sur la feuille : impossible de savoir si c'est ${g.home} ou ${g.away}. Non rempli.`,
+                             `Block "${label}" on the sheet: can't tell if it's ${g.home} or ${g.away}. Not filled.`));
+        } else if (SIDES.includes(b.t.side) && b.t.side !== b.side) {
+          flags.push(stellaT(`Bloc « ${label} » : ${AGENT_NAME} l'avait mis pour ${nameBySide[b.t.side]}, corrigé à ${nameBySide[b.side]} selon les numéros et le nom. Vérifie.`,
+                             `Block "${label}": ${AGENT_NAME} had it as ${nameBySide[b.t.side]}, corrected to ${nameBySide[b.side]} from the numbers and name. Check it.`));
+        }
+      });
+      const shortName = name => { const w = String(name || "").trim().split(/\s+/); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(" ")}` : (w[0] || ""); };
+      const nameOk = (sheet, rosterName) => {
+        const st = words(sheet);
+        if (!st.length) return true;
+        const rt = words(rosterName);
+        if (!rt.length) return true;
+        const long = st.filter(w => w.length > 1);
+        if (long.length) return long.some(w => rt.some(r => r.length > 1 && (r === w || r.startsWith(w) || w.startsWith(r))));
+        const initials = new Set(rt.map(r => r[0]));
+        return st.every(w => initials.has(w[0]));
+      };
+      const teamsFound = {};
+      SIDES.forEach(side => {
+        const mine = blocks.filter(b => b.side === side);
+        if (!mine.length) return;
         teamsFound[side] = true;
         const roster = rosterBySide[side];
-        const seen = {};
-        let ptsSum = 0, ptsAny = false;
-        (t.players || []).forEach(sp => {
-          const num = norm(sp.number);
-          if (seen[num]) { flags.push(stellaT(`${nameBySide[side]} : le numéro #${sp.number} apparaît plusieurs fois sur la feuille.`,
-                                              `${nameBySide[side]}: number #${sp.number} appears more than once on the sheet.`)); return; }
-          seen[num] = true;
-          if (Number.isInteger(sp.stats?.points)) { ptsSum += sp.stats.points; ptsAny = true; }
+        const team = nameBySide[side];
+        if (mine.length > 1) flags.push(stellaT(`${team} : ${mine.length} blocs sur les feuilles, fusionnés par numéro.`, `${team}: ${mine.length} blocks on the sheets, merged by number.`));
+        // Fusion par numéro : la première valeur non nulle gagne ; conflit → on garde la première, case en orange
+        const byNum = {}, order = [], conflicts = {};
+        mine.forEach(b => {
+          const seenInBlock = {};
+          (b.t.players || []).forEach(sp => {
+            const num = norm(sp.number);
+            if (!num) { flags.push(stellaT(`${team} : une ligne sans numéro lisible sur la feuille${sp.nameOnSheet ? ` (${sp.nameOnSheet})` : ""}.`,
+                                           `${team}: a row with no readable number on the sheet${sp.nameOnSheet ? ` (${sp.nameOnSheet})` : ""}.`)); return; }
+            if (seenInBlock[num]) flags.push(stellaT(`${team} : le numéro #${sp.number} apparaît plusieurs fois sur la feuille.`, `${team}: number #${sp.number} appears more than once on the sheet.`));
+            seenInBlock[num] = true;
+            const unread = sp.unreadable || [];
+            if (!byNum[num]) { byNum[num] = { number: sp.number, nameOnSheet: sp.nameOnSheet, stats: {}, unread: new Set() }; order.push(num); }
+            const e = byNum[num];
+            if (!e.nameOnSheet && sp.nameOnSheet) e.nameOnSheet = sp.nameOnSheet;
+            statKeys.forEach(k => {
+              const v = sp.stats ? sp.stats[k] : null;
+              const ok = Number.isInteger(v) && !unread.includes(k);
+              if (!ok) { if (e.stats[k] === undefined) e.unread.add(k); return; }
+              if (e.stats[k] === undefined) { e.stats[k] = v; e.unread.delete(k); }
+              else if (e.stats[k] !== v) { (conflicts[num] = conflicts[num] || {})[k] = [e.stats[k], v]; }
+            });
+          });
+        });
+        let ptsSum = 0, ptsAny = false, matchedHere = 0;
+        const pending = {};
+        order.forEach(num => {
+          const e = byNum[num];
+          if (Number.isInteger(e.stats.points)) { ptsSum += e.stats.points; ptsAny = true; }
           const matches = roster.filter(p => norm(p.number) === num);
           if (matches.length !== 1) {
             flags.push(matches.length === 0
-              ? stellaT(`${nameBySide[side]} : #${sp.number}${sp.nameOnSheet ? " " + sp.nameOnSheet : ""} est sur la feuille mais pas dans le roster.`,
-                        `${nameBySide[side]}: #${sp.number}${sp.nameOnSheet ? " " + sp.nameOnSheet : ""} is on the sheet but not on the roster.`)
-              : stellaT(`${nameBySide[side]} : plusieurs joueurs du roster portent le #${sp.number}. Non rempli.`,
-                        `${nameBySide[side]}: several roster players wear #${sp.number}. Not filled.`));
+              ? stellaT(`${team} : #${e.number}${e.nameOnSheet ? " " + e.nameOnSheet : ""} est sur la feuille mais pas dans le roster.`,
+                        `${team}: #${e.number}${e.nameOnSheet ? " " + e.nameOnSheet : ""} is on the sheet but not on the roster.`)
+              : stellaT(`${team} : plusieurs joueurs du roster portent le #${e.number}. Non rempli.`,
+                        `${team}: several roster players wear #${e.number}. Not filled.`));
             return;
           }
-          const pid = matches[0].id;
-          matchedPids[pid] = true;
-          merged[pid] = {};
-          const unread = sp.unreadable || [];
-          statKeys.forEach(k => {
-            const v = sp.stats ? sp.stats[k] : null;
-            if (v === null || v === undefined || unread.includes(k)) { (nullCells[pid] = nullCells[pid] || {})[k] = true; return; }
-            merged[pid][k] = String(v);
+          const p = matches[0], pid = p.id;
+          matchedHere++;
+          pending[pid] = e;
+          if (e.nameOnSheet && !nameOk(e.nameOnSheet, p.name)) {
+            nameMismatch[pid] = true;
+            flags.push(stellaT(`#${e.number} : feuille = ${e.nameOnSheet}, alignement = ${shortName(p.name)} — vérifie.`,
+                               `#${e.number}: sheet = ${e.nameOnSheet}, lineup = ${shortName(p.name)} — check it.`));
+          }
+          Object.keys(conflicts[num] || {}).forEach(k => {
+            const [a, b2] = conflicts[num][k];
+            markCell(pid, k);
+            flags.push(stellaT(`${team} #${e.number} : deux valeurs pour ${keyLabel(k)} (${a} et ${b2}). ${a} gardé — vérifie.`,
+                               `${team} #${e.number}: two values for ${keyLabel(k)} (${a} and ${b2}). Kept ${a} — check it.`));
           });
         });
-        // Joueurs du roster absents de la feuille → Absent (seulement si le bloc de l'équipe a été trouvé)
+        if (matchedHere === 0) {
+          // Aucun joueur reconnu : on ne marque personne Absent
+          flags.push(stellaT(`${team} : aucun numéro de la feuille ne correspond au roster. Rien n'a été rempli ni marqué Absent pour cette équipe.`,
+                             `${team}: no number on the sheet matches the roster. Nothing was filled or marked Absent for this team.`));
+          return;
+        }
+        Object.keys(pending).forEach(pid => {
+          const e = pending[pid];
+          matchedPids[pid] = true;
+          merged[pid] = {};
+          statKeys.forEach(k => {
+            if (e.stats[k] === undefined) { markCell(pid, k); return; }
+            const newV = String(e.stats[k]);
+            const oldN = parseFloat(editStats.stats[pid]?.[k]) || 0;
+            if (oldN !== 0 && oldN !== e.stats[k]) markCell(pid, k); // valeur déjà entrée remplacée
+            merged[pid][k] = newV;
+          });
+        });
+        // Joueurs du roster absents de la feuille → Absent
         roster.forEach(p => { if (!matchedPids[p.id]) autoAbsent[p.id] = true; });
         const saved = side === "home" ? g.homeScore : g.awayScore;
         const savedN = saved !== undefined && saved !== "" ? parseInt(saved) : NaN;
+        const tps = mine.map(b => b.t.teamPointsOnSheet).find(v => Number.isInteger(v));
         if (!isNaN(savedN)) {
-          if (ptsAny && ptsSum !== savedN) flags.push(stellaT(`${nameBySide[side]} : la somme des points lus (${ptsSum}) ≠ score enregistré (${savedN}).`,
-                                                              `${nameBySide[side]}: sum of points read (${ptsSum}) ≠ saved score (${savedN}).`));
-          if (Number.isInteger(t.teamPointsOnSheet) && t.teamPointsOnSheet !== savedN) flags.push(stellaT(`${nameBySide[side]} : total d'équipe sur la feuille (${t.teamPointsOnSheet}) ≠ score enregistré (${savedN}).`,
-                                                              `${nameBySide[side]}: team total on the sheet (${t.teamPointsOnSheet}) ≠ saved score (${savedN}).`));
+          if (ptsAny && ptsSum !== savedN) flags.push(stellaT(`${team} : la somme des points lus (${ptsSum}) ≠ score enregistré (${savedN}).`,
+                                                              `${team}: sum of points read (${ptsSum}) ≠ saved score (${savedN}).`));
+          if (tps !== undefined && tps !== savedN) flags.push(stellaT(`${team} : total d'équipe sur la feuille (${tps}) ≠ score enregistré (${savedN}).`,
+                                                                     `${team}: team total on the sheet (${tps}) ≠ saved score (${savedN}).`));
         }
       });
-      const fs = data.finalScore || {};
-      [["home", g.homeScore], ["away", g.awayScore]].forEach(([s, saved]) => {
-        const savedN = saved !== undefined && saved !== "" ? parseInt(saved) : NaN;
-        if (Number.isInteger(fs[s]) && !isNaN(savedN) && fs[s] !== savedN) flags.push(stellaT(`${nameBySide[s]} : score sur la feuille (${fs[s]}) ≠ score enregistré (${savedN}).`,
-                                                                                            `${nameBySide[s]}: score on the sheet (${fs[s]}) ≠ saved score (${savedN}).`));
+      // Score final : associé par NOM d'équipe (le côté du modèle n'est qu'un indice)
+      const sheetScore = {};
+      (Array.isArray(data.finalScore) ? data.finalScore : []).forEach(fs => {
+        if (!Number.isInteger(fs?.points)) return;
+        const mh = teamNameMatch(fs.teamName, g.home), ma = teamNameMatch(fs.teamName, g.away);
+        const side = mh && !ma ? "home" : ma && !mh ? "away" : (SIDES.includes(fs.side) ? fs.side : null);
+        if (side && sheetScore[side] === undefined) sheetScore[side] = fs.points;
       });
+      const hasSaved = g.homeScore !== undefined && g.homeScore !== "" && g.awayScore !== undefined && g.awayScore !== "";
+      if (hasSaved) {
+        SIDES.forEach(side => {
+          const savedN = parseInt(side === "home" ? g.homeScore : g.awayScore);
+          if (sheetScore[side] !== undefined && !isNaN(savedN) && sheetScore[side] !== savedN) flags.push(stellaT(`${nameBySide[side]} : score sur la feuille (${sheetScore[side]}) ≠ score enregistré (${savedN}).`,
+                                                                                                                `${nameBySide[side]}: score on the sheet (${sheetScore[side]}) ≠ saved score (${savedN}).`));
+        });
+      } else if (sheetScore.home !== undefined || sheetScore.away !== undefined) {
+        const sh = sheetScore.home ?? "?", sa = sheetScore.away ?? "?";
+        flags.unshift(stellaT(`Score lu sur la feuille : ${g.home} ${sh} – ${g.away} ${sa}, entre-le dans Score.`,
+                              `Score read on the sheet: ${g.home} ${sh} – ${g.away} ${sa}, enter it in Score.`));
+      }
       if (!teamsFound.home && homePlayers.length) flags.push(stellaT(`${g.home} : introuvable sur la feuille. Rien n'a été rempli pour cette équipe.`, `${g.home}: not found on the sheet. Nothing was filled for this team.`));
       if (!teamsFound.away && awayPlayers.length) flags.push(stellaT(`${g.away} : introuvable sur la feuille. Rien n'a été rempli pour cette équipe.`, `${g.away}: not found on the sheet. Nothing was filled for this team.`));
       if (data.confidence === "low") flags.push(stellaT(`${AGENT_NAME} n'est pas très sûre de sa lecture. Vérifie chaque chiffre.`, `${AGENT_NAME} is not very confident in this reading. Check every number.`));
@@ -3878,7 +4008,7 @@ function App() {
         const stats = { ...prev.stats };
         Object.keys(merged).forEach(pid => {
           const cur = { ...(stats[pid] || {}), ...merged[pid] };
-          getActiveStats(sport, null, toggles).forEach(s => {
+          activeDefs.forEach(s => {
             if (s.madeKey && s.attKey && (merged[pid][s.madeKey] !== undefined || merged[pid][s.attKey] !== undefined)) {
               const mm = parseFloat(cur[s.madeKey]) || 0, aa = parseFloat(cur[s.attKey]) || 0;
               cur[s.key] = aa > 0 ? Math.round((mm / aa) * 1000) / 10 : 0;
@@ -3891,7 +4021,7 @@ function App() {
         Object.keys(autoAbsent).forEach(pid => { absent[pid] = true; });
         return { ...prev, stats, absent };
       });
-      setStellaMarks({ gameId, nullCells, autoAbsent, flags });
+      setStellaMarks({ gameId, amberCells, autoAbsent, nameMismatch, flags });
       setStellaBanner(true);
     } catch (e) {
       const k = e?.name === "AbortError" ? "timeout" : e?.message;
@@ -3900,6 +4030,7 @@ function App() {
         : k === "missing_key" ? stellaT(`${AGENT_NAME} n'est pas encore configurée sur le serveur. Entre les stats à la main pour l'instant.`, `${AGENT_NAME} is not configured on the server yet. Enter the stats by hand for now.`)
         : k === "timeout" ? stellaT(`${AGENT_NAME} a pris trop de temps. Réessaie avec des photos plus nettes.`, `${AGENT_NAME} took too long. Try again with sharper photos.`)
         : k === "server" ? stellaT(`${AGENT_NAME} n'a pas pu lire les feuilles. Réessaie ou entre les stats à la main.`, `${AGENT_NAME} couldn't read the sheets. Try again or enter the stats by hand.`)
+        : k === "too_heavy" ? stellaT("Photo trop lourde, même réduite. Reprends-la de plus près ou en plus basse résolution.", "Photo too heavy, even after shrinking. Retake it closer or at a lower resolution.")
         : k === "image_load" ? stellaT("Impossible d'ouvrir cette photo. Prends-la en JPEG ou PNG et réessaie.", "Can't open this photo. Use a JPEG or PNG and try again.")
         : stellaT(`Impossible de joindre ${AGENT_NAME}. Vérifie ta connexion et réessaie.`, `Can't reach ${AGENT_NAME}. Check your connection and try again.`)
       );
@@ -7903,23 +8034,6 @@ service cloud.firestore {
                 <div style={{ padding: "20px 28px 16px", borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>
                   <div style={{ fontSize: 17, fontWeight: 700 }}>Player Stats</div>
                   <div style={{ fontSize: 13, color: T2, marginTop: 4 }}>{g.home} vs {g.away} · {g.date}{g.venue ? " · " + g.venue : ""}</div>
-                  {sport === "Basketball" && gamePlayers.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <button type="button" disabled={stellaBusy || saving} onClick={() => { setStellaErr(""); stellaFileRef.current && stellaFileRef.current.click(); }}
-                        style={{ ...btn("#7c3aed"), width: "100%", height: "auto", minHeight: 44, whiteSpace: "normal", justifyContent: "center", textAlign: "center", padding: "11px 16px", fontSize: 14, fontWeight: 700, opacity: stellaBusy ? 0.6 : 1 }}>
-                        {stellaT(`✨ Remplir automatiquement avec ${AGENT_NAME}`, `✨ Auto-fill with ${AGENT_NAME}`)}
-                      </button>
-                      <div style={{ fontSize: 11, color: T2, marginTop: 6, textAlign: "center" }}>
-                        {stellaT("Prends en photo la feuille officielle et la feuille de stats (2 photos max, dans n'importe quel ordre).",
-                                 "Take a photo of the official sheet and the stats sheet (2 photos max, any order).")}
-                      </div>
-                      <input ref={stellaFileRef} type="file" accept="image/*" multiple style={{ display: "none" }}
-                        onChange={e => { const f = e.target.files; stellaScan(f); e.target.value = ""; }} />
-                      {stellaErr && (
-                        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, border: "1px solid #ef444455", background: "#ef44440d", color: "#f8b4b4", fontSize: 12.5 }}>{stellaErr}</div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* ── Stella : lecture en cours ── */}
@@ -7950,6 +8064,32 @@ service cloud.firestore {
 
                 {/* Scrollable body */}
                 <div style={{ overflowY: "auto", padding: "16px 28px", flex: 1 }}>
+                  {sport === "Basketball" && gamePlayers.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      {sm ? (
+                        <button type="button" disabled={stellaBusy || saving} onClick={() => { setStellaErr(""); stellaFileRef.current && stellaFileRef.current.click(); }}
+                          style={{ background: "none", border: "none", padding: 0, color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
+                          {stellaT(`✨ Rescanner avec ${AGENT_NAME}`, `✨ Rescan with ${AGENT_NAME}`)}
+                        </button>
+                      ) : (
+                        <>
+                          <button type="button" disabled={stellaBusy || saving} onClick={() => { setStellaErr(""); stellaFileRef.current && stellaFileRef.current.click(); }}
+                            style={{ ...btn("#7c3aed"), width: "100%", height: "auto", minHeight: 44, whiteSpace: "normal", justifyContent: "center", textAlign: "center", padding: "11px 16px", fontSize: 14, fontWeight: 700, opacity: stellaBusy ? 0.6 : 1 }}>
+                            {stellaT(`✨ Remplir automatiquement avec ${AGENT_NAME}`, `✨ Auto-fill with ${AGENT_NAME}`)}
+                          </button>
+                          <div style={{ fontSize: 11, color: T2, marginTop: 6, textAlign: "center" }}>
+                            {stellaT("Prends en photo la feuille officielle et la feuille de stats (2 photos max, dans n'importe quel ordre).",
+                                     "Take a photo of the official sheet and the stats sheet (2 photos max, any order).")}
+                          </div>
+                        </>
+                      )}
+                      <input ref={stellaFileRef} type="file" accept="image/*" multiple style={{ display: "none" }}
+                        onChange={e => { const f = e.target.files; stellaScan(f); e.target.value = ""; }} />
+                      {stellaErr && (
+                        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, border: "1px solid #ef444455", background: "#ef44440d", color: "#f8b4b4", fontSize: 12.5 }}>{stellaErr}</div>
+                      )}
+                    </div>
+                  )}
                   {sm && stellaBanner && (
                     <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 8, border: `1px solid ${AMBER}80`, background: `${AMBER}12` }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
@@ -7966,8 +8106,8 @@ service cloud.firestore {
                         </ul>
                       )}
                       <div style={{ fontSize: 11, color: T2, marginTop: 8 }}>
-                        {stellaT("Les cases en orange n'ont pas pu être lues ; les joueurs marqués Absent n'étaient pas sur la feuille.",
-                                 "Orange boxes couldn't be read; players marked Absent weren't on the sheet.")}
+                        {stellaT("Cases en orange : illisibles, en conflit ou remplacées, à vérifier. Cartes en orange : joueur pas sur la feuille (Absent) ou nom différent.",
+                                 "Orange boxes: unreadable, conflicting or replaced, check them. Orange cards: player not on the sheet (Absent) or different name.")}
                       </div>
                     </div>
                   )}
@@ -7984,9 +8124,10 @@ service cloud.firestore {
                           const isAbsent = !!absentMap[p.id];
                           const toggleAbsent = () => setEditStats(prev => ({ ...prev, absent: { ...(prev.absent || {}), [p.id]: !(prev.absent || {})[p.id] } }));
                           const stellaAbsent = isAbsent && !!sm?.autoAbsent?.[p.id];
-                          const nullCell = k => !!sm?.nullCells?.[p.id]?.[k];
+                          const nullCell = k => !!sm?.amberCells?.[p.id]?.[k];
+                          const nameFlag = !!sm?.nameMismatch?.[p.id] && !isAbsent;
                           return (
-                            <div key={p.id} style={{ marginBottom: 16, padding: "12px 14px", background: stellaAbsent ? "#f59e0b12" : "#ffffff06", borderRadius: 8, border: `${stellaAbsent ? 2 : 1}px solid ${stellaAbsent ? "#f59e0b" : isAbsent ? "#f59e0b55" : BORDER}`, opacity: isAbsent && !stellaAbsent ? 0.75 : 1 }}>
+                            <div key={p.id} style={{ marginBottom: 16, padding: "12px 14px", background: stellaAbsent || nameFlag ? "#f59e0b12" : "#ffffff06", borderRadius: 8, border: `${stellaAbsent || nameFlag ? 2 : 1}px solid ${stellaAbsent || nameFlag ? "#f59e0b" : isAbsent ? "#f59e0b55" : BORDER}`, opacity: isAbsent && !stellaAbsent ? 0.75 : 1 }}>
                               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                                 {p.photoUrl
                                   ? <img src={p.photoUrl} alt={p.name} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: `1px solid ${BORDER}` }} />
@@ -8013,12 +8154,12 @@ service cloud.firestore {
                                     const att  = ps[attKey]  === undefined ? 0 : ps[attKey];
                                     const m = parseFloat(made) || 0, a = parseFloat(att) || 0;
                                     const pct = a > 0 ? Math.round((m / a) * 1000) / 10 : 0;
-                                    const setMA = (field, val) => setEditStats(prev => {
+                                    const setMA = (field, val) => { stellaClearCell(p.id, field); setEditStats(prev => {
                                       const cur = { ...(prev.stats[p.id] || {}), [field]: val };
                                       const mm = parseFloat(cur[madeKey]) || 0, aa = parseFloat(cur[attKey]) || 0;
                                       cur[key] = aa > 0 ? Math.round((mm / aa) * 1000) / 10 : 0;
                                       return { ...prev, stats: { ...prev.stats, [p.id]: cur } };
-                                    });
+                                    }); };
                                     return (
                                       <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "4px 8px", borderRadius: 8, background: "#ffffff05", border: `1px solid ${BORDER}` }}>
                                         <span style={{ fontSize: 10, color: T2, fontWeight: 700, letterSpacing: "0.05em", textAlign: "center" }}>{label} <span style={{ color: a > 0 ? ACC : T2 }}>= {pct}%</span></span>
@@ -8045,10 +8186,10 @@ service cloud.firestore {
                                         type="number" min="0" max={isPct ? 100 : undefined}
                                         style={{ ...inp, width: 64, padding: "6px 6px", textAlign: "center", fontSize: 14, fontWeight: 600, ...(nullCell(key) ? { border: `2px solid ${AMBER}`, background: `${AMBER}1a` } : {}) }}
                                         value={ps[key] === undefined ? 0 : ps[key]}
-                                        onChange={e => setEditStats(prev => ({
+                                        onChange={e => { stellaClearCell(p.id, key); setEditStats(prev => ({
                                           ...prev,
                                           stats: { ...prev.stats, [p.id]: { ...prev.stats[p.id], [key]: e.target.value } }
-                                        }))}
+                                        })); }}
                                       />
                                     </div>
                                   );

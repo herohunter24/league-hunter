@@ -9,6 +9,8 @@ const FIREBASE_PROJECT_ID = 'league-hunter';
 const MODEL = 'claude-sonnet-5-5';
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_IMAGE_B64 = 1600 * 1024;
+const AUTH_TIMEOUT_MS = 10000;
+const TOTAL_BUDGET_MS = 57000; // garde le total sous maxDuration (60s)
 const MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 // Every stat key the stats form can hold. Anything else is dropped.
 const KNOWN_KEYS = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'threes',
@@ -28,19 +30,28 @@ function fsValue(v) {
   return undefined;
 }
 
+async function fetchWithTimeout(url, opts, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); } finally { clearTimeout(t); }
+}
+
 async function checkAccess(idToken, leagueId) {
-  const lr = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
+  const lr = await fetchWithTimeout(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken }),
-  });
+  }, AUTH_TIMEOUT_MS);
   if (!lr.ok) return 401;
   const lj = await lr.json().catch(() => ({}));
-  const uid = lj?.users?.[0]?.localId;
+  const acct = lj?.users?.[0];
+  const uid = acct?.localId;
   if (!uid) return 401;
-  const ur = await fetch(
+  if (acct.disabled) return 403;
+  const ur = await fetchWithTimeout(
     `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${encodeURIComponent(uid)}`,
     { headers: { Authorization: 'Bearer ' + idToken } },
+    AUTH_TIMEOUT_MS,
   );
   if (!ur.ok) return 403;
   const uj = await ur.json().catch(() => ({}));
@@ -75,7 +86,7 @@ Il y a 1 ou 2 photos, dans n'importe quel ordre. Types de feuilles possibles :
    - IMPORTANT : le champ "Opponent" de chaque bloc contient en réalité le nom de l'équipe listée DANS ce bloc, pas son adversaire. N'assigne jamais un côté (home/away) à partir de cette étiquette seule : compare les numéros de chandail aux deux rosters ci-dessus, et le nom d'équipe.
    - Les chiffres et totaux écrits à la main peuvent être décalés d'une demi-ligne par rapport à la grille imprimée. Aligne chaque total au numéro de chandail de la même ligne, et ajoute un avertissement (warnings) quand l'alignement est ambigu (indique le numéro).
 
-2) Feuille officielle Exposure ("NLS PREMIER LEAGUE S02", blocs AWAY/HOME avec # + NAME + FOULS 1-5, score cumulatif, cases AWAY/HOME FINAL SCORE) : lis finalScore dans les cases FINAL SCORE (ex. away 38, home 48). Si la clé "fouls" fait partie des clés demandées, fouls = nombre de cases barrées dans FOULS 1-5. Changements de roster écrits à la main (nom rayé remplacé par un autre) → ajoute un avertissement avec le numéro + le nouveau nom.
+2) Feuille officielle Exposure de la ligue (blocs AWAY/HOME avec # + NAME + FOULS 1-5, score cumulatif, cases AWAY/HOME FINAL SCORE) : lis le score final dans les cases FINAL SCORE. Dans finalScore, donne une entrée par équipe : { teamName: nom de l'équipe tel qu'écrit sur la feuille, points: score final, side: "home"/"away" selon la case (simple indice) } — par ex. [{ teamName: "<équipe A>", points: <score A>, side: "away" }, { teamName: "<équipe B>", points: <score B>, side: "home" }]. Si la clé "fouls" fait partie des clés demandées, fouls = nombre de cases barrées dans FOULS 1-5. Changements de roster écrits à la main (nom rayé remplacé par un autre) → ajoute un avertissement avec le numéro + le nouveau nom.
 
 3) Les photos peuvent montrer les bords d'autres feuilles superposées (autres matchs). Ignore les feuilles partielles coupées aux bords de la photo.
 
@@ -85,7 +96,7 @@ Règles :
 - Si tu n'es pas sûr d'une valeur, mets null et ajoute la clé dans "unreadable" pour ce joueur.
 - Numéro de chandail exactement comme écrit (texte).
 - Les feuilles peuvent être en français (PTS, REB, PD/AST, INT/STL, CTR/BLK, fautes).
-- side = "home" ou "away" selon le match aux rosters ; "unknown" si tu ne peux pas décider.
+- Pour chaque bloc d'équipe, nameOnSheet = le nom d'équipe écrit dans ce bloc. side = "home" ou "away" selon le match aux rosters (simple indice) ; "unknown" si tu ne peux pas décider.
 - Combine les deux photos : un même joueur ne doit apparaître qu'une fois par équipe.
 - Mets tes doutes dans warnings (en français, courts).
 
@@ -102,9 +113,16 @@ function buildTool(statKeys) {
       type: 'object',
       properties: {
         finalScore: {
-          type: 'object',
-          properties: { home: { type: ['integer', 'null'] }, away: { type: ['integer', 'null'] } },
-          required: ['home', 'away'],
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              teamName: { type: ['string', 'null'] },
+              points: { type: ['integer', 'null'] },
+              side: { type: 'string', enum: ['home', 'away', 'unknown'] },
+            },
+            required: ['teamName', 'points'],
+          },
         },
         teams: {
           type: 'array',
@@ -128,7 +146,7 @@ function buildTool(statKeys) {
                 },
               },
             },
-            required: ['side', 'players'],
+            required: ['side', 'nameOnSheet', 'players'],
           },
         },
         warnings: { type: 'array', items: { type: 'string' } },
@@ -163,7 +181,11 @@ function sanitize(out, statKeys) {
     }),
   }));
   return {
-    finalScore: { home: intOrNull(o.finalScore?.home), away: intOrNull(o.finalScore?.away) },
+    finalScore: (Array.isArray(o.finalScore) ? o.finalScore : []).slice(0, 4).map(f => ({
+      teamName: str(f?.teamName),
+      points: intOrNull(f?.points),
+      side: ['home', 'away'].includes(f?.side) ? f.side : 'unknown',
+    })),
     teams,
     warnings: (Array.isArray(o.warnings) ? o.warnings : []).filter(w => typeof w === 'string').slice(0, 20).map(w => w.slice(0, 300)),
     confidence: ['high', 'medium', 'low'].includes(o.confidence) ? o.confidence : 'low',
@@ -171,6 +193,7 @@ function sanitize(out, statKeys) {
 }
 
 export default async function handler(req, res) {
+  const startedAt = Date.now();
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return send(res, 405, { error: 'method_not_allowed' }); }
 
   const len = parseInt(req.headers['content-length'] || '0', 10);
@@ -213,7 +236,9 @@ export default async function handler(req, res) {
   ];
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 55000);
+  const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt);
+  if (remaining < 5000) return send(res, 504, { error: 'timeout' });
+  const timer = setTimeout(() => ctrl.abort(), remaining);
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -236,6 +261,10 @@ export default async function handler(req, res) {
       return send(res, 502, { error: 'ai_failed' });
     }
     const j = await r.json();
+    if (j.stop_reason === 'max_tokens') {
+      console.error('scan-stats: max_tokens reached');
+      return send(res, 502, { error: 'ai_truncated' });
+    }
     const block = (j.content || []).find(c => c.type === 'tool_use' && c.name === 'report_stat_sheet');
     if (!block) return send(res, 502, { error: 'ai_no_result' });
     return send(res, 200, sanitize(block.input, statKeys));
