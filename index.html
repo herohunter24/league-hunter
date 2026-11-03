@@ -3838,12 +3838,15 @@ function App() {
       };
       const txt = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const words = s => txt(s).split(/[^a-z0-9]+/).filter(Boolean);
+      // Mots génériques ignorés (catégories/genre) : CM, CF, M, F
+      const GENERIC = new Set(["cm", "cf", "m", "f"]);
+      const teamWords = s => words(s).filter(w => !GENERIC.has(w));
       const teamNameMatch = (sheetName, teamName) => {
-        const a = txt(sheetName).replace(/[^a-z0-9]/g, ""), b = txt(teamName).replace(/[^a-z0-9]/g, "");
-        if (!a || !b) return false;
+        const a = teamWords(sheetName).join(""), b = teamWords(teamName).join("");
+        if (a.length < 3 || b.length < 3) return false;
         if (a.includes(b) || b.includes(a)) return true;
-        const wb = words(teamName).filter(w => w.length >= 3);
-        return words(sheetName).some(w => w.length >= 3 && wb.includes(w));
+        const wb = teamWords(teamName).filter(w => w.length >= 3);
+        return teamWords(sheetName).some(w => w.length >= 3 && wb.includes(w));
       };
       const rosterNums = side => new Set(rosterBySide[side].map(p => norm(p.number)).filter(Boolean));
       const blockScore = (t, side) => {
@@ -3862,8 +3865,11 @@ function App() {
         const other = side === "home" ? "away" : "home";
         const here = blocks.filter(b => b.side === side);
         if (here.length >= 2 && !blocks.some(b => b.side === other)) {
-          const cand = here.slice().sort((x, y) => (y.sc[other] - y.sc[side]) - (x.sc[other] - x.sc[side]))[0];
-          if (cand.sc[other] > 0) cand.side = other;
+          // On ne déplace un bloc que si son nom correspond à l'autre équipe (et pas à la sienne)
+          // ou s'il colle strictement mieux à l'autre roster ; sinon (égalité incluse) il reste et sera fusionné
+          const nameOther = b => teamNameMatch(b.t.nameOnSheet, nameBySide[other]) && !teamNameMatch(b.t.nameOnSheet, nameBySide[side]);
+          const cand = here.find(nameOther) || here.slice().sort((x, y) => (y.sc[other] - y.sc[side]) - (x.sc[other] - x.sc[side]))[0];
+          if (nameOther(cand) || cand.sc[other] > cand.sc[side]) cand.side = other;
         }
       });
       blocks.forEach(b => {
@@ -4000,7 +4006,13 @@ function App() {
       if (!teamsFound.home && homePlayers.length) flags.push(stellaT(`${g.home} : introuvable sur la feuille. Rien n'a été rempli pour cette équipe.`, `${g.home}: not found on the sheet. Nothing was filled for this team.`));
       if (!teamsFound.away && awayPlayers.length) flags.push(stellaT(`${g.away} : introuvable sur la feuille. Rien n'a été rempli pour cette équipe.`, `${g.away}: not found on the sheet. Nothing was filled for this team.`));
       if (data.confidence === "low") flags.push(stellaT(`${AGENT_NAME} n'est pas très sûre de sa lecture. Vérifie chaque chiffre.`, `${AGENT_NAME} is not very confident in this reading. Check every number.`));
-      (data.warnings || []).forEach(w => flags.push(`${AGENT_NAME} : ${w}`));
+      // Pas de doublon : un avertissement de Stella sur un # déjà signalé (nom différent) est retiré
+      const mismatchNums = new Set(Object.keys(nameMismatch).map(pid => norm(league.players.find(p => String(p.id) === String(pid))?.number)).filter(Boolean));
+      (data.warnings || []).forEach(w => {
+        const nums = [...String(w).matchAll(/#\s*(\d+)/g)].map(m => norm(m[1]));
+        if (nums.some(n => mismatchNums.has(n))) return;
+        flags.push(`${AGENT_NAME} : ${w}`);
+      });
 
       // Fusion dans le formulaire (seulement joueurs reconnus + valeurs non nulles)
       setEditStats(prev => {
