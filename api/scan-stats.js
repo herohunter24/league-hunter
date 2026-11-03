@@ -86,7 +86,7 @@ Il y a 1 ou 2 photos, dans n'importe quel ordre. Types de feuilles possibles :
    - IMPORTANT : le champ "Opponent" de chaque bloc contient en réalité le nom de l'équipe listée DANS ce bloc, pas son adversaire. N'assigne jamais un côté (home/away) à partir de cette étiquette seule : compare les numéros de chandail aux deux rosters ci-dessus, et le nom d'équipe.
    - Les chiffres et totaux écrits à la main peuvent être décalés d'une demi-ligne par rapport à la grille imprimée. Aligne chaque total au numéro de chandail de la même ligne, et ajoute un avertissement (warnings) quand l'alignement est ambigu (indique le numéro).
 
-2) Feuille officielle Exposure de la ligue (blocs AWAY/HOME avec # + NAME + FOULS 1-5, score cumulatif, cases AWAY/HOME FINAL SCORE) : lis le score final dans les cases FINAL SCORE. Dans finalScore, donne une entrée par équipe : { teamName: nom de l'équipe tel qu'écrit sur la feuille, points: score final, side: "home"/"away" selon la case (simple indice) } — par ex. [{ teamName: "<équipe A>", points: <score A>, side: "away" }, { teamName: "<équipe B>", points: <score B>, side: "home" }]. Si la clé "fouls" fait partie des clés demandées, fouls = nombre de cases barrées dans FOULS 1-5. Changements de roster écrits à la main (nom rayé remplacé par un autre) → ajoute un avertissement avec le numéro + le nouveau nom.
+2) Feuille officielle Exposure de la ligue (blocs AWAY/HOME avec # + NAME + FOULS 1-5, score cumulatif, cases AWAY/HOME FINAL SCORE) : lis le score final dans les cases FINAL SCORE. Dans finalScore, donne une entrée par équipe : { teamName: nom de l'équipe tel qu'écrit sur la feuille, points: score final, side: "home"/"away" selon la case (simple indice) } — par ex. [{ teamName: "<équipe A>", points: <score A>, side: "away" }, { teamName: "<équipe B>", points: <score B>, side: "home" }]. Si la clé "fouls" fait partie des clés demandées, fouls = nombre de cases barrées dans FOULS 1-5.
 
 3) Les photos peuvent montrer les bords d'autres feuilles superposées (autres matchs). Ignore les feuilles partielles coupées aux bords de la photo.
 
@@ -98,7 +98,8 @@ Règles :
 - Les feuilles peuvent être en français (PTS, REB, PD/AST, INT/STL, CTR/BLK, fautes).
 - Pour chaque bloc d'équipe, nameOnSheet = le nom d'équipe écrit dans ce bloc. side = "home" ou "away" selon le match aux rosters (simple indice) ; "unknown" si tu ne peux pas décider.
 - Combine les deux photos : un même joueur ne doit apparaître qu'une fois par équipe.
-- Mets tes doutes dans warnings (en français, courts).
+- Mets tes doutes dans warnings (en français, courts). Écris toujours les numéros de chandail sous la forme « #N » (ex. « #7 »).
+- Ne signale pas les différences de noms ni les changements de roster (noms rayés/remplacés) : l'application les vérifie déjà.
 
 Réponds uniquement en appelant l'outil report_stat_sheet.`;
 }

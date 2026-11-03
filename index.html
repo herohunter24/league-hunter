@@ -3824,7 +3824,7 @@ function App() {
 
       // ── Correspondance côté client (on ne fait jamais confiance au "side" du modèle) ──
       const flags = [];
-      const amberCells = {}, autoAbsent = {}, merged = {}, matchedPids = {}, nameMismatch = {};
+      const amberCells = {}, autoAbsent = {}, merged = {}, matchedPids = {}, nameMismatch = {}, mismatchInfo = [];
       const keyLabel = k => { for (const d of activeDefs) { if (d.key === k) return d.label; if (d.madeKey === k) return d.madeLabel; if (d.attKey === k) return d.attLabel; } return k; };
       const markCell = (pid, k) => { (amberCells[pid] = amberCells[pid] || {})[k] = true; };
       const SIDES = ["home", "away"];
@@ -3857,13 +3857,20 @@ function App() {
       };
       const blocks = (data.teams || []).map((t, i) => {
         const sc = { home: blockScore(t, "home"), away: blockScore(t, "away") };
-        let side = sc.home > sc.away ? "home" : sc.away > sc.home ? "away" : (sc.home > 0 && SIDES.includes(t.side) ? t.side : null);
-        return { t, i, sc, side };
+        // Égalité : on ne se fie JAMAIS au côté du modèle (résolu plus bas)
+        const side = sc.home > sc.away ? "home" : sc.away > sc.home ? "away" : null;
+        return { t, i, sc, side, tied: sc.home === sc.away && sc.home > 0 };
+      });
+      // Bloc à égalité : s'il n'y a qu'un côté avec un bloc clairement reconnu, on l'y rattache (fusion) ; sinon rien
+      const clearSides = SIDES.filter(sd => blocks.some(b => !b.tied && b.side === sd));
+      blocks.forEach(b => {
+        if (!b.tied) return;
+        if (clearSides.length === 1) { b.side = clearSides[0]; b.attached = true; }
       });
       // Deux blocs sur le même côté et l'autre côté vide → le bloc le plus plausible pour l'autre côté y va
       SIDES.forEach(side => {
         const other = side === "home" ? "away" : "home";
-        const here = blocks.filter(b => b.side === side);
+        const here = blocks.filter(b => b.side === side && !b.attached);
         if (here.length >= 2 && !blocks.some(b => b.side === other)) {
           // On ne déplace un bloc que si son nom correspond à l'autre équipe (et pas à la sienne)
           // ou s'il colle strictement mieux à l'autre roster ; sinon (égalité incluse) il reste et sera fusionné
@@ -3875,8 +3882,11 @@ function App() {
       blocks.forEach(b => {
         const label = b.t.nameOnSheet || "?";
         if (!b.side) {
-          flags.push(stellaT(`Bloc « ${label} » sur la feuille : impossible de savoir si c'est ${g.home} ou ${g.away}. Non rempli.`,
-                             `Block "${label}" on the sheet: can't tell if it's ${g.home} or ${g.away}. Not filled.`));
+          flags.push(stellaT(`Bloc « ${label} » sur la feuille : impossible de savoir quelle équipe (${g.home} ou ${g.away}). Rien n'a été rempli ni marqué Absent pour ce bloc.`,
+                             `Block "${label}" on the sheet: can't tell which team (${g.home} or ${g.away}). Nothing was filled or marked Absent for this block.`));
+        } else if (b.attached) {
+          flags.push(stellaT(`Bloc ${b.t.nameOnSheet ? `« ${label} »` : "sans nom"} fusionné avec ${nameBySide[b.side]} — vérifie.`,
+                             `${b.t.nameOnSheet ? `Block "${label}"` : "Unnamed block"} merged with ${nameBySide[b.side]} — check it.`));
         } else if (SIDES.includes(b.t.side) && b.t.side !== b.side) {
           flags.push(stellaT(`Bloc « ${label} » : ${AGENT_NAME} l'avait mis pour ${nameBySide[b.t.side]}, corrigé à ${nameBySide[b.side]} selon les numéros et le nom. Vérifie.`,
                              `Block "${label}": ${AGENT_NAME} had it as ${nameBySide[b.t.side]}, corrected to ${nameBySide[b.side]} from the numbers and name. Check it.`));
@@ -3943,6 +3953,7 @@ function App() {
           pending[pid] = e;
           if (e.nameOnSheet && !nameOk(e.nameOnSheet, p.name)) {
             nameMismatch[pid] = true;
+            mismatchInfo.push({ num, names: [e.nameOnSheet, p.name] });
             flags.push(stellaT(`#${e.number} : feuille = ${e.nameOnSheet}, alignement = ${shortName(p.name)} — vérifie.`,
                                `#${e.number}: sheet = ${e.nameOnSheet}, lineup = ${shortName(p.name)} — check it.`));
           }
@@ -4006,11 +4017,14 @@ function App() {
       if (!teamsFound.home && homePlayers.length) flags.push(stellaT(`${g.home} : introuvable sur la feuille. Rien n'a été rempli pour cette équipe.`, `${g.home}: not found on the sheet. Nothing was filled for this team.`));
       if (!teamsFound.away && awayPlayers.length) flags.push(stellaT(`${g.away} : introuvable sur la feuille. Rien n'a été rempli pour cette équipe.`, `${g.away}: not found on the sheet. Nothing was filled for this team.`));
       if (data.confidence === "low") flags.push(stellaT(`${AGENT_NAME} n'est pas très sûre de sa lecture. Vérifie chaque chiffre.`, `${AGENT_NAME} is not very confident in this reading. Check every number.`));
-      // Pas de doublon : un avertissement de Stella sur un # déjà signalé (nom différent) est retiré
-      const mismatchNums = new Set(Object.keys(nameMismatch).map(pid => norm(league.players.find(p => String(p.id) === String(pid))?.number)).filter(Boolean));
+      // Pas de doublon : un avertissement de Stella est retiré seulement s'il cite le même #N
+      // ET le nom (feuille ou alignement) d'un joueur déjà signalé pour nom différent
       (data.warnings || []).forEach(w => {
         const nums = [...String(w).matchAll(/#\s*(\d+)/g)].map(m => norm(m[1]));
-        if (nums.some(n => mismatchNums.has(n))) return;
+        const ww = words(w);
+        const dup = mismatchInfo.some(mi => nums.includes(mi.num) &&
+          mi.names.some(nm => words(nm).some(x => x.length >= 3 && ww.includes(x))));
+        if (dup) return;
         flags.push(`${AGENT_NAME} : ${w}`);
       });
 
