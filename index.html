@@ -3849,47 +3849,57 @@ function App() {
         return teamWords(sheetName).some(w => w.length >= 3 && wb.includes(w));
       };
       const rosterNums = side => new Set(rosterBySide[side].map(p => norm(p.number)).filter(Boolean));
-      const blockScore = (t, side) => {
-        const nums = new Set((t.players || []).map(p => norm(p.number)).filter(Boolean));
-        const rn = rosterNums(side);
-        let ov = 0; nums.forEach(n => { if (rn.has(n)) ov++; });
-        return ov + (teamNameMatch(t.nameOnSheet, nameBySide[side]) ? 3 : 0);
-      };
+      // ── Attribution globale des blocs aux équipes (le côté indiqué par le modèle n'entre jamais dans le score) ──
+      // num = numéros du bloc présents dans le roster ; uniq = présents dans ce roster mais PAS dans l'autre ; nom = départage
       const blocks = (data.teams || []).map((t, i) => {
-        const sc = { home: blockScore(t, "home"), away: blockScore(t, "away") };
-        // Égalité : on ne se fie JAMAIS au côté du modèle (résolu plus bas)
-        const side = sc.home > sc.away ? "home" : sc.away > sc.home ? "away" : null;
-        return { t, i, sc, side, tied: sc.home === sc.away && sc.home > 0 };
+        const nums = new Set((t.players || []).map(p => norm(p.number)).filter(Boolean));
+        const rn = { home: rosterNums("home"), away: rosterNums("away") };
+        const num = {}, uniq = {}, name = {}, score = {};
+        SIDES.forEach(sd => {
+          const ot = sd === "home" ? "away" : "home";
+          num[sd] = 0; uniq[sd] = 0;
+          nums.forEach(n => { if (rn[sd].has(n)) { num[sd]++; if (!rn[ot].has(n)) uniq[sd]++; } });
+          name[sd] = teamNameMatch(t.nameOnSheet, nameBySide[sd]) ? 1 : 0;
+          score[sd] = uniq[sd] * 10 + num[sd] * 2 + name[sd];
+        });
+        return { t, i, num, uniq, name, score, side: null };
       });
-      // Bloc à égalité : s'il n'y a qu'un côté avec un bloc clairement reconnu, on l'y rattache (fusion) ; sinon rien
-      const clearSides = SIDES.filter(sd => blocks.some(b => !b.tied && b.side === sd));
-      blocks.forEach(b => {
-        if (!b.tied) return;
-        if (clearSides.length === 1) { b.side = clearSides[0]; b.attached = true; }
-      });
-      // Deux blocs sur le même côté et l'autre côté vide → le bloc le plus plausible pour l'autre côté y va
-      SIDES.forEach(side => {
-        const other = side === "home" ? "away" : "home";
-        const here = blocks.filter(b => b.side === side && !b.attached);
-        if (here.length >= 2 && !blocks.some(b => b.side === other)) {
-          // On ne déplace un bloc que si son nom correspond à l'autre équipe (et pas à la sienne)
-          // ou s'il colle strictement mieux à l'autre roster ; sinon (égalité incluse) il reste et sera fusionné
-          const nameOther = b => teamNameMatch(b.t.nameOnSheet, nameBySide[other]) && !teamNameMatch(b.t.nameOnSheet, nameBySide[side]);
-          const cand = here.find(nameOther) || here.slice().sort((x, y) => (y.sc[other] - y.sc[side]) - (x.sc[other] - x.sc[side]))[0];
-          if (nameOther(cand) || cand.sc[other] > cand.sc[side]) cand.side = other;
+      // Toutes les combinaisons domicile / visiteur / aucune (≤ 4 blocs → 81 cas max)
+      let best = null;
+      const choice = new Array(blocks.length).fill(null);
+      const evaluate = () => {
+        for (let k = 0; k < blocks.length; k++) {
+          const sd = choice[k];
+          if (!sd) continue;
+          const bk = blocks[k];
+          if (bk.uniq[sd] > 0) continue;
+          const sharedOnly = bk.uniq.home === 0 && bk.uniq.away === 0 && bk.num[sd] > 0;
+          const anchored = blocks.some((o, j) => j !== k && choice[j] === sd && o.uniq[sd] > 0);
+          if (!(sharedOnly && anchored)) return;
         }
-      });
+        let total = 0, count = 0;
+        choice.forEach((sd, k) => { if (sd) { total += blocks[k].score[sd]; count++; } });
+        if (!best || total > best.total || (total === best.total && count < best.count)) best = { total, count, choice: choice.slice() };
+      };
+      const enumerate = k => {
+        if (k === blocks.length) { evaluate(); return; }
+        for (const sd of [...SIDES, null]) { choice[k] = sd; enumerate(k + 1); }
+      };
+      enumerate(0);
+      if (best) best.choice.forEach((sd, k) => { blocks[k].side = sd; });
       blocks.forEach(b => {
-        const label = b.t.nameOnSheet || "?";
+        const label = b.t.nameOnSheet || stellaT("sans nom", "unnamed");
         if (!b.side) {
           flags.push(stellaT(`Bloc « ${label} » sur la feuille : impossible de savoir quelle équipe (${g.home} ou ${g.away}). Rien n'a été rempli ni marqué Absent pour ce bloc.`,
                              `Block "${label}" on the sheet: can't tell which team (${g.home} or ${g.away}). Nothing was filled or marked Absent for this block.`));
-        } else if (b.attached) {
-          flags.push(stellaT(`Bloc ${b.t.nameOnSheet ? `« ${label} »` : "sans nom"} fusionné avec ${nameBySide[b.side]} — vérifie.`,
-                             `${b.t.nameOnSheet ? `Block "${label}"` : "Unnamed block"} merged with ${nameBySide[b.side]} — check it.`));
-        } else if (SIDES.includes(b.t.side) && b.t.side !== b.side) {
-          flags.push(stellaT(`Bloc « ${label} » : ${AGENT_NAME} l'avait mis pour ${nameBySide[b.t.side]}, corrigé à ${nameBySide[b.side]} selon les numéros et le nom. Vérifie.`,
-                             `Block "${label}": ${AGENT_NAME} had it as ${nameBySide[b.t.side]}, corrected to ${nameBySide[b.side]} from the numbers and name. Check it.`));
+          return;
+        }
+        const ot = b.side === "home" ? "away" : "home";
+        const tagDiffers = SIDES.includes(b.t.side) && b.t.side !== b.side;
+        const nameDiffers = b.name[ot] === 1 && b.name[b.side] === 0;
+        if (tagDiffers || nameDiffers) {
+          flags.push(stellaT(`Bloc « ${label} » attribué à ${nameBySide[b.side]} d'après les numéros — vérifie.`,
+                             `Block "${label}" assigned to ${nameBySide[b.side]} based on the numbers — check it.`));
         }
       });
       const shortName = name => { const w = String(name || "").trim().split(/\s+/); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(" ")}` : (w[0] || ""); };
@@ -3905,13 +3915,15 @@ function App() {
       };
       const teamsFound = {};
       SIDES.forEach(side => {
-        const mine = blocks.filter(b => b.side === side);
+        // Blocs de cette équipe, du meilleur score au moins bon : le meilleur gagne en cas de conflit
+        const mine = blocks.filter(b => b.side === side).sort((x, y) => y.score[side] - x.score[side]);
         if (!mine.length) return;
+        const anchoredSide = mine.some(b => b.uniq[side] > 0);
         teamsFound[side] = true;
         const roster = rosterBySide[side];
         const team = nameBySide[side];
         if (mine.length > 1) flags.push(stellaT(`${team} : ${mine.length} blocs sur les feuilles, fusionnés par numéro.`, `${team}: ${mine.length} blocks on the sheets, merged by number.`));
-        // Fusion par numéro : la première valeur non nulle gagne ; conflit → on garde la première, case en orange
+        // Fusion par numéro : la première valeur non nulle (bloc au meilleur score) gagne ; conflit → case en orange
         const byNum = {}, order = [], conflicts = {};
         mine.forEach(b => {
           const seenInBlock = {};
@@ -3982,8 +3994,8 @@ function App() {
             merged[pid][k] = newV;
           });
         });
-        // Joueurs du roster absents de la feuille → Absent
-        roster.forEach(p => { if (!matchedPids[p.id]) autoAbsent[p.id] = true; });
+        // Joueurs du roster absents de la feuille → Absent (seulement si un bloc est clairement à cette équipe)
+        if (anchoredSide) roster.forEach(p => { if (!matchedPids[p.id]) autoAbsent[p.id] = true; });
         const saved = side === "home" ? g.homeScore : g.awayScore;
         const savedN = saved !== undefined && saved !== "" ? parseInt(saved) : NaN;
         const tps = mine.map(b => b.t.teamPointsOnSheet).find(v => Number.isInteger(v));

@@ -95,6 +95,7 @@ Règles :
 - Marques de pointage → compte-les.
 - Si tu n'es pas sûr d'une valeur, mets null et ajoute la clé dans "unreadable" pour ce joueur.
 - Numéro de chandail exactement comme écrit (texte).
+- nameOnSheet d'un joueur = le nom en vigueur sur la feuille : si un nom est rayé et remplacé, donne le nouveau nom écrit à la main.
 - Les feuilles peuvent être en français (PTS, REB, PD/AST, INT/STL, CTR/BLK, fautes).
 - Pour chaque bloc d'équipe, nameOnSheet = le nom d'équipe écrit dans ce bloc. side = "home" ou "away" selon le match aux rosters (simple indice) ; "unknown" si tu ne peux pas décider.
 - Combine les deux photos : un même joueur ne doit apparaître qu'une fois par équipe.
