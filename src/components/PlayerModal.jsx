@@ -35,9 +35,17 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
       navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {});
     }
   }
-  function shareLinkOnly(url) {
-    if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); return; }
-    copyLink(url);
+  // Menu de partage (ordi sans partage de fichier, ou échec du partage de fichier)
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); }, [p.id]);
+  function shareTo(net, url) {
+    const u = encodeURIComponent(url);
+    const href = net === 'facebook' ? `https://www.facebook.com/sharer/sharer.php?u=${u}`
+      : net === 'whatsapp' ? `https://wa.me/?text=${u}`
+      : `https://twitter.com/intent/tweet?url=${u}`;
+    window.open(href, '_blank', 'noopener,noreferrer,width=640,height=560');
+    recordShare(p.id);
+    setMenuOpen(false);
   }
 
   function handleShare() {
@@ -52,12 +60,12 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
           .then(() => recordShare(p.id))
           .catch(e => {
             if (e && e.name === 'AbortError') return; // annulé par l'utilisateur
-            copyLink(url); // échec : copie du lien (non compté)
+            setMenuOpen(true); // échec : menu de partage
           });
         return;
       }
     }
-    shareLinkOnly(url);
+    setMenuOpen(o => !o);
   }
   const preparing = canShareFiles && imgState === 'loading';
   useEffect(() => {
@@ -168,6 +176,18 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
             <div className="pm-actions">
               <button className="pm-btn" style={{ background: 'var(--gold)', color: '#000', borderColor: 'var(--gold)', opacity: preparing ? 0.7 : 1 }} onClick={handleShare} disabled={preparing} aria-busy={preparing}>{preparing ? t.sharePreparing : t.shareCardBtn}</button>
             </div>
+            {menuOpen && (() => {
+              const url = `https://nlsshowcases.com/?player=${p.id}`;
+              const ob = { background: 'none', color: 'var(--ink)', borderColor: 'var(--border)' };
+              return (
+                <div className="pm-actions" role="menu" aria-label={t.shareMenuLabel} style={{ marginTop: 10 }}>
+                  <button className="pm-btn" role="menuitem" style={ob} onClick={() => shareTo('facebook', url)}>Facebook</button>
+                  <button className="pm-btn" role="menuitem" style={ob} onClick={() => shareTo('whatsapp', url)}>WhatsApp</button>
+                  <button className="pm-btn" role="menuitem" style={ob} onClick={() => shareTo('x', url)}>X</button>
+                  <button className="pm-btn" role="menuitem" style={ob} onClick={() => { copyLink(url); setMenuOpen(false); }}>{t.copyLink}</button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
