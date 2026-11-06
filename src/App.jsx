@@ -30,8 +30,8 @@ function readUrlState() {
   return {
     cat:      sp.get('cat') || null,
     tab:      sp.get('tab') || 'standings',
-    playerId: sp.get('player') ? Number(sp.get('player')) : null,
-    gameId:   sp.get('game')   ? Number(sp.get('game'))   : null,
+    playerId: sp.get('player') || null,
+    gameId:   sp.get('game')   || null,
     g:        sp.get('g') || null,
     div:      sp.get('div') || null,
   };
@@ -571,17 +571,17 @@ export default function App() {
     if (!PLAYERS.length || didInitRef.current) return;
     didInitRef.current = true;
     const sp = new URLSearchParams(window.location.search);
-    const pid = sp.get('player') ? Number(sp.get('player')) : null;
-    const gid = sp.get('game')   ? Number(sp.get('game'))   : null;
+    const pid = sp.get('player') || null;
+    const gid = sp.get('game')   || null;
     if (pid) {
-      const p = PLAYERS.find(pl => pl.id === pid);
+      const p = PLAYERS.find(pl => String(pl.id) === String(pid));
       if (p) {
         if (!selectedCat) setSelectedCat(p.categoryId || effectiveCats[0]?.id || null);
         setSelectedPlayer(p);
       }
     }
     if (gid) {
-      const g = GAMES.find(ga => ga.id === gid);
+      const g = GAMES.find(ga => String(ga.id) === String(gid));
       if (g) setOpenGame(g);
     }
   }, [PLAYERS, GAMES]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -609,8 +609,8 @@ export default function App() {
       setPickerGender(s.g || null);
       setPickerDiv(s.div || null);
       setActiveTab(s.tab);
-      setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
-      setOpenGame(s.gameId ? (GAMES.find(ga => ga.id === s.gameId) || null) : null);
+      setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => String(pl.id) === String(s.playerId)) || null) : null);
+      setOpenGame(s.gameId ? (GAMES.find(ga => String(ga.id) === String(s.gameId)) || null) : null);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -728,6 +728,96 @@ export default function App() {
 
   // Image à partager (1080×1920, story) : carte capturée + lien du profil en dessous.
   // Pré-générée à l'ouverture du modal (iOS Safari exige navigator.share() directement au tap).
+  // ── Corrections du clone html2canvas (capture seulement, l'affichage du site ne change pas) ──
+  // html2canvas 1.4 ne gère pas clip-path / mask / background-clip:text / SVG sans taille,
+  // et rend mal les box-shadow « inset » en anneau (cadre plein).
+  async function svgToPng(src, w, h) {
+    const txt = await (await fetch(src)).text();
+    const sized = txt.replace(/<svg\b([^>]*)>/, (m, attrs) => (/\swidth=/.test(attrs) ? m : `<svg${attrs} width="${w}" height="${h}">`));
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(sized); });
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    return c.toDataURL('image/png');
+  }
+
+  function splitShadows(str) {
+    const out = []; let depth = 0, cur = '';
+    for (const ch of str) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+
+  function fixCloneForCapture(cloneDoc, root, lhImg, lhPng) {
+    if (!root) return;
+    const win = cloneDoc.defaultView || window;
+    // 1. Pseudo-éléments découpés (clip-path / mask) → html2canvas les peint en bloc plein : on les retire
+    root.querySelectorAll('html2canvaspseudoelement').forEach(pe => {
+      const st = pe.style;
+      const clipped = (st.clipPath && st.clipPath !== 'none') || (st.webkitClipPath && st.webkitClipPath !== 'none');
+      const masked = (st.maskImage && st.maskImage !== 'none') || (st.webkitMaskImage && st.webkitMaskImage !== 'none');
+      if (clipped || masked) pe.remove();
+    });
+    const els = [root, ...root.querySelectorAll('*')];
+    for (const node of els) {
+      if (!node.style || node.tagName === 'HTML2CANVASPSEUDOELEMENT' || !node.isConnected) continue;
+      const cs = win.getComputedStyle(node);
+      // 2. Texte en dégradé (background-clip: text) → couleur pleine (1re couleur du dégradé)
+      if (cs.webkitBackgroundClip === 'text' || cs.backgroundClip === 'text') {
+        const m = (cs.backgroundImage || '').match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/i);
+        node.style.setProperty('background', 'none', 'important');
+        node.style.setProperty('color', m ? m[0] : '#ffffff', 'important');
+        node.style.setProperty('-webkit-text-fill-color', m ? m[0] : '#ffffff', 'important');
+      }
+      // 3. conic-gradient (cadres Diamant/Légende) non supporté → dégradé linéaire équivalent
+      if ((cs.backgroundImage || '').includes('conic-gradient')) {
+        const lin = cs.backgroundImage
+          .replace(/conic-gradient\(/g, 'linear-gradient(')
+          .replace(/linear-gradient\((?:from [^,]*|at [^,]*),/g, 'linear-gradient(135deg,')
+          .replace(/(\)|#[0-9a-f]+|[a-z]+)\s+-?[\d.]+(?:deg|turn|rad|grad)/gi, '$1');
+        node.style.setProperty('background-image', lin, 'important');
+      }
+      // 4. Anneaux « inset 0 0 0 Npx couleur » → vraies bordures superposées
+      const bs = cs.boxShadow;
+      if (bs && bs !== 'none' && bs.includes('inset')) {
+        const parts = splitShadows(bs);
+        const rings = [];
+        const keep = [];
+        for (const sh of parts) {
+          if (!/\binset\b/.test(sh)) { keep.push(sh); continue; }
+          const color = (sh.match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/i) || [])[0];
+          const nums = sh.replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/ig, '').match(/-?[\d.]+px/g) || [];
+          const [x, y, blur, spread] = nums.map(parseFloat);
+          if (color && !x && !y && !blur && spread > 0) rings.push({ color, spread });
+        }
+        node.style.setProperty('box-shadow', keep.length ? keep.join(', ') : 'none', 'important');
+        if (rings.length) {
+          if (cs.position === 'static') node.style.position = 'relative';
+          // 1re ombre = au-dessus → ajoutée en dernier
+          rings.reverse().forEach(r => {
+            const o = cloneDoc.createElement('div');
+            o.style.cssText = `position:absolute;inset:0;border-radius:${cs.borderRadius};border:${r.spread}px solid ${r.color};box-sizing:border-box;pointer-events:none;z-index:30;`;
+            node.appendChild(o);
+          });
+        }
+      }
+    }
+    // 5. Logo LH (SVG sans taille) → PNG de taille fixe
+    if (lhImg && lhPng) {
+      const cl = root.querySelector('.pc-lh-mark');
+      if (cl) {
+        cl.src = lhPng;
+        cl.style.width = (lhImg.offsetWidth || 15) + 'px';
+        cl.style.height = (lhImg.offsetHeight || 10) + 'px';
+      }
+    }
+  }
+
   async function buildShareImage(p) {
     const modal = document.querySelector('.pmodal');
     const el = (modal && modal.querySelector(`#pcard-${p.id}`))
@@ -753,7 +843,12 @@ export default function App() {
     const swapped = await swapBrokenImages(el);
     let cardCanvas;
     try {
-      cardCanvas = await html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false });
+      const lhImg = el.querySelector('.pc-lh-mark');
+      const lhPng = lhImg ? await svgToPng(lhImg.src, 300, 200).catch(() => null) : null;
+      cardCanvas = await html2canvas(el, {
+        backgroundColor: null, scale, useCORS: true, allowTaint: false,
+        onclone: (cloneDoc, cloneEl) => fixCloneForCapture(cloneDoc, cloneEl || cloneDoc.querySelector(`.pmodal #pcard-${p.id}`), lhImg, lhPng),
+      });
     } finally {
       swapped.forEach(({ img, orig }) => { img.src = orig; });
       if (holo) holo.style.display = '';
@@ -790,12 +885,12 @@ export default function App() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#C9A24A';
-    const lineY = 160 + maxH + 140;
+    const lineY = 160 + maxH + 30; // 1490 : texte au-dessus de y≈1600 (zone réponse Instagram)
     fitFont(t.shareImgLine.toUpperCase(), 500, 50, 960);
     ctx.fillText(t.shareImgLine.toUpperCase(), W / 2, lineY);
     fitFont(url, 700, 66, 980);
     ctx.fillStyle = '#D4B26A';
-    ctx.fillText(url, W / 2, lineY + 100);
+    ctx.fillText(url, W / 2, lineY + 92);
 
     return await new Promise((resolve, reject) => {
       c.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');

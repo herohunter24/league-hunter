@@ -30,11 +30,14 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
     return () => { cancelled = true; clearTimeout(timer); };
   }, [p.id, lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function shareLinkOnly(url) {
-    if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); return; }
+  function copyLink(url) {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {});
     }
+  }
+  function shareLinkOnly(url) {
+    if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); return; }
+    copyLink(url);
   }
 
   function handleShare() {
@@ -44,15 +47,12 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
     if (canShareFiles && blob) {
       const file = new File([blob], `${(p.name || 'joueur').replace(/\s+/g, '-')}-NLS-card.png`, { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) {
-        const onDone = () => recordShare(p.id);
-        const onErr = e => { if (e && e.name === 'AbortError') return; };
-        navigator.share({ files: [file], title: p.name, text: url, url })
-          .then(onDone)
+        // Fichier seulement (pas de title/url/text) : iOS/Instagram garde l'image et propose les Stories
+        navigator.share({ files: [file] })
+          .then(() => recordShare(p.id))
           .catch(e => {
-            if (e && e.name === 'TypeError') {
-              return navigator.share({ files: [file], title: p.name, text: url }).then(onDone).catch(onErr);
-            }
-            return onErr(e);
+            if (e && e.name === 'AbortError') return; // annulé par l'utilisateur
+            copyLink(url); // échec : copie du lien (non compté)
           });
         return;
       }

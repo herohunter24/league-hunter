@@ -13,6 +13,23 @@ export function useLeagueData() {
   const [alertsActive, setAlertsActive] = useState(false);
   const [cardShares, setCardShares] = useState({});
 
+  // Mois courant (Toronto) — revérifié toutes les 5 min pour changer de doc au 1er du mois
+  const [mk, setMk] = useState(() => monthKey());
+  useEffect(() => {
+    const id = setInterval(() => setMk(monthKey()), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Compteur de partages de cartes du mois courant (écrit par la Cloud Function nlsCardShare)
+  useEffect(() => {
+    if (!LEAGUE_ID || !db) return;
+    setCardShares({});
+    return onSnapshot(doc(db, 'leagues', String(LEAGUE_ID), 'meta', `cardShares-${mk}`),
+      snap => setCardShares(snap.exists() ? (snap.data() || {}) : {}),
+      err => console.error('[NLS] cardShares listen error:', err)
+    );
+  }, [mk]);
+
   useEffect(() => {
     if (!LEAGUE_ID || !db) return;
     let unsubs = [];
@@ -30,12 +47,6 @@ export function useLeagueData() {
     unsubs.push(onSnapshot(doc(db, 'leagues', lid, 'meta', 'publicSettings'),
       snap => setAlertsActive(snap.exists() && snap.data().alertsActive === true),
       err => console.error('[NLS] publicSettings listen error:', err)
-    ));
-
-    // Compteur de partages de cartes du mois courant (écrit par la Cloud Function nlsCardShare)
-    unsubs.push(onSnapshot(doc(db, 'leagues', lid, 'meta', `cardShares-${monthKey()}`),
-      snap => setCardShares(snap.exists() ? (snap.data() || {}) : {}),
-      err => console.error('[NLS] cardShares listen error:', err)
     ));
 
     unsubs.push(onSnapshot(collection(db, 'leagues', lid, 'teams'),

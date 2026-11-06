@@ -316,11 +316,10 @@ export const nlsCardShare = onRequest(
     if (!okId(lid) || !okId(pid)) { res.status(400).json({ error: 'invalid' }); return; }
 
     try {
-      const playerSnap = await db.collection('leagues').doc(lid).collection('players').doc(pid).get();
-      if (!playerSnap.exists) { res.status(404).json({ error: 'not_found' }); return; }
-
       const tp = torontoParts();
-      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+      // req.ip first; otherwise the LAST x-forwarded-for hop (added by Google's front end, not spoofable)
+      const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
+      const ip = req.ip || xff[xff.length - 1] || 'unknown';
       const rlRef = db.collection('rateLimits').doc(`share_${hashIp(ip)}_${tp.y}-${tp.m}-${tp.d}-${tp.h}`);
       const allowed = await db.runTransaction(async tx => {
         const s = await tx.get(rlRef);
@@ -330,6 +329,9 @@ export const nlsCardShare = onRequest(
         return true;
       });
       if (!allowed) { res.json({ ok: true }); return; }
+
+      const playerSnap = await db.collection('leagues').doc(lid).collection('players').doc(pid).get();
+      if (!playerSnap.exists) { res.status(404).json({ error: 'not_found' }); return; }
 
       await db.collection('leagues').doc(lid).collection('meta').doc(`cardShares-${tp.y}-${tp.m}`)
         .set({ [pid]: FieldValue.increment(1) }, { merge: true });
