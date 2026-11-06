@@ -38,6 +38,10 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
   // Menu de partage (ordi sans partage de fichier, ou échec du partage de fichier)
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setMenuOpen(false); }, [p.id]);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (menuOpen && menuRef.current) menuRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [menuOpen]);
   function shareTo(net, url) {
     const u = encodeURIComponent(url);
     const href = net === 'facebook' ? `https://www.facebook.com/sharer/sharer.php?u=${u}`
@@ -180,7 +184,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildSha
               const url = `https://nlsshowcases.com/?player=${p.id}`;
               const ob = { background: 'none', color: 'var(--ink)', borderColor: 'var(--border)' };
               return (
-                <div className="pm-actions" role="menu" aria-label={t.shareMenuLabel} style={{ marginTop: 10 }}>
+                <div ref={menuRef} className="pm-actions" role="menu" aria-label={t.shareMenuLabel} style={{ marginTop: 10 }}>
                   <button className="pm-btn" role="menuitem" style={ob} onClick={() => shareTo('facebook', url)}>Facebook</button>
                   <button className="pm-btn" role="menuitem" style={ob} onClick={() => shareTo('whatsapp', url)}>WhatsApp</button>
                   <button className="pm-btn" role="menuitem" style={ob} onClick={() => shareTo('x', url)}>X</button>
