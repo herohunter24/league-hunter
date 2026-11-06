@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db, LEAGUE_ID, doc, collection, onSnapshot } from '../lib/firebase.js';
+import { monthKey } from '../lib/shares.js';
 
 export function useLeagueData() {
   const [meta, setMeta]       = useState(null);
@@ -10,6 +11,7 @@ export function useLeagueData() {
   const [error, setError]     = useState(null);
   // Switch « Alertes actives » de Website X (même doc que les Cloud Functions)
   const [alertsActive, setAlertsActive] = useState(false);
+  const [cardShares, setCardShares] = useState({});
 
   useEffect(() => {
     if (!LEAGUE_ID || !db) return;
@@ -28,6 +30,12 @@ export function useLeagueData() {
     unsubs.push(onSnapshot(doc(db, 'leagues', lid, 'meta', 'publicSettings'),
       snap => setAlertsActive(snap.exists() && snap.data().alertsActive === true),
       err => console.error('[NLS] publicSettings listen error:', err)
+    ));
+
+    // Compteur de partages de cartes du mois courant (écrit par la Cloud Function nlsCardShare)
+    unsubs.push(onSnapshot(doc(db, 'leagues', lid, 'meta', `cardShares-${monthKey()}`),
+      snap => setCardShares(snap.exists() ? (snap.data() || {}) : {}),
+      err => console.error('[NLS] cardShares listen error:', err)
     ));
 
     unsubs.push(onSnapshot(collection(db, 'leagues', lid, 'teams'),
@@ -70,5 +78,5 @@ export function useLeagueData() {
     return () => { unsubs.forEach(u => u()); psUnsubs.forEach(u => u()); };
   }, []);
 
-  return { live: !!LEAGUE_ID, meta, alertsActive, teams, players, games, loading, error };
+  return { live: !!LEAGUE_ID, meta, alertsActive, cardShares, teams, players, games, loading, error };
 }

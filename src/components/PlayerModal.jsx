@@ -1,14 +1,65 @@
-import { useState, useEffect } from 'react';
-import { siteUrl } from '../lib/firebase.js';
+import { useState, useEffect, useRef } from 'react';
+import { recordShare } from '../lib/shares.js';
 import { getPlayerProgression } from '../config/cardTiers.js';
 import { scoutingReport } from '../lib/scouting.js';
 import { PlayerCard } from './PlayerCard.jsx';
 import { TeamBadge } from './TeamBadge.jsx';
 
-export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare, cardNumber, cardTotal, leagueId, leagueLogoUrl, leagueName, season }) {
+export function PlayerModal({ p, teams, units, lang, t, games, onClose, buildShareImage, cardNumber, cardTotal, leagueId, leagueLogoUrl, leagueName, season }) {
   const [report, setReport] = useState(null);
   const [toast, setToast] = useState(false);
   useEffect(() => { setReport(null); }, [p.id, lang]);
+
+  // Image de la carte pré-générée à l'ouverture (iOS : share() doit être appelé directement au tap)
+  const canShareFiles = (() => {
+    try { return !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] })); }
+    catch { return false; }
+  })();
+  const blobRef = useRef(null);
+  const [imgState, setImgState] = useState('loading'); // loading | ready | error
+  useEffect(() => {
+    blobRef.current = null;
+    if (!canShareFiles || !buildShareImage) { setImgState('error'); return; }
+    setImgState('loading');
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      buildShareImage(p)
+        .then(b => { if (!cancelled) { blobRef.current = b; setImgState('ready'); } })
+        .catch(() => { if (!cancelled) setImgState('error'); });
+    }, 600);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [p.id, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function shareLinkOnly(url) {
+    if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); return; }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {});
+    }
+  }
+
+  function handleShare() {
+    const url = `https://nlsshowcases.com/?player=${p.id}`;
+    const blob = blobRef.current;
+    if (canShareFiles && imgState === 'loading') return; // bouton affiche « Préparation… »
+    if (canShareFiles && blob) {
+      const file = new File([blob], `${(p.name || 'joueur').replace(/\s+/g, '-')}-NLS-card.png`, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        const onDone = () => recordShare(p.id);
+        const onErr = e => { if (e && e.name === 'AbortError') return; };
+        navigator.share({ files: [file], title: p.name, text: url, url })
+          .then(onDone)
+          .catch(e => {
+            if (e && e.name === 'TypeError') {
+              return navigator.share({ files: [file], title: p.name, text: url }).then(onDone).catch(onErr);
+            }
+            return onErr(e);
+          });
+        return;
+      }
+    }
+    shareLinkOnly(url);
+  }
+  const preparing = canShareFiles && imgState === 'loading';
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -50,7 +101,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
         <button className="pmodal-close" onClick={onClose} aria-label="Close">✕</button>
         <div className="pmodal-body">
           <div className="pmodal-left">
-            <PlayerCard p={p} lang={lang} t={t} teams={teams} units={units} onShare={onShare} cardNumber={cardNumber} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
+            <PlayerCard p={p} lang={lang} t={t} teams={teams} units={units} cardNumber={cardNumber} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
           </div>
           <div className="pmodal-right">
             <div className="pm-name">{p.number ? `#${p.number} ` : ''}{p.name}</div>
@@ -115,12 +166,7 @@ export function PlayerModal({ p, teams, units, lang, t, games, onClose, onShare,
             )}
 
             <div className="pm-actions">
-              <button className="pm-btn" style={{ background: 'var(--gold)', color: '#000', borderColor: 'var(--gold)' }} onClick={() => onShare(p)}>⤓ {t.download}</button>
-              <button className="pm-btn" style={{ background: 'none', color: 'var(--ink)', borderColor: 'var(--border)' }} onClick={() => {
-                const url = location.origin + siteUrl({ player: p.id });
-                if (navigator.share) { navigator.share({ title: p.name, url }).catch(() => {}); }
-                else { navigator.clipboard.writeText(url).then(() => { setToast(true); setTimeout(() => setToast(false), 2000); }).catch(() => {}); }
-              }}>{t.share}</button>
+              <button className="pm-btn" style={{ background: 'var(--gold)', color: '#000', borderColor: 'var(--gold)', opacity: preparing ? 0.7 : 1 }} onClick={handleShare} disabled={preparing} aria-busy={preparing}>{preparing ? t.sharePreparing : t.shareCardBtn}</button>
             </div>
           </div>
         </div>

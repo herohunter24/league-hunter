@@ -992,7 +992,15 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 .arc-card:hover { transform: translateY(-14px) rotate(0deg) scale(1.06); z-index: 6; }
 .arc-card .pcard { transition: box-shadow 0.3s; }
 .arc-card:hover .pcard { transform: none; box-shadow: 0 26px 60px rgba(0,0,0,0.6); }
+/* Cartes les plus partagées du mois (3 cartes) */
+.arc-row--top3 .arc-card:nth-child(1) { transform: translateY(14px) rotate(-4deg); }
+.arc-row--top3 .arc-card:nth-child(2) { transform: none; z-index: 2; }
+.arc-row--top3 .arc-card:nth-child(3) { transform: translateY(14px) rotate(4deg); }
+.arc-row--top3 .arc-card:hover { transform: translateY(-14px) rotate(0deg) scale(1.06); z-index: 6; }
+.share-count-badge { margin: 12px auto 0; width: fit-content; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--gold-dim); background: rgba(201,162,74,0.12); color: var(--gold); font-family: var(--ff-display); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 @media (max-width: 720px) {
+  .arc-row--top3 .arc-card:nth-child(3) { grid-column: 1 / -1; justify-self: center; width: calc(50% - 5px); }
+  .share-count-badge { font-size: 11px; padding: 4px 10px; margin-top: 10px; }
   /* 2×2 fan grid — all 4 cards visible, arc + float preserved */
   .arc-row {
     display: grid;

@@ -701,6 +701,13 @@ export default function App() {
     return picks;
   }, [PLAYERS, live, isShowcaseDemo]);
 
+  // Top 3 des cartes les plus partagées ce mois-ci (joueurs encore dans PLAYERS seulement)
+  const topShared = PLAYERS
+    .map(p => ({ p, n: +((data.cardShares || {})[String(p.id)] || 0) }))
+    .filter(x => x.n > 0)
+    .sort((a, b) => (b.n - a.n) || ((b.p.rp || 0) - (a.p.rp || 0)))
+    .slice(0, 3);
+
   // Before html2canvas: replace any broken <img> that's visible and failed to load
   // with the silhouette PNG so the photo zone is never empty in the export.
   async function swapBrokenImages(el) {
@@ -719,29 +726,79 @@ export default function App() {
     return swapped;
   }
 
-  function shareCard(p) {
+  // Image à partager (1080×1920, story) : carte capturée + lien du profil en dessous.
+  // Pré-générée à l'ouverture du modal (iOS Safari exige navigator.share() directement au tap).
+  async function buildShareImage(p) {
     const modal = document.querySelector('.pmodal');
     const el = (modal && modal.querySelector(`#pcard-${p.id}`))
       || document.getElementById(`pcard-${p.id}`);
-    if (!el) return;
+    if (!el) throw new Error('card-not-found');
+    try {
+      if (document.fonts) {
+        await Promise.all([document.fonts.load("500 50px 'Oswald'"), document.fonts.load("700 66px 'Oswald'")]);
+        await document.fonts.ready;
+      }
+    } catch { /* ignore */ }
+    // Laisse le temps aux images visibles de la carte de se charger (max 3 s)
+    await Promise.all(Array.from(el.querySelectorAll('img')).map(img => (img.complete ? null : new Promise(r => {
+      const done = () => r();
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, 3000);
+    }))));
     const holo = el.querySelector('.pc-holo');
     if (holo) holo.style.display = 'none';
     const cardW = el.getBoundingClientRect().width || 250;
     const scale = Math.max(3, Math.ceil(750 / cardW));
-    swapBrokenImages(el).then(swapped => {
-      html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false })
-        .then(canvas => {
-          swapped.forEach(({ img, orig }) => { img.src = orig; });
-          if (holo) holo.style.display = '';
-          const link = document.createElement('a');
-          link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-        })
-        .catch(() => {
-          swapped.forEach(({ img, orig }) => { img.src = orig; });
-          if (holo) holo.style.display = '';
-        });
+    const swapped = await swapBrokenImages(el);
+    let cardCanvas;
+    try {
+      cardCanvas = await html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false });
+    } finally {
+      swapped.forEach(({ img, orig }) => { img.src = orig; });
+      if (holo) holo.style.display = '';
+    }
+
+    const W = 1080, H = 1920;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W / 2, 820, 60, W / 2, 820, 900);
+    glow.addColorStop(0, 'rgba(201,162,74,0.16)');
+    glow.addColorStop(1, 'rgba(201,162,74,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Carte centrée dans la zone du haut
+    const maxW = 820, maxH = 1300;
+    const r = Math.min(maxW / cardCanvas.width, maxH / cardCanvas.height);
+    const cw = Math.round(cardCanvas.width * r), ch = Math.round(cardCanvas.height * r);
+    const cx = Math.round((W - cw) / 2);
+    const cy = Math.round(160 + (maxH - ch) / 2);
+    ctx.drawImage(cardCanvas, cx, cy, cw, ch);
+
+    // Texte sous la carte, en or
+    const url = `nlsshowcases.com/?player=${p.id}`;
+    const ff = "'Oswald', 'Archivo Black', sans-serif";
+    const fitFont = (txt, weight, size, maxWidth) => {
+      let s = size;
+      ctx.font = `${weight} ${s}px ${ff}`;
+      while (ctx.measureText(txt).width > maxWidth && s > 20) { s -= 2; ctx.font = `${weight} ${s}px ${ff}`; }
+    };
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#C9A24A';
+    const lineY = 160 + maxH + 140;
+    fitFont(t.shareImgLine.toUpperCase(), 500, 50, 960);
+    ctx.fillText(t.shareImgLine.toUpperCase(), W / 2, lineY);
+    fitFont(url, 700, 66, 980);
+    ctx.fillStyle = '#D4B26A';
+    ctx.fillText(url, W / 2, lineY + 100);
+
+    return await new Promise((resolve, reject) => {
+      c.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
     });
   }
 
@@ -930,6 +987,28 @@ export default function App() {
               {isShowcaseDemo && (
                 <div className="demo-preview-note">{t.demoPreview}</div>
               )}
+            </section>
+          )}
+
+          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && topShared.length > 0 && (
+            <section className="landing-sec reveal">
+              <div className="text-halo">
+                <div className="lsec-title">{t.topSharedTitle}</div>
+                <div className="lsec-sub">{t.topSharedSub}</div>
+              </div>
+              <div className="arc-row arc-row--top3">
+                {topShared.map(({ p, n }) => (
+                  <div key={p.id} className="arc-card">
+                    <PlayerCard
+                      p={p} lang={lang} t={t}
+                      onOpen={openPlayerModal}
+                      teams={TEAMS} units={view.units}
+                      leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
+                    />
+                    <div className="share-count-badge">{t.sharesCount(n)}</div>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
@@ -1453,7 +1532,7 @@ export default function App() {
 
       {/* ── PLAYER MODAL ── */}
       {selectedPlayer && (
-        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} buildShareImage={buildShareImage} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
       )}
 
       {/* ── GAME MODAL ── */}
