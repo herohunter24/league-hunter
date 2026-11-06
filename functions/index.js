@@ -317,9 +317,10 @@ export const nlsCardShare = onRequest(
 
     try {
       const tp = torontoParts();
-      // req.ip first; otherwise the LAST x-forwarded-for hop (added by Google's front end, not spoofable)
+      // LAST x-forwarded-for hop first (added by Google's front end; req.ip = left-most, client-controlled
+      // because the Functions Framework enables trust proxy), then req.ip / socket address as fallback
       const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
-      const ip = req.ip || xff[xff.length - 1] || 'unknown';
+      const ip = xff[xff.length - 1] || req.ip || req.socket?.remoteAddress || 'unknown';
       const rlRef = db.collection('rateLimits').doc(`share_${hashIp(ip)}_${tp.y}-${tp.m}-${tp.d}-${tp.h}`);
       const allowed = await db.runTransaction(async tx => {
         const s = await tx.get(rlRef);
