@@ -4,23 +4,55 @@
  * 9 tiers: Bronze → Argent → Or → Émeraude → Saphir → Rubis → Améthyste → Diamant → Légende
  *
  * Tiers are assigned by percentile rank within the player's same-category
- * peer group (or by fixed per-game thresholds when the group is too small).
+ * peer group (whole league when the category is too small, fixed per-game
+ * thresholds only when the whole league is too small). High tiers also need
+ * enough games played (TIER_GAMES_GATE) and Légende is capped per category.
  */
 
 export const CARD_TIERS = [
-  { id: 'bronze',   labelFr: 'BRONZE',    labelEn: 'BRONZE',   color: '#b87333', glow: false, pctMin: 0  },
-  { id: 'silver',   labelFr: 'ARGENT',    labelEn: 'SILVER',   color: '#d7dce2', glow: false, pctMin: 25 },
-  { id: 'gold',     labelFr: 'OR',        labelEn: 'GOLD',     color: '#ffd75e', glow: false, pctMin: 45 },
-  { id: 'emerald',  labelFr: 'ÉMERAUDE',  labelEn: 'EMERALD',  color: '#50e878', glow: true,  pctMin: 60 },
-  { id: 'sapphire', labelFr: 'SAPHIR',    labelEn: 'SAPPHIRE', color: '#7ab0ff', glow: true,  pctMin: 72 },
-  { id: 'ruby',     labelFr: 'RUBIS',     labelEn: 'RUBY',     color: '#ff6080', glow: true,  pctMin: 82 },
-  { id: 'amethyst', labelFr: 'AMÉTHYSTE', labelEn: 'AMETHYST', color: '#cc99ff', glow: true,  pctMin: 89 },
-  { id: 'diamond',  labelFr: 'DIAMANT',   labelEn: 'DIAMOND',  color: '#8ee6ff', glow: true,  pctMin: 94 },
-  { id: 'legend',   labelFr: 'LÉGENDE',   labelEn: 'LEGEND',   color: '#e0b0ff', glow: true,  pctMin: 98 },
+  { id: 'bronze',   labelFr: 'BRONZE',    labelEn: 'BRONZE',   color: '#b87333', glow: false, pctMin: 0 },
+  { id: 'silver',   labelFr: 'ARGENT',    labelEn: 'SILVER',   color: '#d7dce2', glow: false, pctMin: 10 },
+  { id: 'gold',     labelFr: 'OR',        labelEn: 'GOLD',     color: '#ffd75e', glow: false, pctMin: 25 },
+  { id: 'emerald',  labelFr: 'ÉMERAUDE',  labelEn: 'EMERALD',  color: '#50e878', glow: true,  pctMin: 75 },
+  { id: 'sapphire', labelFr: 'SAPHIR',    labelEn: 'SAPPHIRE', color: '#7ab0ff', glow: true,  pctMin: 85 },
+  { id: 'ruby',     labelFr: 'RUBIS',     labelEn: 'RUBY',     color: '#ff6080', glow: true,  pctMin: 91 },
+  { id: 'amethyst', labelFr: 'AMÉTHYSTE', labelEn: 'AMETHYST', color: '#cc99ff', glow: true,  pctMin: 95 },
+  { id: 'diamond',  labelFr: 'DIAMANT',   labelEn: 'DIAMOND',  color: '#8ee6ff', glow: true,  pctMin: 97.5 },
+  { id: 'legend',   labelFr: 'LÉGENDE',   labelEn: 'LEGEND',   color: '#e0b0ff', glow: true,  pctMin: 99 },
 ];
 
 /** Minimum games played to receive above Bronze. */
 export const MIN_GAMES_FOR_TIER = 3;
+
+/**
+ * Les hauts tiers demandent assez de matchs joués. Le minimum suit la saison :
+ * pct × (moyenne de matchs joués par équipe), jamais moins que `floor`.
+ * Un joueur sans assez de matchs reste au tier en dessous.
+ */
+export const TIER_GAMES_GATE = {
+  sapphire: { pct: 0.30, floor: 4 },
+  ruby:     { pct: 0.40, floor: 6 },
+  amethyst: { pct: 0.50, floor: 7 },
+  diamond:  { pct: 0.60, floor: 8 },
+  legend:   { pct: 0.85, floor: 12 },
+};
+
+/** Maximum de Légendes par catégorie. */
+export const MAX_LEGENDS_PER_CATEGORY = 2;
+
+/** Matchs requis pour un tier, selon la moyenne de matchs joués par équipe. */
+export function requiredGamesForTier(tierId, avgTeamGames) {
+  const g = TIER_GAMES_GATE[tierId];
+  if (!g) return MIN_GAMES_FOR_TIER;
+  return Math.max(g.floor, Math.ceil(g.pct * (avgTeamGames || 0)));
+}
+
+/** Descend le tier jusqu'à ce que le joueur ait assez de matchs. */
+export function applyGamesGate(tierId, gp, avgTeamGames) {
+  let idx = CARD_TIERS.findIndex(t => t.id === tierId);
+  while (idx > 0 && gp < requiredGamesForTier(CARD_TIERS[idx].id, avgTeamGames)) idx--;
+  return CARD_TIERS[Math.max(0, idx)].id;
+}
 
 /**
  * When a same-category group has fewer than this many eligible players,
@@ -42,12 +74,12 @@ export const FIXED_TIER_THRESHOLDS = [
   { id: 'bronze',   minScore: 0  },
   { id: 'silver',   minScore: 4  },
   { id: 'gold',     minScore: 7  },
-  { id: 'emerald',  minScore: 10 },
-  { id: 'sapphire', minScore: 13 },
-  { id: 'ruby',     minScore: 16 },
-  { id: 'amethyst', minScore: 20 },
-  { id: 'diamond',  minScore: 25 },
-  { id: 'legend',   minScore: 30 },
+  { id: 'emerald',  minScore: 14 },
+  { id: 'sapphire', minScore: 17 },
+  { id: 'ruby',     minScore: 20 },
+  { id: 'amethyst', minScore: 24 },
+  { id: 'diamond',  minScore: 28 },
+  { id: 'legend',   minScore: 33 },
 ];
 
 export function getTierIdByScore(avgScore) {

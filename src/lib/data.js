@@ -1,5 +1,5 @@
 import { TIER_ORDER } from './tiers.js';
-import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD } from '../config/cardTiers.js';
+import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD, applyGamesGate, MAX_LEGENDS_PER_CATEGORY } from '../config/cardTiers.js';
 import { getScoreFn, getRankFn } from '../config/sportScores.js';
 
 export function formatHeight(height, units) {
@@ -70,32 +70,53 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap, rankFn)
   });
 
   /**
-   * Given an eligible pool (already filtered to gp >= MIN_GAMES_FOR_TIER),
-   * return a percentile rank (0–100) for a target per-game average.
-   * pctRank = (players strictly below) / total × 100
+   * Percentile rank (0–100) for a target per-game average in an eligible pool.
+   * pctRank = (players strictly below) / (pool size − 1) × 100 → the best player = 100.
    */
   function pctRankInPool(targetAvg, pool) {
-    if (!pool.length) return 0;
+    if (pool.length < 2) return 0;
     const below = pool.filter(s => s.avgScore < targetAvg).length;
-    return (below / pool.length) * 100;
+    return Math.min(100, (below / (pool.length - 1)) * 100);
   }
 
+  // Moyenne de matchs joués par équipe cette saison (sert au minimum de matchs des hauts tiers)
+  const teamGames = {};
+  games.forEach(g => {
+    if (g.hs === null || g.hs === undefined || g.as === null || g.as === undefined) return;
+    const c = g.categoryId || '';
+    [g.home, g.away].forEach(n => { if (n) { const k = c + '|' + n; teamGames[k] = (teamGames[k] || 0) + 1; } });
+  });
+  const tgVals = Object.values(teamGames);
+  const avgTeamGames = tgVals.length ? tgVals.reduce((a, b) => a + b, 0) / tgVals.length : 0;
+
+  const leaguePool = scored.filter(x => x.gp >= MIN_GAMES_FOR_TIER);
+
   // Step 3 — assign tier per player using per-game average score
-  return scored.map(s => {
+  const out = scored.map(s => {
     // Players with 0 games get Bronze; 1–2 games get at most Silver (not yet ranked)
     if (s.gp === 0) return { ...s, pctRank: 0, tier: 'bronze' };
     // 1–2 matchs : Argent seulement si la moyenne par match le mérite, sinon Bronze
     if (s.gp < MIN_GAMES_FOR_TIER) return { ...s, pctRank: 0, tier: getTierIdByScore(s.avgScore) === 'bronze' ? 'bronze' : 'silver' };
 
-    const catGroup = (groups[s.categoryId] || []).filter(x => x.gp >= MIN_GAMES_FOR_TIER);
-    if (catGroup.length < SMALL_GROUP_THRESHOLD) {
-      // Too few peers — use fixed per-game average thresholds
-      return { ...s, pctRank: 0, tier: getTierIdByScore(s.avgScore) };
+    let pool = (groups[s.categoryId] || []).filter(x => x.gp >= MIN_GAMES_FOR_TIER);
+    // Catégorie trop petite : on compare à toute la ligue
+    if (pool.length < SMALL_GROUP_THRESHOLD) pool = leaguePool;
+    if (pool.length < SMALL_GROUP_THRESHOLD) {
+      // Ligue entière trop petite — seuils fixes par match
+      return { ...s, pctRank: 0, tier: applyGamesGate(getTierIdByScore(s.avgScore), s.gp, avgTeamGames) };
     }
-    const pctRank = pctRankInPool(s.avgScore, catGroup);
-    const tier    = getTierIdByPct(pctRank);
+    const pctRank = pctRankInPool(s.avgScore, pool);
+    const tier    = applyGamesGate(getTierIdByPct(pctRank), s.gp, avgTeamGames);
     return { ...s, pctRank, tier };
   });
+
+  // Légende : max MAX_LEGENDS_PER_CATEGORY par catégorie, les autres restent Diamant
+  const legendsByCat = {};
+  out.forEach(s => { if (s.tier === 'legend') (legendsByCat[s.categoryId] = legendsByCat[s.categoryId] || []).push(s); });
+  Object.values(legendsByCat).forEach(list => {
+    list.sort((a, b) => b.avgScore - a.avgScore).slice(MAX_LEGENDS_PER_CATEGORY).forEach(s => { s.tier = 'diamond'; });
+  });
+  return out;
 }
 
 export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
