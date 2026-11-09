@@ -670,7 +670,7 @@ async function sendScoreNotification(db, FS, league, game, emailConfig) {
   const activeScoreSubs = subs.filter(s => s.active && s.preferences && s.preferences.scores);
 
   // Also include player emails for players in this game
-  const gamePlayers = (league.players || []).filter(p => p.email && (p.team === game.home || p.team === game.away));
+  const gamePlayers = (league.players || []).filter(p => p.email && playerInGame(p, game));
   const extraEmails = gamePlayers.map(p => p.email).filter(Boolean);
 
   // Deduplicate
@@ -957,6 +957,13 @@ function toLoginId(v) {
 
 // ── HELPERS ──
 // ── MIGRATION: Ensure league has categories array ──
+// Joueurs d'une équipe pour un match : même nom d'équipe ET même catégorie que le match
+// (deux équipes peuvent porter le même nom dans deux catégories, ex. « C.S.S. BM » Or et Diamant).
+function playerInGameTeam(p, teamName, g) {
+  return p.team === teamName && (!p.categoryId || !g?.categoryId || String(p.categoryId) === String(g.categoryId));
+}
+function playerInGame(p, g) { return playerInGameTeam(p, g.home, g) || playerInGameTeam(p, g.away, g); }
+
 function migrateLeagueIfNeeded(league) {
   if (!league) return league;
   const hasCats = league.categories && league.categories.length > 0;
@@ -3788,8 +3795,8 @@ function App() {
     // Clés actives du formulaire ; les % (FG%, FT%) deviennent réussis/tentés
     const statKeys = [];
     activeDefs.forEach(s => { if (s.madeKey && s.attKey) statKeys.push(s.madeKey, s.attKey); else statKeys.push(s.key); });
-    const homePlayers = league.players.filter(p => p.team === g.home);
-    const awayPlayers = league.players.filter(p => p.team === g.away);
+    const homePlayers = league.players.filter(p => playerInGameTeam(p, g.home, g));
+    const awayPlayers = league.players.filter(p => playerInGameTeam(p, g.away, g));
     // Le formulaire contient déjà des chiffres ? → confirmation avant de remplacer
     const hasExisting = [...homePlayers, ...awayPlayers].some(p => statKeys.some(k => (parseFloat(editStats.stats[p.id]?.[k]) || 0) !== 0));
     if (hasExisting && !window.confirm(stellaT(`${AGENT_NAME} va remplacer les stats déjà entrées. Continuer ?`,
@@ -4171,7 +4178,7 @@ function App() {
     if (!skipCheck && league.sport === "Basketball") {
       const g = editStats.game;
       if (g.homeScore !== undefined && g.awayScore !== undefined) {
-        const allGamePlayers = league.players.filter(p => (p.team === g.home || p.team === g.away) && !(editStats.absent || {})[p.id]);
+        const allGamePlayers = league.players.filter(p => playerInGame(p, g) && !(editStats.absent || {})[p.id]);
         const mismatches = [g.home, g.away].map(teamName => {
           const teamPlayers = allGamePlayers.filter(p => p.team === teamName);
           const entered = teamPlayers.reduce((s, p) => s + (parseFloat(editStats.stats[p.id]?.points) || 0), 0);
@@ -5326,7 +5333,7 @@ function App() {
                               {(() => {
                                 // Même bouton que dans Calendrier : entrer / modifier les stats du match
                                 const hasStats = Object.keys(g.playerStats || {}).length > 0;
-                                const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+                                const gamePlayers = league.players.filter(p => playerInGame(p, g));
                                 if (!gamePlayers.length) return null;
                                 return (
                                   <button onClick={() => {
@@ -5640,7 +5647,7 @@ function App() {
                                                   onClick={e => {
                                                     e.stopPropagation();
                                                     // Open existing stats editor pre-filled with all players for this game
-                                                    const gamePlayers = league.players.filter(pl => pl.team === g.home || pl.team === g.away);
+                                                    const gamePlayers = league.players.filter(pl => playerInGame(pl, g));
                                                     const stats = {};
                                                     gamePlayers.forEach(pl => {
                                                       const existing = (g.playerStats || {})[pl.id] || {};
@@ -5847,7 +5854,7 @@ function App() {
                                   {hasScore && <button onClick={() => setEditScore(g)} style={{ background: "none", border: `1px solid ${BORDER}`, borderRadius: 6, color: T2, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Modifier score</button>}
                                   {(() => {
                                     const hasStats = Object.keys(g.playerStats || {}).length > 0;
-                                    const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+                                    const gamePlayers = league.players.filter(p => playerInGame(p, g));
                                     if (!gamePlayers.length) return null;
                                     return (
                                       <button onClick={() => {
@@ -5991,7 +5998,7 @@ function App() {
                                 }
                                 {(() => {
                                   const hasStats = Object.keys(g.playerStats || {}).length > 0;
-                                  const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+                                  const gamePlayers = league.players.filter(p => playerInGame(p, g));
                                   if (!gamePlayers.length) return null;
                                   return (
                                     <button onClick={() => {
@@ -8076,7 +8083,7 @@ service cloud.firestore {
         {/* ── STATS ENTRY MODAL ── */}
         {editStats && (() => {
           const g = editStats.game;
-          const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+          const gamePlayers = league.players.filter(p => playerInGame(p, g));
           const absentMap = editStats.absent || {};
           const presentPlayers = gamePlayers.filter(p => !absentMap[p.id]);
           // Score verification bar (Basketball + game has a score)
@@ -8782,7 +8789,7 @@ service cloud.firestore {
             return dt.toLocaleDateString("fr-CA", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
           };
           const openStats = (g) => {
-            const gamePlayers = league.players.filter(p => p.team === g.home || p.team === g.away);
+            const gamePlayers = league.players.filter(p => playerInGame(p, g));
             const stats = {};
             gamePlayers.forEach(p => {
               const existing = (g.playerStats || {})[p.id] || {};
@@ -8811,7 +8818,7 @@ service cloud.firestore {
                     const ago = daysAgo(g);
                     const cat = cats.length > 1 ? cats.find(c => c.id === g.categoryId) : null;
                     const hasStats = Object.keys(g.playerStats || {}).length > 0;
-                    const hasPlayers = league.players.some(p => p.team === g.home || p.team === g.away);
+                    const hasPlayers = league.players.some(p => playerInGame(p, g));
                     return (
                       <div key={g.id} style={{ padding: "12px 14px", background: SURF, borderRadius: 8, border: `1px solid ${ago >= 2 ? "#ef444440" : "#f59e0b40"}` }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
