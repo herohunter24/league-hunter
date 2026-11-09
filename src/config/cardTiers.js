@@ -47,6 +47,12 @@ export function requiredGamesForTier(tierId, avgTeamGames) {
   return Math.max(g.floor, Math.ceil(g.pct * (avgTeamGames || 0)));
 }
 
+/** Le plus bas des deux tiers. */
+export function minTier(a, b) {
+  const ia = CARD_TIERS.findIndex(t => t.id === a), ib = CARD_TIERS.findIndex(t => t.id === b);
+  return CARD_TIERS[Math.max(0, Math.min(ia, ib))].id;
+}
+
 /** Descend le tier jusqu'à ce que le joueur ait assez de matchs. */
 export function applyGamesGate(tierId, gp, avgTeamGames) {
   let idx = CARD_TIERS.findIndex(t => t.id === tierId);
@@ -66,20 +72,24 @@ export const TIER_ICON = {
 };
 
 /**
+ * Moyenne minimum par match pour chaque tier. Sert de seuils fixes quand la ligue
+ * est trop petite, ET de plancher partout : un joueur ne monte jamais plus haut que
+ * sa moyenne le permet (ex. 4 points seulement = Argent max), même si son rang est bon.
+ *
  * Fixed per-game average score thresholds — used when a category group is too
  * small for meaningful percentile comparison.
- * Calibrated for basketball (pts×1 + reb×0.7 + ast×1.2 + stl×1.5 + blk×1.5 − to×1.0).
+ * Calibrated for basketball (pts×1 + reb×1 + ast×1.5 + stl×2 + blk×2 − to×1).
  */
 export const FIXED_TIER_THRESHOLDS = [
   { id: 'bronze',   minScore: 0  },
   { id: 'silver',   minScore: 4  },
   { id: 'gold',     minScore: 7  },
-  { id: 'emerald',  minScore: 14 },
-  { id: 'sapphire', minScore: 17 },
+  { id: 'emerald',  minScore: 12 },
+  { id: 'sapphire', minScore: 16 },
   { id: 'ruby',     minScore: 20 },
-  { id: 'amethyst', minScore: 24 },
-  { id: 'diamond',  minScore: 28 },
-  { id: 'legend',   minScore: 33 },
+  { id: 'amethyst', minScore: 25 },
+  { id: 'diamond',  minScore: 32 },
+  { id: 'legend',   minScore: 40 },
 ];
 
 export function getTierIdByScore(avgScore) {

@@ -116,14 +116,15 @@ function basketballRankScore(player, allGames, leagueLike) {
     })
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   if (!games.length) return 0;
+  // Poids du tier : rebonds, passes et défense comptent plus que dans les RP
   const baseScores = games.map(g => {
     const ps = g.playerStats[pid] || {};
     return Math.max(0,
       (+(ps.points   || 0)) * 1.0 +
-      (+(ps.rebounds || 0)) * 0.7 +
-      (+(ps.assists  || 0)) * 1.2 +
-      (+(ps.steals   || 0)) * 1.5 +
-      (+(ps.blocks   || 0)) * 1.5 -
+      (+(ps.rebounds || 0)) * 1.0 +
+      (+(ps.assists  || 0)) * 1.5 +
+      (+(ps.steals   || 0)) * 2.0 +
+      (+(ps.blocks   || 0)) * 2.0 -
       (+(ps.turnovers|| 0)) * 1.0);
   });
   const avg = baseScores.reduce((s, x) => s + x, 0) / baseScores.length;
