@@ -1060,6 +1060,27 @@ export default function App() {
       {/* ── LANDING (before explorer) ── */}
       {!showExplorer && (
         <>
+          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && (
+            <section className="landing-sec reveal">
+              <div className="text-halo">
+                <div className="lsec-title">{t.topSharedTitle}</div>
+                <div className="lsec-sub">{t.topSharedSub}</div>
+              </div>
+              {topShared.length > 0 && <div className="arc-row arc-row--top3">
+                {topShared.map(({ p, n }) => (
+                  <div key={p.id} className="arc-card">
+                    <PlayerCard
+                      p={p} lang={lang} t={t}
+                      onOpen={openPlayerModal}
+                      teams={TEAMS} units={view.units}
+                      leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
+                    />
+                    <div className="share-count-badge">{t.sharesCount(n)}</div>
+                  </div>
+                ))}
+              </div>}
+            </section>
+          )}
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
             <section className="landing-sec reveal">
               <div className="text-halo">
@@ -1085,27 +1106,6 @@ export default function App() {
             </section>
           )}
 
-          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && topShared.length > 0 && (
-            <section className="landing-sec reveal">
-              <div className="text-halo">
-                <div className="lsec-title">{t.topSharedTitle}</div>
-                <div className="lsec-sub">{t.topSharedSub}</div>
-              </div>
-              <div className="arc-row arc-row--top3">
-                {topShared.map(({ p, n }) => (
-                  <div key={p.id} className="arc-card">
-                    <PlayerCard
-                      p={p} lang={lang} t={t}
-                      onOpen={openPlayerModal}
-                      teams={TEAMS} units={view.units}
-                      leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
-                    />
-                    <div className="share-count-badge">{t.sharesCount(n)}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
 
           <section className="landing-sec reveal">

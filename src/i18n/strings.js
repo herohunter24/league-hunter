@@ -147,7 +147,7 @@
     statsKicker: "League leaders", statsTitle: "Statistics",
     topScorers: "Top Scorers", topRebounders: "Top Rebounders", topPlaymakers: "Top Playmakers",
     topSteals: "Top Steals", topBlocks: "Top Blocks", topThrees: "Top 3-Point Shooters", loadingLeague: "Loading league…", notFound: "No league found with that ID.",
-    share: "Share", shareCardBtn: "Share your card", sharePreparing: "Preparing…", copyLink: "Copy link", shareMenuLabel: "Share on", shareImgLine: "See my full profile", topSharedTitle: "Most shared cards this month", topSharedSub: "Share your card from your profile to show up here.", sharesCount: n => `${n} share${n === 1 ? '' : 's'}`, noPlayers: "No players match this filter.",
+    share: "Share", shareCardBtn: "Share your card", sharePreparing: "Preparing…", copyLink: "Copy link", shareMenuLabel: "Share on", shareImgLine: "See my full profile", topSharedTitle: "Most Shared Cards", topSharedSub: "Share your card from your profile to show up here.", sharesCount: n => `${n} share${n === 1 ? '' : 's'}`, noPlayers: "No players match this filter.",
     venue: "Venue", directions: "Directions", noUpcoming: "No upcoming games", linkCopied: "Link copied ✓", nextGame: "Next game",
     footerAbout: "Break the limits",
     footerLeague: "The League", footerContact: "Contact", footerPowered: "Powered by",
