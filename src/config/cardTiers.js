@@ -84,12 +84,12 @@ export const FIXED_TIER_THRESHOLDS = [
   { id: 'bronze',   minScore: 0  },
   { id: 'silver',   minScore: 4  },
   { id: 'gold',     minScore: 7  },
-  { id: 'emerald',  minScore: 11 },
-  { id: 'sapphire', minScore: 14 },
-  { id: 'ruby',     minScore: 17 },
-  { id: 'amethyst', minScore: 21 },
-  { id: 'diamond',  minScore: 25 },
-  { id: 'legend',   minScore: 30 },
+  { id: 'emerald',  minScore: 12 },
+  { id: 'sapphire', minScore: 16 },
+  { id: 'ruby',     minScore: 20 },
+  { id: 'amethyst', minScore: 25 },
+  { id: 'diamond',  minScore: 32 },
+  { id: 'legend',   minScore: 40 },
 ];
 
 export function getTierIdByScore(avgScore) {
