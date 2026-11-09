@@ -1866,6 +1866,8 @@ function App() {
   const [nlsSubs, setNlsSubs] = useState([]);
   const [nlsSubsLoading, setNlsSubsLoading] = useState(false);
   const [nlsAlertsActive, setNlsAlertsActive] = useState(false);
+  // Partages de cartes du mois courant (écrits par la Cloud Function nlsCardShare)
+  const [cardShares, setCardShares] = useState({});
   const [nlsAnnSubject, setNlsAnnSubject] = useState('');
   const [nlsAnnMsg, setNlsAnnMsg] = useState('');
   const [nlsAnnTargetEmail, setNlsAnnTargetEmail] = useState('');
@@ -1996,6 +1998,19 @@ function App() {
       .then(snap => { if (snap.exists()) setNlsAlertsActive(!!snap.data().alertsActive); })
       .catch(() => {});
   }, [tab, selId]);
+
+  // Compteur de partages de cartes du mois (heure de Toronto) — même doc que le site public
+  useEffect(() => {
+    if (!__fbReady || !_db || !selId) return;
+    const { doc, onSnapshot } = _FS;
+    if (!onSnapshot) return;
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
+    const mk = `${parts.find(x => x.type === 'year').value}-${parts.find(x => x.type === 'month').value}`;
+    setCardShares({});
+    const unsub = onSnapshot(doc(_db, 'leagues', String(selId), 'meta', `cardShares-${mk}`),
+      snap => setCardShares(snap.exists() ? (snap.data() || {}) : {}), () => {});
+    return () => unsub();
+  }, [selId]);
 
   // Auto-load subscribers when the Alertes tab opens (or league changes)
   useEffect(() => {
@@ -6337,7 +6352,7 @@ function App() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: SURF }}>
-                        {["#","Joueur","Équipe","Niveau","RP","MJ"].map(h => (
+                        {["#","Joueur","Équipe","Niveau","RP","MJ","Partages (mois)"].map(h => (
                           <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 700, color: T2, letterSpacing: "0.05em", borderBottom: `1px solid ${BORDER}` }}>{h}</th>
                         ))}
                       </tr>
@@ -6371,12 +6386,13 @@ function App() {
                               </td>
                               <td style={{ padding: "10px 12px", fontWeight: 800, color: tier.color }}>{p.rp}</td>
                               <td style={{ padding: "10px 12px", color: T2 }}>{p.gp}</td>
+                              <td style={{ padding: "10px 12px", fontWeight: 700, color: (+(cardShares[String(p.id)] || 0)) > 0 ? ACC : T2 }}>{+(cardShares[String(p.id)] || 0)}</td>
                             </tr>
                           );
                         })
                       }
                       {catPlayers.length === 0 && (
-                        <tr><td colSpan={6} style={{ padding: 32, textAlign: "center", color: T2 }}>Aucun joueur dans cette catégorie.</td></tr>
+                        <tr><td colSpan={7} style={{ padding: 32, textAlign: "center", color: T2 }}>Aucun joueur dans cette catégorie.</td></tr>
                       )}
                     </tbody>
                   </table>

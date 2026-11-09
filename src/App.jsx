@@ -30,8 +30,8 @@ function readUrlState() {
   return {
     cat:      sp.get('cat') || null,
     tab:      sp.get('tab') || 'standings',
-    playerId: sp.get('player') ? Number(sp.get('player')) : null,
-    gameId:   sp.get('game')   ? Number(sp.get('game'))   : null,
+    playerId: sp.get('player') || null,
+    gameId:   sp.get('game')   || null,
     g:        sp.get('g') || null,
     div:      sp.get('div') || null,
   };
@@ -571,17 +571,17 @@ export default function App() {
     if (!PLAYERS.length || didInitRef.current) return;
     didInitRef.current = true;
     const sp = new URLSearchParams(window.location.search);
-    const pid = sp.get('player') ? Number(sp.get('player')) : null;
-    const gid = sp.get('game')   ? Number(sp.get('game'))   : null;
+    const pid = sp.get('player') || null;
+    const gid = sp.get('game')   || null;
     if (pid) {
-      const p = PLAYERS.find(pl => pl.id === pid);
+      const p = PLAYERS.find(pl => String(pl.id) === String(pid));
       if (p) {
         if (!selectedCat) setSelectedCat(p.categoryId || effectiveCats[0]?.id || null);
         setSelectedPlayer(p);
       }
     }
     if (gid) {
-      const g = GAMES.find(ga => ga.id === gid);
+      const g = GAMES.find(ga => String(ga.id) === String(gid));
       if (g) setOpenGame(g);
     }
   }, [PLAYERS, GAMES]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -609,8 +609,8 @@ export default function App() {
       setPickerGender(s.g || null);
       setPickerDiv(s.div || null);
       setActiveTab(s.tab);
-      setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => pl.id === s.playerId) || null) : null);
-      setOpenGame(s.gameId ? (GAMES.find(ga => ga.id === s.gameId) || null) : null);
+      setSelectedPlayer(s.playerId ? (PLAYERS.find(pl => String(pl.id) === String(s.playerId)) || null) : null);
+      setOpenGame(s.gameId ? (GAMES.find(ga => String(ga.id) === String(s.gameId)) || null) : null);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -701,6 +701,13 @@ export default function App() {
     return picks;
   }, [PLAYERS, live, isShowcaseDemo]);
 
+  // Top 3 des cartes les plus partagées ce mois-ci (joueurs encore dans PLAYERS seulement)
+  const topShared = PLAYERS
+    .map(p => ({ p, n: +((data.cardShares || {})[String(p.id)] || 0) }))
+    .filter(x => x.n > 0)
+    .sort((a, b) => (b.n - a.n) || ((b.p.rp || 0) - (a.p.rp || 0)))
+    .slice(0, 3);
+
   // Before html2canvas: replace any broken <img> that's visible and failed to load
   // with the silhouette PNG so the photo zone is never empty in the export.
   async function swapBrokenImages(el) {
@@ -719,29 +726,174 @@ export default function App() {
     return swapped;
   }
 
-  function shareCard(p) {
+  // Image à partager (1080×1920, story) : carte capturée + lien du profil en dessous.
+  // Pré-générée à l'ouverture du modal (iOS Safari exige navigator.share() directement au tap).
+  // ── Corrections du clone html2canvas (capture seulement, l'affichage du site ne change pas) ──
+  // html2canvas 1.4 ne gère pas clip-path / mask / background-clip:text / SVG sans taille,
+  // et rend mal les box-shadow « inset » en anneau (cadre plein).
+  async function svgToPng(src, w, h) {
+    const txt = await (await fetch(src)).text();
+    const sized = txt.replace(/<svg\b([^>]*)>/, (m, attrs) => (/\swidth=/.test(attrs) ? m : `<svg${attrs} width="${w}" height="${h}">`));
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(sized); });
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    return c.toDataURL('image/png');
+  }
+
+  function splitShadows(str) {
+    const out = []; let depth = 0, cur = '';
+    for (const ch of str) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+
+  function fixCloneForCapture(cloneDoc, root, lhImg, lhPng) {
+    if (!root) return;
+    const win = cloneDoc.defaultView || window;
+    // 1. Pseudo-éléments découpés (clip-path / mask) → html2canvas les peint en bloc plein : on les retire
+    root.querySelectorAll('html2canvaspseudoelement').forEach(pe => {
+      const st = pe.style;
+      const clipped = (st.clipPath && st.clipPath !== 'none') || (st.webkitClipPath && st.webkitClipPath !== 'none');
+      const masked = (st.maskImage && st.maskImage !== 'none') || (st.webkitMaskImage && st.webkitMaskImage !== 'none');
+      if (clipped || masked) pe.remove();
+    });
+    const els = [root, ...root.querySelectorAll('*')];
+    for (const node of els) {
+      if (!node.style || node.tagName === 'HTML2CANVASPSEUDOELEMENT' || !node.isConnected) continue;
+      const cs = win.getComputedStyle(node);
+      // 2. Texte en dégradé (background-clip: text) → couleur pleine (1re couleur du dégradé)
+      if (cs.webkitBackgroundClip === 'text' || cs.backgroundClip === 'text') {
+        const m = (cs.backgroundImage || '').match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/i);
+        node.style.setProperty('background', 'none', 'important');
+        node.style.setProperty('color', m ? m[0] : '#ffffff', 'important');
+        node.style.setProperty('-webkit-text-fill-color', m ? m[0] : '#ffffff', 'important');
+      }
+      // 3. conic-gradient (cadres Diamant/Légende) non supporté → dégradé linéaire équivalent
+      if ((cs.backgroundImage || '').includes('conic-gradient')) {
+        const lin = cs.backgroundImage
+          .replace(/conic-gradient\(/g, 'linear-gradient(')
+          .replace(/linear-gradient\((?:from [^,]*|at [^,]*),/g, 'linear-gradient(135deg,')
+          .replace(/(\)|#[0-9a-f]+|[a-z]+)\s+-?[\d.]+(?:deg|turn|rad|grad)/gi, '$1');
+        node.style.setProperty('background-image', lin, 'important');
+      }
+      // 4. Anneaux « inset 0 0 0 Npx couleur » → vraies bordures superposées
+      const bs = cs.boxShadow;
+      if (bs && bs !== 'none' && bs.includes('inset')) {
+        const parts = splitShadows(bs);
+        const rings = [];
+        const keep = [];
+        for (const sh of parts) {
+          if (!/\binset\b/.test(sh)) { keep.push(sh); continue; }
+          const color = (sh.match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/i) || [])[0];
+          const nums = sh.replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/ig, '').match(/-?[\d.]+px/g) || [];
+          const [x, y, blur, spread] = nums.map(parseFloat);
+          if (color && !x && !y && !blur && spread > 0) rings.push({ color, spread });
+        }
+        node.style.setProperty('box-shadow', keep.length ? keep.join(', ') : 'none', 'important');
+        if (rings.length) {
+          if (cs.position === 'static') node.style.position = 'relative';
+          // 1re ombre = au-dessus → ajoutée en dernier
+          rings.reverse().forEach(r => {
+            const o = cloneDoc.createElement('div');
+            o.style.cssText = `position:absolute;inset:0;border-radius:${cs.borderRadius};border:${r.spread}px solid ${r.color};box-sizing:border-box;pointer-events:none;z-index:30;`;
+            node.appendChild(o);
+          });
+        }
+      }
+    }
+    // 5. Logo LH (SVG sans taille) → PNG de taille fixe
+    if (lhImg && lhPng) {
+      const cl = root.querySelector('.pc-lh-mark');
+      if (cl) {
+        cl.src = lhPng;
+        cl.style.width = (lhImg.offsetWidth || 15) + 'px';
+        cl.style.height = (lhImg.offsetHeight || 10) + 'px';
+      }
+    }
+  }
+
+  async function buildShareImage(p) {
     const modal = document.querySelector('.pmodal');
     const el = (modal && modal.querySelector(`#pcard-${p.id}`))
       || document.getElementById(`pcard-${p.id}`);
-    if (!el) return;
+    if (!el) throw new Error('card-not-found');
+    try {
+      if (document.fonts) {
+        await Promise.all([document.fonts.load("500 50px 'Oswald'"), document.fonts.load("700 66px 'Oswald'")]);
+        await document.fonts.ready;
+      }
+    } catch { /* ignore */ }
+    // Laisse le temps aux images visibles de la carte de se charger (max 3 s)
+    await Promise.all(Array.from(el.querySelectorAll('img')).map(img => (img.complete ? null : new Promise(r => {
+      const done = () => r();
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, 3000);
+    }))));
     const holo = el.querySelector('.pc-holo');
     if (holo) holo.style.display = 'none';
     const cardW = el.getBoundingClientRect().width || 250;
     const scale = Math.max(3, Math.ceil(750 / cardW));
-    swapBrokenImages(el).then(swapped => {
-      html2canvas(el, { backgroundColor: null, scale, useCORS: true, allowTaint: false })
-        .then(canvas => {
-          swapped.forEach(({ img, orig }) => { img.src = orig; });
-          if (holo) holo.style.display = '';
-          const link = document.createElement('a');
-          link.download = `${p.name.replace(/\s+/g, '-')}-NLS-card.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-        })
-        .catch(() => {
-          swapped.forEach(({ img, orig }) => { img.src = orig; });
-          if (holo) holo.style.display = '';
-        });
+    const swapped = await swapBrokenImages(el);
+    let cardCanvas;
+    try {
+      const lhImg = el.querySelector('.pc-lh-mark');
+      const lhPng = lhImg ? await svgToPng(lhImg.src, 300, 200).catch(() => null) : null;
+      cardCanvas = await html2canvas(el, {
+        backgroundColor: null, scale, useCORS: true, allowTaint: false,
+        onclone: (cloneDoc, cloneEl) => fixCloneForCapture(cloneDoc, cloneEl || cloneDoc.querySelector(`.pmodal #pcard-${p.id}`), lhImg, lhPng),
+      });
+    } finally {
+      swapped.forEach(({ img, orig }) => { img.src = orig; });
+      if (holo) holo.style.display = '';
+    }
+
+    const W = 1080, H = 1920;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W / 2, 820, 60, W / 2, 820, 900);
+    glow.addColorStop(0, 'rgba(201,162,74,0.16)');
+    glow.addColorStop(1, 'rgba(201,162,74,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Carte centrée dans la zone du haut
+    const maxW = 820, maxH = 1300;
+    const r = Math.min(maxW / cardCanvas.width, maxH / cardCanvas.height);
+    const cw = Math.round(cardCanvas.width * r), ch = Math.round(cardCanvas.height * r);
+    const cx = Math.round((W - cw) / 2);
+    const cy = Math.round(160 + (maxH - ch) / 2);
+    ctx.drawImage(cardCanvas, cx, cy, cw, ch);
+
+    // Texte sous la carte, en or
+    const url = `nlsshowcases.com/?player=${p.id}`;
+    const ff = "'Oswald', 'Archivo Black', sans-serif";
+    const fitFont = (txt, weight, size, maxWidth) => {
+      let s = size;
+      ctx.font = `${weight} ${s}px ${ff}`;
+      while (ctx.measureText(txt).width > maxWidth && s > 20) { s -= 2; ctx.font = `${weight} ${s}px ${ff}`; }
+    };
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#C9A24A';
+    const lineY = 160 + maxH + 30; // 1490 : texte au-dessus de y≈1600 (zone réponse Instagram)
+    fitFont(t.shareImgLine.toUpperCase(), 500, 50, 960);
+    ctx.fillText(t.shareImgLine.toUpperCase(), W / 2, lineY);
+    fitFont(url, 700, 66, 980);
+    ctx.fillStyle = '#D4B26A';
+    ctx.fillText(url, W / 2, lineY + 92);
+
+    return await new Promise((resolve, reject) => {
+      c.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
     });
   }
 
@@ -908,6 +1060,27 @@ export default function App() {
       {/* ── LANDING (before explorer) ── */}
       {!showExplorer && (
         <>
+          {(ps.showPlayers !== false && ps.showPlayerCards !== false) && (
+            <section className="landing-sec reveal">
+              <div className="text-halo">
+                <div className="lsec-title">{t.topSharedTitle}</div>
+                <div className="lsec-sub">{t.topSharedSub}</div>
+              </div>
+              {topShared.length > 0 && <div className="arc-row arc-row--top3">
+                {topShared.map(({ p, n }) => (
+                  <div key={p.id} className="arc-card">
+                    <PlayerCard
+                      p={p} lang={lang} t={t}
+                      onOpen={openPlayerModal}
+                      teams={TEAMS} units={view.units}
+                      leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
+                    />
+                    <div className="share-count-badge">{t.sharesCount(n)}</div>
+                  </div>
+                ))}
+              </div>}
+            </section>
+          )}
           {(ps.showPlayers !== false && ps.showPlayerCards !== false) && showcasePlayers.length > 0 && (
             <section className="landing-sec reveal">
               <div className="text-halo">
@@ -932,6 +1105,7 @@ export default function App() {
               )}
             </section>
           )}
+
 
 
           <section className="landing-sec reveal">
@@ -1453,7 +1627,7 @@ export default function App() {
 
       {/* ── PLAYER MODAL ── */}
       {selectedPlayer && (
-        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} onShare={shareCard} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
+        <PlayerModal p={selectedPlayer} teams={TEAMS} units={view.units} lang={lang} t={t} games={GAMES} buildShareImage={buildShareImage} onClose={closePlayerModal} cardNumber={cardIndexMap.get(selectedPlayer.id)} cardTotal={cardTotal} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
       )}
 
       {/* ── GAME MODAL ── */}
