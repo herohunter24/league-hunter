@@ -292,6 +292,58 @@ export const nlsAdminDelSub = onRequest(
   }
 );
 
+// ── CARD SHARE COUNTER ───────────────────────────────────────────────────────
+// Counts one successful player-card share (image sent via the phone share sheet).
+// Anti-bot only: max 60 counted shares per IP per hour, extra ones silently ignored.
+function torontoParts(d = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d);
+  const get = t => parts.find(x => x.type === t)?.value;
+  return { y: get('year'), m: get('month'), d: get('day'), h: get('hour') };
+}
+
+export const nlsCardShare = onRequest(
+  { region: REGION },
+  async (req, res) => {
+    if (cors(req, res)) return;
+    if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
+
+    const { leagueId, playerId } = req.body || {};
+    const lid = typeof leagueId === 'string' ? leagueId.trim() : '';
+    const pid = typeof playerId === 'string' ? playerId.trim() : '';
+    const okId = s => s && s.length <= 100 && !s.includes('/') && s !== '.' && s !== '..' && !s.startsWith('__');
+    if (!okId(lid) || !okId(pid)) { res.status(400).json({ error: 'invalid' }); return; }
+
+    try {
+      const tp = torontoParts();
+      // LAST x-forwarded-for hop first (added by Google's front end; req.ip = left-most, client-controlled
+      // because the Functions Framework enables trust proxy), then req.ip / socket address as fallback
+      const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
+      const ip = xff[xff.length - 1] || req.ip || req.socket?.remoteAddress || 'unknown';
+      const rlRef = db.collection('rateLimits').doc(`share_${hashIp(ip)}_${tp.y}-${tp.m}-${tp.d}-${tp.h}`);
+      const allowed = await db.runTransaction(async tx => {
+        const s = await tx.get(rlRef);
+        const count = s.exists ? (s.data().count || 0) : 0;
+        if (count >= 60) return false;
+        tx.set(rlRef, { count: count + 1, ts: FieldValue.serverTimestamp() }, { merge: true });
+        return true;
+      });
+      if (!allowed) { res.json({ ok: true }); return; }
+
+      const playerSnap = await db.collection('leagues').doc(lid).collection('players').doc(pid).get();
+      if (!playerSnap.exists) { res.status(404).json({ error: 'not_found' }); return; }
+
+      await db.collection('leagues').doc(lid).collection('meta').doc(`cardShares-${tp.y}-${tp.m}`)
+        .set({ [pid]: FieldValue.increment(1) }, { merge: true });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('nlsCardShare error', e);
+      res.status(500).json({ error: 'server' });
+    }
+  }
+);
+
 // ── ADMIN: SEND TEST / ANNOUNCEMENT ─────────────────────────────────────────
 export const nlsAdminSend = onRequest(
   { region: REGION, secrets: [RESEND_KEY] },
