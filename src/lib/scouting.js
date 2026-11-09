@@ -43,7 +43,7 @@ export function scoutingReport(p, pGames, fgPct, lang) {
 
   const OPEN = fr ? {
     steady: [
-      `${name} a joué ${gp} matchs cette saison : ${f(ppg)} points, ${f(rpg)} rebonds et ${f(apg)} passes par match.`,
+      `${name} a joué ${gp} matchs cette saison : ${f(ppg)} point${ppg >= 2 ? 's' : ''}, ${f(rpg)} rebond${rpg >= 2 ? 's' : ''} et ${f(apg)} passe${apg >= 2 ? 's' : ''} par match.`,
     ],
     scorer: [
       `${name} est d'abord un marqueur : ${f(ppg)} points par match.`,
