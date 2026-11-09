@@ -15,14 +15,28 @@ export function formatWeight(weight, units) {
   return units === 'metric' ? `${weight} kg` : `${weight} lbs`;
 }
 
-export function deriveArchetype(tierId, ppg, rpg, apg) {
-  if (tierId === 'legend')   return { fr: 'ICÔNE',     en: 'ICON' };
-  if (tierId === 'amethyst' || tierId === 'champion') return { fr: 'FINISSEUR', en: 'CLOSER' };
-  const best = Math.max(ppg, rpg, apg);
-  if (best === apg && apg > 0) return { fr: 'CRÉATEUR',  en: 'PLAYMAKER' };
-  if (best === rpg && rpg > 0) return { fr: 'REBONDEUR', en: 'REBOUNDER' };
-  if (ppg >= 18)               return { fr: 'SNIPER',    en: 'SNIPER' };
-  if (ppg > 0)                 return { fr: 'MARQUEUR',  en: 'SCORER' };
+// Archétype : décidé uniquement par les stats par match (pas par le tier de la carte).
+// Ordre = du profil le plus rare/spécifique au plus général. Seuils pensés pour une ligue jeunesse.
+export function deriveArchetype(st) {
+  const { gp = 0, ppg = 0, rpg = 0, apg = 0, spg = 0, bpg = 0, tpg = 0 } = st || {};
+  const def = spg + bpg;
+  if (!gp)                                    return { fr: 'RECRUE',       en: 'NEWCOMER' };
+  if (ppg >= 10 && rpg >= 8)                  return { fr: 'COLOSSE',      en: 'BEAST' };
+  if (ppg >= 10 && apg >= 4)                  return { fr: 'GÉNÉRAL',      en: 'FLOOR GENERAL' };
+  if (ppg >= 8 && rpg >= 4 && apg >= 2.5)     return { fr: 'POLYVALENT',   en: 'ALL-AROUND' };
+  if (tpg >= 2)                               return { fr: 'SNIPER',       en: 'SHARPSHOOTER' };
+  if (bpg >= 1.5 && rpg >= 5)                 return { fr: 'PROTECTEUR',   en: 'RIM PROTECTOR' };
+  if (spg >= 2.5)                             return { fr: 'INTERCEPTEUR', en: 'BALLHAWK' };
+  if (ppg >= 15)                              return { fr: 'BUTEUR',       en: 'BUCKET GETTER' };
+  if (def >= 2.5)                             return { fr: 'VERROU',       en: 'LOCKDOWN' };
+  if (apg >= 3)                               return { fr: 'CRÉATEUR',     en: 'PLAYMAKER' };
+  if (rpg >= 6)                               return { fr: 'REBONDEUR',    en: 'REBOUNDER' };
+  if (ppg >= 6)                               return { fr: 'MARQUEUR',     en: 'SCORER' };
+  if (rpg >= 3)                               return { fr: 'TRAVAILLEUR',  en: 'HUSTLER' };
+  if (apg >= 1.5)                             return { fr: 'DISTRIBUTEUR', en: 'FACILITATOR' };
+  if (def >= 1)                               return { fr: 'DÉFENSEUR',    en: 'DEFENDER' };
+  if (ppg >= 3)                               return { fr: 'OPPORTUNISTE', en: 'OPPORTUNIST' };
+  if (rpg >= 1.5)                             return { fr: 'COMBATTANT',   en: 'FIGHTER' };
   return { fr: 'BATAILLEUR', en: 'GRINDER' };
 }
 
@@ -208,7 +222,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
       height: p.height, weight: p.weight,
       categoryId: p.categoryId != null ? String(p.categoryId) : '',
       tier,
-      arch: deriveArchetype(tier, ppg, rpg, apg),
+      arch: deriveArchetype({ gp, ppg, rpg, apg, spg, bpg, tpg }),
       ppg, rpg, apg, spg, bpg, tpg, gp,
       rp,       // raw performance score (used for sorting / modal display)
       pctRank,  // percentile within peer group (used for tier + modal progress bar)
