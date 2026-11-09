@@ -1,5 +1,5 @@
 import { TIER_ORDER } from './tiers.js';
-import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD, applyGamesGate, MAX_LEGENDS_PER_CATEGORY } from '../config/cardTiers.js';
+import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD, applyGamesGate, minTier, MAX_LEGENDS_PER_CATEGORY } from '../config/cardTiers.js';
 import { getScoreFn, getRankFn } from '../config/sportScores.js';
 
 export function formatHeight(height, units) {
@@ -106,7 +106,8 @@ function assignTiers(rawPlayers, games, leagueLike, scoreFn, teamCatMap, rankFn)
       return { ...s, pctRank: 0, tier: applyGamesGate(getTierIdByScore(s.avgScore), s.gp, avgTeamGames) };
     }
     const pctRank = pctRankInPool(s.avgScore, pool);
-    const tier    = applyGamesGate(getTierIdByPct(pctRank), s.gp, avgTeamGames);
+    // Rang dans le groupe, plafonné par la moyenne par match, puis par le nombre de matchs
+    const tier    = applyGamesGate(minTier(getTierIdByPct(pctRank), getTierIdByScore(s.avgScore)), s.gp, avgTeamGames);
     return { ...s, pctRank, tier };
   });
 

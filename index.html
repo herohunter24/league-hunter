@@ -459,12 +459,12 @@ const CARD_TIERS_ADMIN = [
   { id: 'bronze',   label: 'Bronze',    color: '#b87333', icon: '🥉', pctMin: 0,  minScore: 0  },
   { id: 'silver',   label: 'Argent',    color: '#d7dce2', icon: '🥈', pctMin: 10, minScore: 4  },
   { id: 'gold',     label: 'Or',        color: '#ffd75e', icon: '🥇', pctMin: 25, minScore: 7  },
-  { id: 'emerald',  label: 'Émeraude',  color: '#50e878', icon: '💚', pctMin: 75, minScore: 14 },
-  { id: 'sapphire', label: 'Saphir',    color: '#7ab0ff', icon: '💙', pctMin: 85, minScore: 17 },
-  { id: 'ruby',     label: 'Rubis',     color: '#ff6080', icon: '❤️', pctMin: 91, minScore: 20 },
-  { id: 'amethyst', label: 'Améthyste', color: '#cc99ff', icon: '💜', pctMin: 95, minScore: 24 },
-  { id: 'diamond',  label: 'Diamant',   color: '#8ee6ff', icon: '💎', pctMin: 97.5, minScore: 28 },
-  { id: 'legend',   label: 'Légende',   color: '#e0b0ff', icon: '👑', pctMin: 99, minScore: 33 },
+  { id: 'emerald',  label: 'Émeraude',  color: '#50e878', icon: '💚', pctMin: 75, minScore: 11 },
+  { id: 'sapphire', label: 'Saphir',    color: '#7ab0ff', icon: '💙', pctMin: 85, minScore: 14 },
+  { id: 'ruby',     label: 'Rubis',     color: '#ff6080', icon: '❤️', pctMin: 91, minScore: 17 },
+  { id: 'amethyst', label: 'Améthyste', color: '#cc99ff', icon: '💜', pctMin: 95, minScore: 21 },
+  { id: 'diamond',  label: 'Diamant',   color: '#8ee6ff', icon: '💎', pctMin: 97.5, minScore: 25 },
+  { id: 'legend',   label: 'Légende',   color: '#e0b0ff', icon: '👑', pctMin: 99, minScore: 30 },
 ];
 const CARD_MIN_GAMES = 3;
 const CARD_SMALL_GROUP = 10;
@@ -494,7 +494,7 @@ function cardRankScore(player, allGames, league) {
     return { avg: (sum('points') || sum('goals') || 0) / games.length, gp: games.length };
   }
   const base = games.map(g => { const ps = g.playerStats[pid] || {};
-    return Math.max(0, (+(ps.points||0))*1.0 + (+(ps.rebounds||0))*0.7 + (+(ps.assists||0))*1.2 + (+(ps.steals||0))*1.5 + (+(ps.blocks||0))*1.5 - (+(ps.turnovers||0))*1.0); });
+    return Math.max(0, (+(ps.points||0))*1.0 + (+(ps.rebounds||0))*1.0 + (+(ps.assists||0))*1.5 + (+(ps.steals||0))*2.0 + (+(ps.blocks||0))*2.0 - (+(ps.turnovers||0))*1.0); });
   const avg = base.reduce((s, x) => s + x, 0) / base.length;
   let aStr = 0, bStr = 0;
   const adj = base.map(s => {
@@ -544,6 +544,9 @@ function computeCardTiers(league) {
       mode = 'pct';
       pctRank = Math.min(100, pool.filter(x => x.avg < s.avg).length / (pool.length - 1) * 100);
       CARD_TIERS_ADMIN.forEach(t => { if (pctRank >= t.pctMin) tierId = t.id; });
+      // Plafond : la moyenne par match doit aussi être assez haute pour ce tier
+      let floorIdx = 0; CARD_TIERS_ADMIN.forEach((t, k) => { if (s.avg >= t.minScore) floorIdx = k; });
+      if (CARD_TIERS_ADMIN.findIndex(t => t.id === tierId) > floorIdx) tierId = CARD_TIERS_ADMIN[floorIdx].id;
       tierId = cardGamesGate(tierId, s.gp, avgTeamGames);
     }
     const idx = CARD_TIERS_ADMIN.findIndex(t => t.id === tierId);
