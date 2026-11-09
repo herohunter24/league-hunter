@@ -457,17 +457,26 @@ function getTier(rp) {
 // players of the same category. Website X shows the same tier so both sides match.
 const CARD_TIERS_ADMIN = [
   { id: 'bronze',   label: 'Bronze',    color: '#b87333', icon: '🥉', pctMin: 0,  minScore: 0  },
-  { id: 'silver',   label: 'Argent',    color: '#d7dce2', icon: '🥈', pctMin: 25, minScore: 4  },
-  { id: 'gold',     label: 'Or',        color: '#ffd75e', icon: '🥇', pctMin: 45, minScore: 7  },
-  { id: 'emerald',  label: 'Émeraude',  color: '#50e878', icon: '💚', pctMin: 60, minScore: 10 },
-  { id: 'sapphire', label: 'Saphir',    color: '#7ab0ff', icon: '💙', pctMin: 72, minScore: 13 },
-  { id: 'ruby',     label: 'Rubis',     color: '#ff6080', icon: '❤️', pctMin: 82, minScore: 16 },
-  { id: 'amethyst', label: 'Améthyste', color: '#cc99ff', icon: '💜', pctMin: 89, minScore: 20 },
-  { id: 'diamond',  label: 'Diamant',   color: '#8ee6ff', icon: '💎', pctMin: 94, minScore: 25 },
-  { id: 'legend',   label: 'Légende',   color: '#e0b0ff', icon: '👑', pctMin: 98, minScore: 30 },
+  { id: 'silver',   label: 'Argent',    color: '#d7dce2', icon: '🥈', pctMin: 10, minScore: 4  },
+  { id: 'gold',     label: 'Or',        color: '#ffd75e', icon: '🥇', pctMin: 25, minScore: 7  },
+  { id: 'emerald',  label: 'Émeraude',  color: '#50e878', icon: '💚', pctMin: 75, minScore: 14 },
+  { id: 'sapphire', label: 'Saphir',    color: '#7ab0ff', icon: '💙', pctMin: 85, minScore: 17 },
+  { id: 'ruby',     label: 'Rubis',     color: '#ff6080', icon: '❤️', pctMin: 91, minScore: 20 },
+  { id: 'amethyst', label: 'Améthyste', color: '#cc99ff', icon: '💜', pctMin: 95, minScore: 24 },
+  { id: 'diamond',  label: 'Diamant',   color: '#8ee6ff', icon: '💎', pctMin: 97.5, minScore: 28 },
+  { id: 'legend',   label: 'Légende',   color: '#e0b0ff', icon: '👑', pctMin: 99, minScore: 33 },
 ];
 const CARD_MIN_GAMES = 3;
 const CARD_SMALL_GROUP = 10;
+// Hauts tiers : minimum de matchs = pct × moyenne de matchs joués par équipe (jamais sous floor)
+const CARD_GAMES_GATE = { sapphire: { pct: 0.30, floor: 4 }, ruby: { pct: 0.40, floor: 6 }, amethyst: { pct: 0.50, floor: 7 }, diamond: { pct: 0.60, floor: 8 }, legend: { pct: 0.85, floor: 12 } };
+const CARD_MAX_LEGENDS = 2;
+function cardGamesGate(tierId, gp, avgTeamGames) {
+  let idx = CARD_TIERS_ADMIN.findIndex(t => t.id === tierId);
+  const need = id => { const g = CARD_GAMES_GATE[id]; return g ? Math.max(g.floor, Math.ceil(g.pct * (avgTeamGames || 0))) : CARD_MIN_GAMES; };
+  while (idx > 0 && gp < need(CARD_TIERS_ADMIN[idx].id)) idx--;
+  return CARD_TIERS_ADMIN[Math.max(0, idx)].id;
+}
 // Per-game performance (basketball formula + streak multipliers, no one-time milestone bonuses).
 function cardRankScore(player, allGames, league) {
   const season  = (league && league.season) || {};
@@ -508,9 +517,21 @@ function computeCardTiers(league) {
     const cat = p.categoryId != null && p.categoryId !== '' ? String(p.categoryId) : (teamCat[p.team] || '');
     return { id: String(p.id), cat, ...r };
   });
+  // Moyenne de matchs joués par équipe cette saison
+  const teamGames = {};
+  games.forEach(g => {
+    if (g.homeScore == null || g.homeScore === '' || g.awayScore == null || g.awayScore === '') return;
+    const c = g.categoryId != null ? String(g.categoryId) : '';
+    [g.home, g.away].forEach(n => { if (n) { const k = c + '|' + n; teamGames[k] = (teamGames[k] || 0) + 1; } });
+  });
+  const tgVals = Object.values(teamGames);
+  const avgTeamGames = tgVals.length ? tgVals.reduce((a, b) => a + b, 0) / tgVals.length : 0;
+  const leaguePool = scored.filter(x => x.gp >= CARD_MIN_GAMES);
   const byId = {};
   scored.forEach(s => {
-    const pool = scored.filter(x => x.cat === s.cat && x.gp >= CARD_MIN_GAMES);
+    let pool = scored.filter(x => x.cat === s.cat && x.gp >= CARD_MIN_GAMES);
+    // Catégorie trop petite : on compare à toute la ligue
+    if (pool.length < CARD_SMALL_GROUP) pool = leaguePool;
     let tierId = 'bronze', pctRank = 0, mode = 'unranked';
     if (s.gp === 0) tierId = 'bronze';
     // 1–2 matchs : Argent seulement si la moyenne par match le mérite, sinon Bronze
@@ -518,10 +539,12 @@ function computeCardTiers(league) {
     else if (pool.length < CARD_SMALL_GROUP) {
       mode = 'fixed';
       CARD_TIERS_ADMIN.forEach(t => { if (s.avg >= t.minScore) tierId = t.id; });
+      tierId = cardGamesGate(tierId, s.gp, avgTeamGames);
     } else {
       mode = 'pct';
-      pctRank = pool.filter(x => x.avg < s.avg).length / pool.length * 100;
+      pctRank = Math.min(100, pool.filter(x => x.avg < s.avg).length / (pool.length - 1) * 100);
       CARD_TIERS_ADMIN.forEach(t => { if (pctRank >= t.pctMin) tierId = t.id; });
+      tierId = cardGamesGate(tierId, s.gp, avgTeamGames);
     }
     const idx = CARD_TIERS_ADMIN.findIndex(t => t.id === tierId);
     const tier = CARD_TIERS_ADMIN[idx], next = CARD_TIERS_ADMIN[idx + 1] || null;
@@ -531,7 +554,14 @@ function computeCardTiers(league) {
       else if (mode === 'fixed') progress = Math.round(Math.max(0, Math.min(1, (s.avg - tier.minScore) / (next.minScore - tier.minScore))) * 100);
       else progress = Math.round(Math.min(1, s.gp / CARD_MIN_GAMES) * 100);
     }
-    byId[s.id] = { tier, next, pctRank, avg: s.avg, gp: s.gp, mode, progress };
+    byId[s.id] = { tier, next, pctRank, avg: s.avg, gp: s.gp, mode, progress, cat: s.cat };
+  });
+  // Légende : max CARD_MAX_LEGENDS par catégorie, les autres restent Diamant
+  const legendsByCat = {};
+  Object.entries(byId).forEach(([id, r]) => { if (r.tier.id === 'legend') (legendsByCat[r.cat] = legendsByCat[r.cat] || []).push(id); });
+  const diamond = CARD_TIERS_ADMIN.find(t => t.id === 'diamond'), legend = CARD_TIERS_ADMIN.find(t => t.id === 'legend');
+  Object.values(legendsByCat).forEach(ids => {
+    ids.sort((a, b) => byId[b].avg - byId[a].avg).slice(CARD_MAX_LEGENDS).forEach(id => { byId[id].tier = diamond; byId[id].next = legend; byId[id].progress = 99; });
   });
   return byId;
 }
