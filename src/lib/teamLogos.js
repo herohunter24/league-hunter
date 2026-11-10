@@ -35,6 +35,7 @@ const CLUB_LOGOS = {
   'REVOLUTION': 'revolution',
   'ROM BBALL': 'rom-bball',
   'SAGESSE': 'sagesse',
+  'SFB': 'sfb',
   'SSM': 'ssm',
   'UPHILL': 'uphill',
 };
