@@ -6,6 +6,7 @@
 const CLUB_LOGOS = {
   '3KBM': '3kbm',
   'AGBU': 'agbu',
+  'ARGO ELITE': 'argo-elite',
   'BLUEHOUNDS': 'bluehounds',
   'BREAKPOINT': 'breakpoint',
   'C.B.O. CAVALIERS': 'cavaliers',
@@ -33,6 +34,7 @@ const CLUB_LOGOS = {
   'PREMIER PAS': 'premier-pas',
   'REBELS': 'rebels',
   'REVOLUTION': 'revolution',
+  'RIVERAINS': 'riverains',
   'ROM BBALL': 'rom-bball',
   'SAGESSE': 'sagesse',
   'SFB': 'sfb',
