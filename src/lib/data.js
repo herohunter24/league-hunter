@@ -1,6 +1,7 @@
 import { TIER_ORDER } from './tiers.js';
 import { getTierIdByPct, getTierIdByScore, MIN_GAMES_FOR_TIER, SMALL_GROUP_THRESHOLD, applyGamesGate, minTier, MAX_LEGENDS_PER_CATEGORY } from '../config/cardTiers.js';
 import { getScoreFn, getRankFn } from '../config/sportScores.js';
+import { clubLogoUrl } from './teamLogos.js';
 
 export function formatHeight(height, units) {
   if (!height && height !== 0) return '';
@@ -165,7 +166,7 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
     const w = results.filter(r => r).length;
     return {
       id: tm.id || i, name: tm.name || '', emoji: tm.emoji || '🏀',
-      logoUrl: tm.logoUrl || '', color: tm.color || '#C9A24A',
+      logoUrl: tm.logoUrl || clubLogoUrl(tm.name), color: tm.color || '#C9A24A',
       categoryId: tm.categoryId != null ? String(tm.categoryId) : '',
       w, l: results.length - w, pf, pa, last5: results.slice(-5),
     };
