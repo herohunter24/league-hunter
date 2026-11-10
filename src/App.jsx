@@ -379,6 +379,13 @@ export default function App() {
   const [statSortDir, setStatSortDir] = useState('desc');
   const handleStatSort = key => { if (statSortKey === key) setStatSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setStatSortKey(key); setStatSortDir('desc'); } };
   const thAS = key => statSortKey === key ? (statSortDir === 'desc' ? ' ↓' : ' ↑') : '';
+  // Équipe d'un joueur (pour afficher son logo) — même nom possible dans 2 catégories
+  const teamOfPlayer = p => {
+    if (!p || !p.team) return null;
+    const cat = p.categoryId != null ? String(p.categoryId) : '';
+    return TEAMS.find(tm => tm.name === p.team && (!cat || tm.categoryId === cat))
+      || TEAMS.find(tm => tm.name === p.team) || null;
+  };
   const standings = useMemo(() => {
     const src = TEAMS.filter(tm => catMatch(tm.categoryId));
     const rows = src.map(tm => ({ ...tm, pct: (tm.w + tm.l) > 0 ? tm.w / (tm.w + tm.l) : 0, gp: tm.w + tm.l, diff: (tm.pf || 0) - (tm.pa || 0) }));
@@ -1003,7 +1010,7 @@ export default function App() {
                         onClick={() => { setPotmListOpen(false); openPlayerModal(x.player); }}>
                   <span className="potm-list-cat">{displayCatName(x.cat.name, t)}</span>
                   <span className="potm-list-name">{x.player.name}</span>
-                  {x.player.team && <span className="potm-list-team">{x.player.team}</span>}
+                  {x.player.team && <span className="potm-list-team" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{teamOfPlayer(x.player) && <TeamBadge team={teamOfPlayer(x.player)} size={14} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{x.player.team}</span></span>}
                 </button>
               ))}
             </div>
@@ -1067,7 +1074,7 @@ export default function App() {
                 <div className="lsec-sub">{t.topSharedSub}</div>
               </div>
               {topShared.length > 0 && <div className="arc-row arc-row--top3">
-                {topShared.map(({ p, n }) => (
+                {topShared.map(({ p }) => (
                   <div key={p.id} className="arc-card">
                     <PlayerCard
                       p={p} lang={lang} t={t}
@@ -1075,7 +1082,6 @@ export default function App() {
                       teams={TEAMS} units={view.units}
                       leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
                     />
-                    <div className="share-count-badge">{t.sharesCount(n)}</div>
                   </div>
                 ))}
               </div>}
@@ -1325,7 +1331,6 @@ export default function App() {
                           <SafeImage
                             src={tm.logoUrl}
                             alt={tm.name}
-                            loading="lazy"
                             style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }}
                             fallback={<TeamInitials name={tm.name} color={tm.color} size={28} />}
                           />
@@ -1537,7 +1542,7 @@ export default function App() {
                           <span className="leader-rank">{i + 1}</span>
                           <div className="leader-info">
                             <div className="leader-name">{p.name}</div>
-                            <div className="leader-team">{p.team}</div>
+                            <div className="leader-team" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>{teamOfPlayer(p) && <TeamBadge team={teamOfPlayer(p)} size={14} />}{p.team}</div>
                             {(p[key] || 0) > 0 && <div className="leader-bar"><div className="leader-bar-fill" style={{ '--target-w': ((p[key] || 0) / max * 100) + '%' }}></div></div>}
                           </div>
                           <span className="leader-val" data-count={(p[key] || 0).toFixed(1)}>{fmtN(p[key] || 0, lang)}</span>
@@ -1567,7 +1572,7 @@ export default function App() {
                       {sortedPlayers.map(p => (
                         <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => openPlayerModal(p)}>
                           <td className="td-team-sticky" style={{ fontWeight: 700 }}>{p.name}</td>
-                          <td style={{ color: 'var(--ink-mid)', whiteSpace: 'nowrap' }}>{p.team}</td>
+                          <td style={{ color: 'var(--ink-mid)', whiteSpace: 'nowrap' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{teamOfPlayer(p) && <TeamBadge team={teamOfPlayer(p)} size={18} />}{p.team}</span></td>
                           <td style={{ color: 'var(--ink-mid)' }}>{p.gp || 0}</td>
                           {statCols.map(([k]) => (
                             <td key={k} style={{ fontVariantNumeric: 'tabular-nums' }}><span data-count={(+(p[k] || 0)).toFixed(1)}>{fmtN(p[k] || 0, lang)}</span></td>
