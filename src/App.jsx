@@ -1074,7 +1074,7 @@ export default function App() {
                 <div className="lsec-sub">{t.topSharedSub}</div>
               </div>
               {topShared.length > 0 && <div className="arc-row arc-row--top3">
-                {topShared.map(({ p, n }) => (
+                {topShared.map(({ p }) => (
                   <div key={p.id} className="arc-card">
                     <PlayerCard
                       p={p} lang={lang} t={t}
@@ -1082,7 +1082,6 @@ export default function App() {
                       teams={TEAMS} units={view.units}
                       leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season}
                     />
-                    <div className="share-count-badge">{t.sharesCount(n)}</div>
                   </div>
                 ))}
               </div>}
