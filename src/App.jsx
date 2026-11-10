@@ -1325,7 +1325,6 @@ export default function App() {
                           <SafeImage
                             src={tm.logoUrl}
                             alt={tm.name}
-                            loading="lazy"
                             style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' }}
                             fallback={<TeamInitials name={tm.name} color={tm.color} size={28} />}
                           />

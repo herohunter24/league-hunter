@@ -6,9 +6,23 @@ import lhMark from '../assets/league-hunter-mark-white.svg';
 
 const fmtN = (n, lg) => (+(n || 0)).toLocaleString(lg === 'fr' ? 'fr-CA' : 'en-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-// Inline badge — always renders as initials circle with inline styles (survives html2canvas)
+// Inline badge — team logo when available (same-origin image, survives html2canvas),
+// otherwise initials circle with inline styles.
 const LEGACY_RE = /^#?(ff6b1a|ff8d4d|e84e00)$/i;
 function CardBadge({ team, size = 11 }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => { setLogoFailed(false); }, [team?.logoUrl]);
+  if (team?.logoUrl && !logoFailed) {
+    return (
+      <img
+        src={team.logoUrl}
+        alt=""
+        aria-hidden="true"
+        onError={() => setLogoFailed(true)}
+        style={{ display: 'inline-block', width: size, height: size, objectFit: 'contain', flexShrink: 0, verticalAlign: 'middle' }}
+      />
+    );
+  }
   const bg = team?.color && !LEGACY_RE.test(team.color) ? team.color : '#C9A24A';
   const initials = team ? (team.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
   return (
@@ -239,7 +253,7 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId,
               {p.number ? <span className="pc-num">#{p.number}</span> : null}{p.name}
             </div>
             <div className="pc-meta">
-              <CardBadge team={team} size={11} />
+              <CardBadge team={team} size={team?.logoUrl ? 14 : 11} />
               <span>{p.team}{p.pos ? ` · ${p.pos}` : ''}</span>
             </div>
             {hw && <div className="pc-meta" style={{ marginTop: 1 }}>{hw}</div>}

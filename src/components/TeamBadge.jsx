@@ -7,7 +7,6 @@ export function TeamBadge({ team, size = 24 }) {
       <SafeImage
         src={team.logoUrl}
         alt={team.name || ''}
-        loading="lazy"
         style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         fallback={<TeamInitials name={team.name} color={team.color} size={size} />}
       />
