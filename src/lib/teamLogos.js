@@ -33,6 +33,7 @@ const CLUB_LOGOS = {
   'PREMIER PAS': 'premier-pas',
   'REBELS': 'rebels',
   'REVOLUTION': 'revolution',
+  'RIVERAINS': 'riverains',
   'ROM BBALL': 'rom-bball',
   'SAGESSE': 'sagesse',
   'SFB': 'sfb',
