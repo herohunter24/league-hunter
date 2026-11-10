@@ -1,10 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Show fallback while photo loads; swap to photo only on successful onLoad.
 // This ensures the silhouette is visible immediately — never a blank photo zone.
 export function SafeImage({ src, alt, fallback, ...imgProps }) {
   const [status, setStatus] = useState('loading'); // 'loading' | 'loaded' | 'failed'
-  useEffect(() => { setStatus('loading'); }, [src]);
+  const imgRef = useRef(null);
+  const prevSrc = useRef(src);
+  useEffect(() => {
+    // Reset only when the src really changes (not on first mount)
+    if (prevSrc.current !== src) { prevSrc.current = src; setStatus('loading'); }
+    // Image already loaded (cache / direct link) before React attached onLoad
+    const el = imgRef.current;
+    if (el && el.complete) setStatus(el.naturalWidth > 0 ? 'loaded' : 'failed');
+  }, [src]);
 
   if (!src || status === 'failed') return fallback ?? null;
 
@@ -12,6 +20,7 @@ export function SafeImage({ src, alt, fallback, ...imgProps }) {
     <>
       {status !== 'loaded' && (fallback ?? null)}
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         onLoad={() => setStatus('loaded')}
