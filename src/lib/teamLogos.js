@@ -6,6 +6,7 @@
 const CLUB_LOGOS = {
   '3KBM': '3kbm',
   'AGBU': 'agbu',
+  'ARGO ELITE': 'argo-elite',
   'BLUEHOUNDS': 'bluehounds',
   'BREAKPOINT': 'breakpoint',
   'C.B.O. CAVALIERS': 'cavaliers',
