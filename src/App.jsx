@@ -1010,7 +1010,7 @@ export default function App() {
                         onClick={() => { setPotmListOpen(false); openPlayerModal(x.player); }}>
                   <span className="potm-list-cat">{displayCatName(x.cat.name, t)}</span>
                   <span className="potm-list-name">{x.player.name}</span>
-                  {x.player.team && <span className="potm-list-team" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{teamOfPlayer(x.player) && <TeamBadge team={teamOfPlayer(x.player)} size={14} />}{x.player.team}</span>}
+                  {x.player.team && <span className="potm-list-team" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{teamOfPlayer(x.player) && <TeamBadge team={teamOfPlayer(x.player)} size={14} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{x.player.team}</span></span>}
                 </button>
               ))}
             </div>
