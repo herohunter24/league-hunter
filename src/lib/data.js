@@ -152,14 +152,17 @@ export function buildLiveViewData(meta, rawTeams, rawPlayers, rawGames) {
 
   const played = games.filter(g => g.hs !== null && g.as !== null)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const catHasTeam = new Set((rawTeams||[]).map(tm => String(tm.categoryId ?? '') + '|' + (tm.name||'')));
 
   const teams = (rawTeams || []).map((tm, i) => {
     const results = [];
     let pf = 0, pa = 0;
     const tmCat = tm.categoryId != null ? String(tm.categoryId) : '';
     played.forEach(g => {
-      // Deux équipes peuvent avoir le même nom dans deux catégories (ex. C.S.S. BM Gold et Diamond)
-      if (g.categoryId && tmCat && g.categoryId !== tmCat) return;
+      // Une équipe qui a changé de division garde son bilan : les matchs de son ancienne catégorie
+      // comptent quand aucune équipe de ce nom n'y existe plus. Deux équipes du même nom dans deux
+      // catégories (ex. C.S.S. BM Gold et Diamond) restent séparées.
+      if (g.categoryId && tmCat && g.categoryId !== tmCat && catHasTeam.has(g.categoryId + '|' + tm.name)) return;
       if (g.home === tm.name)      { results.push(g.hs > g.as ? 1 : 0); pf += g.hs; pa += g.as; }
       else if (g.away === tm.name) { results.push(g.as > g.hs ? 1 : 0); pf += g.as; pa += g.hs; }
     });
