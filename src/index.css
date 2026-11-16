@@ -1238,6 +1238,13 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 /* category picker: same row, behind the tiles */
 .cat-selector > .lg-amb-picker { position: absolute; top: 0; left: 0; right: 0; z-index: 0; pointer-events: none; }
 .lg-amb-picker .lg-amb-p img { opacity: .2; }
+.lg-amb-picker .lg-amb-row {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.35) 12%, #000 30%, #000 55%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.35) 12%, #000 30%, #000 55%, transparent 100%);
+}
+@media (min-width: 720px) {
+  .cat-selector > .lg-amb-picker::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to right, var(--bg) 0%, transparent 14%, transparent 86%, var(--bg) 100%); }
+}
 @keyframes amb-in { from { opacity: 0; } to { opacity: 1; } }
 .cat-ambient ~ .cat-header, .cat-ambient ~ .tab-pane, .cat-ambient ~ .footer { position: relative; z-index: 1; }
 .cat-ambient ~ .cat-header { background: linear-gradient(to bottom, rgba(10,10,10,.35), transparent); }
@@ -1271,7 +1278,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--ff-body); -w
 }
 .mission-more { display: block; margin: 22px auto 0; padding: 12px 26px; background: rgba(10,10,12,.55); border: 1px solid var(--gold); border-radius: 4px; color: var(--gold); font-family: var(--ff-display); font-weight: 500; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background 0.2s, color 0.2s; }
 .mission-more:hover, .mission-more:focus-visible { background: var(--gold); color: #0A0A0A; }
-.about-close { position: fixed; top: 16px; right: 16px; z-index: 2; }
+.about-nls .about-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); z-index: 2; }
 .about-nls .mission-values, .about-nls .mission-stats { margin: 12px 0 14px; }
 .about-nls .mission-stats { text-align: center; }
 .about-nls .mission-share { max-width: none; margin: 0; padding: 16px 18px; border: 1px solid var(--border); border-left: 2px solid var(--gold); border-radius: 4px; text-shadow: none; }
