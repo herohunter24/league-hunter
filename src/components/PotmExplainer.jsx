@@ -27,7 +27,7 @@ const TXT = {
     board: 'Le classement du mois',
     none: 'Aucun match avec des stats ce mois-ci dans cette catégorie.',
     gp: n => n > 1 ? `${n} matchs` : `${n} match`,
-    pts: 'pts', avg: 'moy./match',
+    pts: 'score', avg: 'moy./match',
     cols: { points: 'PTS', rebounds: 'REB', assists: 'PD', steals: 'INT', blocks: 'CTR' },
     override: 'Choix de la ligue', overrideP: 'Pour cette catégorie, la ligue a choisi le Joueur du mois manuellement :',
     close: 'Fermer',
@@ -57,7 +57,7 @@ const TXT = {
     board: 'This month’s ranking',
     none: 'No games with stats this month in this category.',
     gp: n => n > 1 ? `${n} games` : `${n} game`,
-    pts: 'pts', avg: 'avg/game',
+    pts: 'score', avg: 'avg/game',
     cols: { points: 'PTS', rebounds: 'REB', assists: 'AST', steals: 'STL', blocks: 'BLK' },
     override: 'League’s pick', overrideP: 'For this category, the league picked the Player of the Month manually:',
     close: 'Close',
@@ -109,8 +109,7 @@ export function PotmExplainer({ lang, month, isLive, cats, initialCat, rankingFo
         <div className="potm-how-status">
           {isLive ? (
             <>
-              <span className="potm-how-dot" aria-hidden="true" />
-              <span>{L.live}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="potm-how-dot" aria-hidden="true" />{L.live}</span>
               {cd && (
                 <span className="potm-how-cd">
                   {L.crown}{' '}

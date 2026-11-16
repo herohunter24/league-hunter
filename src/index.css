@@ -1622,7 +1622,7 @@ button:active { transform: scale(0.98); }
 .potm-how-title { font-family: 'Oswald', sans-serif; font-size: 40px; font-weight: 700; line-height: 1.1; margin: 0 0 14px; text-transform: uppercase; }
 .potm-how-lead { font-size: 16px; line-height: 1.6; color: var(--ink-soft); margin: 0 0 20px; }
 .potm-how-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border: 1px solid rgba(201,162,74,0.35); border-radius: 8px; background: rgba(201,162,74,0.06); font-size: 13.5px; margin-bottom: 32px; }
-.potm-how-dot { width: 8px; height: 8px; border-radius: 50%; background: #3DDC84; box-shadow: 0 0 8px #3DDC84; }
+.potm-how-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #3DDC84; box-shadow: 0 0 8px #3DDC84; }
 .potm-how-cd { margin-left: auto; color: var(--ink-soft); }
 .potm-how-cd strong { color: var(--gold); font-variant-numeric: tabular-nums; }
 .potm-how-sec { margin-bottom: 32px; }
