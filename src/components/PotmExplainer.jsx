@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react';
-import { POTM_WEIGHTS, formatMonth } from '../lib/playerOfMonth.js';
+import { POTM_WEIGHTS, formatMonth, monthKeyOfDate } from '../lib/playerOfMonth.js';
+
+// Mois dont le gagnant sera dévoilé à revealAt (= le mois en cours), ex. « novembre »
+const upcomingMonthName = (revealAt, lang) => {
+  const d = new Date(revealAt.getTime() - 86400000);
+  const name = formatMonth(monthKeyOfDate(d), lang).replace(/\s+\d{4}$/, '');
+  return lang === 'fr' ? name.toLowerCase() : name;
+};
 
 const TXT = {
   fr: {
@@ -8,6 +15,7 @@ const TXT = {
     winners: m => `Gagnants de ${m}. Les joueurs du mois sont dévoilés le 1er de chaque mois.`,
     first: 'Les joueurs du mois sont dévoilés le 1er de chaque mois.',
     crown: 'Prochain dévoilement dans',
+    crownOf: m => `Joueurs du mois ${/^[aeiouyâàéèêîôû]/i.test(m) ? 'd’' : 'de '}${m} dévoilés dans`,
     d: 'j', h: 'h', m: 'min', s: 's',
     s1: '1. Le score d’un match',
     s1p: 'Chaque stat compte. Les passes, les interceptions et les contres valent plus qu’un point, parce qu’ils sont plus rares et changent un match.',
@@ -39,6 +47,7 @@ const TXT = {
     winners: m => `${m} winners. Players of the Month are revealed on the 1st of every month.`,
     first: 'Players of the Month are revealed on the 1st of every month.',
     crown: 'Next reveal in',
+    crownOf: m => `${m} Players of the Month revealed in`,
     d: 'd', h: 'h', m: 'min', s: 's',
     s1: '1. The score of one game',
     s1p: 'Every stat counts. Assists, steals and blocks are worth more than a point because they’re rarer and they swing games.',
@@ -111,7 +120,7 @@ export function PotmExplainer({ lang, month, revealAt, cats, initialCat, ranking
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="potm-how-dot" aria-hidden="true" />{month ? L.winners(formatMonth(month, lang)) : L.first}</span>
           {cd && (
             <span className="potm-how-cd">
-              {L.crown}{' '}
+              {revealAt ? L.crownOf(upcomingMonthName(revealAt, lang)) : L.crown}{' '}
               <strong>{cd.d}{L.d} {String(cd.h).padStart(2, '0')}{L.h} {String(cd.m).padStart(2, '0')}{L.m} {String(cd.s).padStart(2, '0')}{L.s}</strong>
             </span>
           )}
@@ -210,7 +219,7 @@ export function PotmCountdown({ revealAt, lang }) {
   );
   return (
     <div className="potm-cd" aria-live="off">
-      <div className="potm-cd-label">{L.crown}</div>
+      <div className="potm-cd-label">{L.crownOf(upcomingMonthName(revealAt, lang))}</div>
       <div className="potm-cd-row">
         {cell(cd.d, L.d)}{cell(cd.h, L.h)}{cell(cd.m, L.m)}{cell(cd.s, L.s)}
       </div>
