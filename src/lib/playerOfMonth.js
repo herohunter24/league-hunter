@@ -27,20 +27,26 @@ export const monthKeyOfDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
 const hasStats = g => g && g.date && g.playerStats && Object.keys(g.playerStats).length > 0;
 
 /**
- * Mois affiché : celui forcé par l'admin (AAAA-MM) sinon le mois courant ;
- * si aucun match avec stats n'a encore eu lieu ce mois-ci, on garde le dernier
- * mois qui en a (ex. le 1er du mois, on montre encore le gagnant du mois passé).
+ * Mois couronné : celui forcé par l'admin (AAAA-MM), sinon le dernier mois
+ * TERMINÉ qui a des matchs avec stats (normalement le mois passé).
+ * Le gagnant du mois en cours est dévoilé le 1er du mois suivant.
+ * Retourne null s'il n'y a encore aucun mois terminé avec des stats.
  */
 export function resolvePotmMonth(games, forcedMonth, now = new Date()) {
   if (/^\d{4}-\d{2}$/.test(forcedMonth || '')) return forcedMonth;
   const cur = monthKeyOfDate(now);
-  const months = (games || []).filter(hasStats).map(g => String(g.date).slice(0, 7)).filter(m => m <= cur);
-  if (!months.length || months.includes(cur)) return cur;
-  return months.sort()[months.length - 1];
+  const months = (games || []).filter(hasStats).map(g => String(g.date).slice(0, 7)).filter(m => m < cur).sort();
+  return months.length ? months[months.length - 1] : null;
+}
+
+/** Prochain dévoilement : le 1er du mois prochain, minuit (heure locale). */
+export function nextRevealDate(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
 }
 
 /** Classement du mois pour une liste de joueurs (déjà filtrée par catégorie). */
 export function potmRanking(players, games, month) {
+  if (!month) return [];
   const monthGames = (games || []).filter(g => hasStats(g) && String(g.date).slice(0, 7) === month);
   const rows = (players || []).map(p => {
     const pid = String(p.id);

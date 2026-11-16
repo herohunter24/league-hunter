@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { POTM_WEIGHTS, monthEnd, formatMonth } from '../lib/playerOfMonth.js';
+import { POTM_WEIGHTS, formatMonth } from '../lib/playerOfMonth.js';
 
 const TXT = {
   fr: {
     kicker: 'Joueur du mois', title: 'Comment c’est calculé',
     intro: 'Le Joueur du mois récompense la régularité, pas juste un gros match. On additionne tout ce que tu fais sur le terrain, match après match, pendant le mois.',
-    live: 'Mois en cours — le classement bouge après chaque match.',
-    done: 'Mois terminé.',
-    crown: 'Couronnement dans',
+    winners: m => `Gagnants de ${m}. Les joueurs du mois sont dévoilés le 1er de chaque mois.`,
+    first: 'Les joueurs du mois sont dévoilés le 1er de chaque mois.',
+    crown: 'Prochain dévoilement dans',
     d: 'j', h: 'h', m: 'min', s: 's',
     s1: '1. Le score d’un match',
     s1p: 'Chaque stat compte. Les passes, les interceptions et les contres valent plus qu’un point, parce qu’ils sont plus rares et changent un match.',
@@ -24,8 +24,9 @@ const TXT = {
     s4p: 'Celui qui a joué le plus de matchs dans le mois passe devant. Si c’est encore égal : la meilleure moyenne par match.',
     s5: '5. Qui peut gagner',
     s5p: 'Il faut au moins un match avec des stats dans le mois. Les équipes qui n’ont pas envoyé leur alignement officiel n’ont pas encore de stats, donc pas de Joueur du mois.',
-    board: 'Le classement du mois',
-    none: 'Aucun match avec des stats ce mois-ci dans cette catégorie.',
+    board: 'Classement final',
+    none: 'Aucun match avec des stats ce mois-là dans cette catégorie.',
+    noneYet: 'Le classement apparaîtra au premier dévoilement.',
     gp: n => n > 1 ? `${n} matchs` : `${n} match`,
     pts: 'score', avg: 'moy./match',
     cols: { points: 'PTS', rebounds: 'REB', assists: 'PD', steals: 'INT', blocks: 'CTR' },
@@ -35,9 +36,9 @@ const TXT = {
   en: {
     kicker: 'Player of the Month', title: 'How it’s calculated',
     intro: 'Player of the Month rewards consistency, not just one big game. We add up everything you do on the court, game after game, during the month.',
-    live: 'Month in progress — the ranking moves after every game.',
-    done: 'Month completed.',
-    crown: 'Crowned in',
+    winners: m => `${m} winners. Players of the Month are revealed on the 1st of every month.`,
+    first: 'Players of the Month are revealed on the 1st of every month.',
+    crown: 'Next reveal in',
     d: 'd', h: 'h', m: 'min', s: 's',
     s1: '1. The score of one game',
     s1p: 'Every stat counts. Assists, steals and blocks are worth more than a point because they’re rarer and they swing games.',
@@ -54,8 +55,9 @@ const TXT = {
     s4p: 'The player with more games in the month goes first. Still tied: the best average per game.',
     s5: '5. Who can win',
     s5p: 'You need at least one game with stats during the month. Teams that haven’t sent their official roster don’t have stats yet, so no Player of the Month.',
-    board: 'This month’s ranking',
-    none: 'No games with stats this month in this category.',
+    board: 'Final ranking',
+    none: 'No games with stats that month in this category.',
+    noneYet: 'The ranking will appear at the first reveal.',
     gp: n => n > 1 ? `${n} games` : `${n} game`,
     pts: 'score', avg: 'avg/game',
     cols: { points: 'PTS', rebounds: 'REB', assists: 'AST', steals: 'STL', blocks: 'BLK' },
@@ -66,7 +68,7 @@ const TXT = {
 
 const fmt = (n, lang) => (Math.round(n * 10) / 10).toLocaleString(lang === 'fr' ? 'fr-CA' : 'en-CA', { maximumFractionDigits: 1 });
 
-function useCountdown(target) {
+export function useCountdown(target) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!target || target.getTime() <= Date.now()) return undefined;
@@ -80,12 +82,11 @@ function useCountdown(target) {
   return { d: Math.floor(sec / 86400), h: Math.floor(sec / 3600) % 24, m: Math.floor(sec / 60) % 60, s: sec % 60 };
 }
 
-export function PotmExplainer({ lang, month, isLive, cats, initialCat, rankingFor, overrideFor, catLabel, onOpenPlayer, onClose }) {
+export function PotmExplainer({ lang, month, revealAt, cats, initialCat, rankingFor, overrideFor, catLabel, onOpenPlayer, onClose }) {
   const L = TXT[lang] || TXT.fr;
   const startCat = cats.some(c => c.id === initialCat) ? initialCat : (cats[0] && cats[0].id);
   const [catId, setCatId] = useState(startCat);
-  const end = isLive ? monthEnd(month) : null;
-  const cd = useCountdown(end);
+  const cd = useCountdown(revealAt);
 
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose(); };
@@ -102,22 +103,18 @@ export function PotmExplainer({ lang, month, isLive, cats, initialCat, rankingFo
     <div className="potm-how" role="dialog" aria-modal="true" aria-label={`${L.kicker} — ${L.title}`}>
       <div className="potm-how-inner">
         <button className="potm-how-close" onClick={onClose} aria-label={L.close}>{'✕'}</button>
-        <div className="sec-kicker">{L.kicker} · {formatMonth(month, lang)}</div>
+        <div className="sec-kicker">{L.kicker}{month ? ' · ' + formatMonth(month, lang) : ''}</div>
         <h1 className="potm-how-title">{L.title}</h1>
         <p className="potm-how-lead">{L.intro}</p>
 
         <div className="potm-how-status">
-          {isLive ? (
-            <>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="potm-how-dot" aria-hidden="true" />{L.live}</span>
-              {cd && (
-                <span className="potm-how-cd">
-                  {L.crown}{' '}
-                  <strong>{cd.d}{L.d} {String(cd.h).padStart(2, '0')}{L.h} {String(cd.m).padStart(2, '0')}{L.m} {String(cd.s).padStart(2, '0')}{L.s}</strong>
-                </span>
-              )}
-            </>
-          ) : <span>{L.done}</span>}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="potm-how-dot" aria-hidden="true" />{month ? L.winners(formatMonth(month, lang)) : L.first}</span>
+          {cd && (
+            <span className="potm-how-cd">
+              {L.crown}{' '}
+              <strong>{cd.d}{L.d} {String(cd.h).padStart(2, '0')}{L.h} {String(cd.m).padStart(2, '0')}{L.m} {String(cd.s).padStart(2, '0')}{L.s}</strong>
+            </span>
+          )}
         </div>
 
         <section className="potm-how-sec">
@@ -156,7 +153,7 @@ export function PotmExplainer({ lang, month, isLive, cats, initialCat, rankingFo
         <section className="potm-how-sec"><h2>{L.s5}</h2><p>{L.s5p}</p></section>
 
         <section className="potm-how-sec">
-          <h2>{L.board} — {formatMonth(month, lang)}</h2>
+          <h2>{L.board}{month ? ' — ' + formatMonth(month, lang) : ''}</h2>
           {cats.length > 1 && (
             <div className="potm-how-tabs" role="tablist">
               {cats.map(c => (
@@ -175,7 +172,7 @@ export function PotmExplainer({ lang, month, isLive, cats, initialCat, rankingFo
           )}
 
           {rows.length === 0 ? (
-            <div className="potm-how-empty">{L.none}</div>
+            <div className="potm-how-empty">{month ? L.none : L.noneYet}</div>
           ) : (
             <ol className="potm-how-board">
               {rows.map((r, i) => (
@@ -198,6 +195,24 @@ export function PotmExplainer({ lang, month, isLive, cats, initialCat, rankingFo
             </ol>
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+/** Compte à rebours compact jusqu'au prochain dévoilement (page d'accueil). */
+export function PotmCountdown({ revealAt, lang }) {
+  const L = TXT[lang] || TXT.fr;
+  const cd = useCountdown(revealAt);
+  if (!cd) return null;
+  const cell = (v, u) => (
+    <span className="potm-cd-cell"><strong>{String(v).padStart(2, '0')}</strong><small>{u}</small></span>
+  );
+  return (
+    <div className="potm-cd" aria-live="off">
+      <div className="potm-cd-label">{L.crown}</div>
+      <div className="potm-cd-row">
+        {cell(cd.d, L.d)}{cell(cd.h, L.h)}{cell(cd.m, L.m)}{cell(cd.s, L.s)}
       </div>
     </div>
   );

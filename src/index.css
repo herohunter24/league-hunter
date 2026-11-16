@@ -1665,3 +1665,36 @@ button:active { transform: scale(0.98); }
   .potm-how-cd { margin-left: 0; width: 100%; }
   .potm-how-rank-btn { grid-template-columns: 24px 1fr auto; gap: 10px; padding: 10px 12px; }
 }
+
+/* ── Joueurs du mois dans le hero (accueil) ── */
+.hero-potm { margin-top: 40px; width: 100%; max-width: 760px; display: flex; flex-direction: column; align-items: center; gap: 14px; animation: fadeUp 0.7s 0.48s ease both; }
+.hero-potm-title { font-family: var(--ff-display); font-size: 13px; font-weight: 600; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+.hero-potm-viewport { width: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%); }
+.hero-potm-marquee { display: flex; width: max-content; gap: 12px; padding-right: 12px; animation: potm-scroll 30s linear infinite; }
+.hero-potm-viewport:hover .hero-potm-marquee, .hero-potm-viewport:active .hero-potm-marquee { animation-play-state: paused; }
+.hero-potm-card { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 180px; max-width: 240px; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(201,162,74,0.5); background: rgba(10,10,12,0.6); backdrop-filter: blur(6px); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: border-color .2s, transform .15s; }
+.hero-potm-card:hover, .hero-potm-card:focus-visible { border-color: var(--gold); transform: translateY(-2px); }
+.hero-potm-cat { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
+.hero-potm-name { font-family: var(--ff-display); font-size: 20px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero-potm-team { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); max-width: 100%; }
+.hero-potm-team > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero-potm-teaser { font-size: 15px; color: #F4F1EA; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+.hero-potm-how { margin: 0; text-shadow: 0 1px 8px rgba(0,0,0,.9); }
+.potm-cd { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.potm-cd-label { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #F4F1EA; text-shadow: 0 1px 8px rgba(0,0,0,.9); }
+.potm-cd-row { display: flex; gap: 8px; }
+.potm-cd-cell { display: flex; flex-direction: column; align-items: center; min-width: 56px; padding: 8px 6px; border-radius: 6px; background: rgba(10,10,12,0.6); border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); }
+.potm-cd-cell strong { font-family: var(--ff-display); font-size: 26px; font-weight: 700; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.potm-cd-cell small { margin-top: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+@media (max-width: 640px) {
+  .hero-potm { margin-top: 32px; }
+  .hero-potm-card { min-width: 150px; padding: 10px 12px; }
+  .hero-potm-name { font-size: 17px; }
+  .potm-cd-cell { min-width: 48px; }
+  .potm-cd-cell strong { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-potm-marquee { animation: none; }
+  .hero-potm-viewport { overflow-x: auto; }
+  .hero-potm-marquee > [aria-hidden="true"] { display: none; }
+}
