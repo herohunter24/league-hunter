@@ -16,6 +16,8 @@ import { PlayerModal } from './components/PlayerModal.jsx';
 import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImage.jsx';
 import { PARTNERS } from './config/partners.js';
 import { LEAGUE_PHOTOS } from './config/leaguePhotos.js';
+import { LeagueAmbient } from './components/LeagueAmbient.jsx';
+import { AboutNls } from './components/AboutNls.jsx';
 import { NLS_LOGO, NLS_LOGO_WHITE, NLS_CREST, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
@@ -948,6 +950,8 @@ export default function App() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [potmListOpen, setPotmListOpen] = useState(false);
   const [potmHowOpen, setPotmHowOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const aboutOpenerRef = useRef(null);
   const [manageToken, setManageToken] = useState(null);
   const [manageAction, setManageAction] = useState(null);
   useEffect(() => {
@@ -1062,6 +1066,11 @@ export default function App() {
           catLabel={c => displayCatName(c.name, t)}
           onOpenPlayer={pl => { setPotmHowOpen(false); openPlayerModal(pl); }}
           onClose={() => setPotmHowOpen(false)} />
+      )}
+
+      {/* ── NLS — À propos ── */}
+      {aboutOpen && isNls && (
+        <AboutNls t={t} lang={lang} onClose={() => { setAboutOpen(false); aboutOpenerRef.current?.focus(); }} />
       )}
 
       {/* ── FIXED PHOTO LAYER (home only) ── */}
@@ -1196,38 +1205,7 @@ export default function App() {
               </div>
             </div>
             {isNls && (
-              <>
-                <div className="mission-values">
-                  {[[t.val1Name, t.val1Line], [t.val2Name, t.val2Line], [t.val3Name, t.val3Line]].map(([n, l]) => (
-                    <div className="mv-item" key={n}>
-                      <div className="mv-name">{n}</div>
-                      <div className="mv-line">{l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mission-stats" key={lang}>
-                  <div className="sec-kicker">{t.missionStatsKicker}</div>
-                  <div className="ms-grid">
-                    {[[12, '', t.statCats], [140, '+', t.statTeams], [1500, '+', t.statYouth], [500, '+', t.statGames], [2, t.statsViewsSuffix, t.statViews]].map(([n, suf, lbl]) => (
-                      <div className="ms-item" key={lbl}>
-                        <span className="ms-num"><span data-count={n}>{n.toLocaleString(lang === 'fr' ? 'fr-CA' : 'en-CA')}</span>{suf && <span>{suf}</span>}</span>
-                        <span className="ms-lbl">{lbl}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="mission-collage" aria-hidden="true">
-                  {LEAGUE_PHOTOS.collage.map((ph, i) => (
-                    <figure className="mc-ph reveal" key={ph.src} style={{ '--as-delay': (i * 150) + 'ms' }}>
-                      <img src={ph.src} alt="" width={ph.w} height={ph.h} loading="lazy" decoding="async" style={{ objectPosition: ph.pos }} />
-                    </figure>
-                  ))}
-                </div>
-                <div className="mission-share">
-                  <span className="msh-title">{t.shareTitle}</span>
-                  <span className="msh-p">{t.shareP}</span>
-                </div>
-              </>
+              <button className="btn mission-more" onClick={e => { aboutOpenerRef.current = e.currentTarget; setAboutOpen(true); }}>{t.aboutMore} ›</button>
             )}
           </section>
 
@@ -1251,6 +1229,7 @@ export default function App() {
         const ageCats = genderCats.filter(c => c.division === pickerDiv).sort((a, b) => a.ageNum - b.ageNum);
         return (
           <section className="cat-selector" id="explorer">
+            {isNls && <LeagueAmbient className="lg-amb-picker" photos={pickerGender === 'f' || pickerGender === 'm' ? LEAGUE_PHOTOS.amb[pickerGender] : LEAGUE_PHOTOS.amb.picker} />}
             <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
               <rect x="10" y="10" width="580" height="380" rx="6"/>
               <line x1="300" y1="10" x2="300" y2="390"/>
@@ -1359,15 +1338,12 @@ export default function App() {
           ps.showStats !== false && ['stats', t.navStats, 'Stats'],
         ].filter(Boolean);
         const ambCat = effectiveCats.find(c => c.id === selectedCat);
-        const ambPool = (ambCat && parseCatMeta(ambCat).gender === 'f') ? LEAGUE_PHOTOS.f : LEAGUE_PHOTOS.m;
-        const amb = ambPool[[...String(selectedCat)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 0) % ambPool.length];
+        const ambPhotos = (ambCat && parseCatMeta(ambCat).gender === 'f') ? LEAGUE_PHOTOS.amb.f : LEAGUE_PHOTOS.amb.m;
         return (
           <>
             {isNls && !isAllStar && (
               <div className="cat-ambient" aria-hidden="true">
-                <div className="cat-ambient-in">
-                  <img key={amb.src} src={amb.src} alt="" width={amb.w} height={amb.h} decoding="async" style={{ objectPosition: amb.pos }} />
-                </div>
+                <LeagueAmbient photos={ambPhotos} />
               </div>
             )}
             <div className="cat-header">
