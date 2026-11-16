@@ -1,7 +1,7 @@
 ﻿import { useState, useMemo, useEffect, useRef } from 'react';
 import React from 'react';
 import html2canvas from 'html2canvas';
-import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
+import { LEAGUE_ID, NLS_LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
 import { STR } from './i18n/strings.js';
 import { TIERS, TIER_ORDER, TIER_COLOR, TIER_GLOW } from './lib/tiers.js';
 import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES, DEMO_SHOWCASE_PLAYERS, DEMO_ALL_TIERS_PLAYERS } from './lib/demo.js';
@@ -15,6 +15,9 @@ import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
 import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImage.jsx';
 import { PARTNERS } from './config/partners.js';
+import { LEAGUE_PHOTOS } from './config/leaguePhotos.js';
+import { LeagueAmbient } from './components/LeagueAmbient.jsx';
+import { AboutNls } from './components/AboutNls.jsx';
 import { NLS_LOGO, NLS_LOGO_WHITE, NLS_CREST, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
@@ -129,6 +132,7 @@ export default function App() {
     [live, data.meta, data.teams, data.players, data.games]);
 
   const leagueId = LEAGUE_ID ? String(LEAGUE_ID) : '';
+  const isNls = String(LEAGUE_ID || '') === NLS_LEAGUE_ID;
   const leagueName = computeLeagueName(view.meta);
   const season = computeSeason(view.meta);
   const leagueLogoUrl = (view.meta?.logoUrl) || '';
@@ -946,6 +950,8 @@ export default function App() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [potmListOpen, setPotmListOpen] = useState(false);
   const [potmHowOpen, setPotmHowOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const aboutOpenerRef = useRef(null);
   const [manageToken, setManageToken] = useState(null);
   const [manageAction, setManageAction] = useState(null);
   useEffect(() => {
@@ -1060,6 +1066,11 @@ export default function App() {
           catLabel={c => displayCatName(c.name, t)}
           onOpenPlayer={pl => { setPotmHowOpen(false); openPlayerModal(pl); }}
           onClose={() => setPotmHowOpen(false)} />
+      )}
+
+      {/* ── NLS — À propos ── */}
+      {aboutOpen && isNls && (
+        <AboutNls t={t} lang={lang} onClose={() => { setAboutOpen(false); aboutOpenerRef.current?.focus(); }} />
       )}
 
       {/* ── FIXED PHOTO LAYER (home only) ── */}
@@ -1193,6 +1204,9 @@ export default function App() {
                   : t.missionP1}
               </div>
             </div>
+            {isNls && (
+              <button className="btn mission-more" onClick={e => { aboutOpenerRef.current = e.currentTarget; setAboutOpen(true); }}>{t.aboutMore} ›</button>
+            )}
           </section>
 
           {PARTNERS.length > 0 && (
@@ -1214,6 +1228,12 @@ export default function App() {
         const hasDiamond = genderCats.some(c => c.division === 'diamond');
         const ageCats = genderCats.filter(c => c.division === pickerDiv).sort((a, b) => a.ageNum - b.ageNum);
         return (
+          <>
+          {isNls && (
+            <div className="cat-ambient cat-ambient--picker" aria-hidden="true">
+              <LeagueAmbient className="lg-amb-picker" photos={pickerGender === 'f' || pickerGender === 'm' ? LEAGUE_PHOTOS.amb[pickerGender] : LEAGUE_PHOTOS.amb.picker} />
+            </div>
+          )}
           <section className="cat-selector" id="explorer">
             <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
               <rect x="10" y="10" width="580" height="380" rx="6"/>
@@ -1309,6 +1329,7 @@ export default function App() {
               </div>
             )}
           </section>
+          </>
         );
       })()}
 
@@ -1322,8 +1343,15 @@ export default function App() {
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
           ps.showStats !== false && ['stats', t.navStats, 'Stats'],
         ].filter(Boolean);
+        const ambCat = effectiveCats.find(c => c.id === selectedCat);
+        const ambPhotos = (ambCat && parseCatMeta(ambCat).gender === 'f') ? LEAGUE_PHOTOS.amb.f : LEAGUE_PHOTOS.amb.m;
         return (
           <>
+            {isNls && !isAllStar && (
+              <div className="cat-ambient" aria-hidden="true">
+                <LeagueAmbient photos={ambPhotos} />
+              </div>
+            )}
             <div className="cat-header">
               <div className="cat-header-inner">
                 <div className="cat-header-title">{catName}</div>
