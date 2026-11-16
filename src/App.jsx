@@ -14,6 +14,7 @@ import { TeamBadge } from './components/TeamBadge.jsx';
 import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
 import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImage.jsx';
+import { PARTNERS } from './config/partners.js';
 import { NLS_LOGO, NLS_LOGO_WHITE, NLS_CREST, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
@@ -98,6 +99,19 @@ const rankCmp = (a, b) =>
   (b.diff - a.diff) ||
   ((b.pf || 0) - (a.pf || 0)) || ((a.pa || 0) - (b.pa || 0)) ||
   String(a.name).localeCompare(String(b.name), 'fr');
+
+function PartnerLogos({ variant }) {
+  return (
+    <div className={'partners-row partners-row--' + variant}>
+      {PARTNERS.map(p => {
+        const img = <img src={p.logo} alt={p.name} title={p.name} loading="lazy" />;
+        return p.url
+          ? <a key={p.name} className="partner-tile" href={p.url} target="_blank" rel="noopener noreferrer" aria-label={p.name}>{img}</a>
+          : <span key={p.name} className="partner-tile">{img}</span>;
+      })}
+    </div>
+  );
+}
 
 export default function App() {
   const [lang, setLang] = useState(() => {
@@ -1180,6 +1194,16 @@ export default function App() {
               </div>
             </div>
           </section>
+
+          {PARTNERS.length > 0 && (
+            <section className="landing-sec landing-sec--partners reveal">
+              <div className="text-halo">
+                <div className="lsec-title">{t.partnersTitle}</div>
+                <div className="lsec-sub">{t.partnersSub}</div>
+              </div>
+              <PartnerLogos variant="landing" />
+            </section>
+          )}
         </>
       )}
 
@@ -1681,6 +1705,12 @@ export default function App() {
             )}
           </div>
         </div>
+        {PARTNERS.length > 0 && (
+          <div className="footer-partners">
+            <h4>{t.partnersFooter}</h4>
+            <PartnerLogos variant="footer" />
+          </div>
+        )}
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} NLS Création · {t.footerPowered} League Hunter</span>
         </div>
