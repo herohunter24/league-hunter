@@ -12,7 +12,7 @@ const TXT = {
   fr: {
     kicker: 'Joueur du mois', title: 'Comment c’est calculé',
     intro: 'Le Joueur du mois récompense la régularité, pas juste un gros match. On additionne tout ce que tu fais sur le terrain, match après match, pendant le mois.',
-    winners: m => `Gagnants de ${m}. Les joueurs du mois sont dévoilés le 1er de chaque mois.`,
+    winners: m => { const x = m.toLowerCase(); return `Gagnants ${/^[aeiouyâàéèêîôû]/.test(x) ? 'd’' : 'de '}${x}. Les joueurs du mois sont dévoilés le 1er de chaque mois.`; },
     first: 'Les joueurs du mois sont dévoilés le 1er de chaque mois.',
     crown: 'Prochain dévoilement dans',
     crownOf: m => `Joueurs du mois ${/^[aeiouyâàéèêîôû]/i.test(m) ? 'd’' : 'de '}${m} dévoilés dans`,

@@ -1023,7 +1023,7 @@ export default function App() {
           <div className="modal-bx potm-list-bx" role="dialog" aria-modal="true">
             <button className="modal-close" onClick={() => setPotmListOpen(false)} aria-label="Fermer">✕</button>
             <div className="sec-kicker">{t.potmTitle}</div>
-            <div className="potm-list-sub">{t.potmSub}</div>
+            <div className="potm-list-sub">{potmMonth ? t.potmSub.replace('{m}', formatMonth(potmMonth, lang)) : t.potmSub.replace(' — {m}', '')}</div>
             <button className="potm-how-cta" onClick={() => { setPotmListOpen(false); setPotmHowOpen(true); }}>{t.potmHowLink} ›</button>
             <div className="potm-list">
               {potmCards.filter(x => (x.player.gp || 0) >= 1).map((x, i) => (
@@ -1504,7 +1504,7 @@ export default function App() {
           return (
             <div style={{ marginBottom: 40 }}>
               <div className="sec-kicker">{t.potmTitle}</div>
-              <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 8px' }}>{t.potmSub}</div>
+              <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 8px' }}>{potmMonth ? t.potmSub.replace('{m}', formatMonth(potmMonth, lang)) : t.potmSub.replace(' — {m}', '')}</div>
               <button className="potm-how-cta" style={{ marginBottom: 14 }} onClick={() => setPotmHowOpen(true)}>{t.potmHowLink} ›</button>
               <div className="potm-card-wrap">
                 <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
