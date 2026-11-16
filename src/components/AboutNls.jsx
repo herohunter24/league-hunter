@@ -70,8 +70,10 @@ export function AboutNls({ t, lang, onClose }) {
 
         <div className="about-gal" aria-hidden="true">
           <div className="about-gal-row">{LEAGUE_PHOTOS.about.portraits.map(photo)}</div>
+          <div className="about-gal-row">{LEAGUE_PHOTOS.about.action.map(photo)}</div>
           <div className="about-gal-row about-gal-wide">{LEAGUE_PHOTOS.about.wide.map(photo)}</div>
         </div>
+        <p className="about-credit">{t.photoCredit}</p>
 
         <section className="potm-how-sec"><h2>{t.aboutImpactT}</h2><p>{t.aboutImpactP}</p></section>
 

@@ -1228,8 +1228,13 @@ export default function App() {
         const hasDiamond = genderCats.some(c => c.division === 'diamond');
         const ageCats = genderCats.filter(c => c.division === pickerDiv).sort((a, b) => a.ageNum - b.ageNum);
         return (
+          <>
+          {isNls && (
+            <div className="cat-ambient cat-ambient--picker" aria-hidden="true">
+              <LeagueAmbient className="lg-amb-picker" photos={pickerGender === 'f' || pickerGender === 'm' ? LEAGUE_PHOTOS.amb[pickerGender] : LEAGUE_PHOTOS.amb.picker} />
+            </div>
+          )}
           <section className="cat-selector" id="explorer">
-            {isNls && <LeagueAmbient className="lg-amb-picker" photos={pickerGender === 'f' || pickerGender === 'm' ? LEAGUE_PHOTOS.amb[pickerGender] : LEAGUE_PHOTOS.amb.picker} />}
             <svg className="cat-court-bg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" fill="none" strokeWidth="2">
               <rect x="10" y="10" width="580" height="380" rx="6"/>
               <line x1="300" y1="10" x2="300" y2="390"/>
@@ -1324,6 +1329,7 @@ export default function App() {
               </div>
             )}
           </section>
+          </>
         );
       })()}
 
