@@ -1728,10 +1728,11 @@ a.partner-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(
 .landing-sec--partners .lsec-sub { margin-bottom: 26px; }
 .footer-partners { max-width: 1180px; margin: 40px auto 0; padding-top: 26px; border-top: 1px solid #1a1a20; text-align: center; }
 .footer-partners .partners-row { gap: 10px; }
-.footer .footer-partners .partner-tile { width: 112px; height: 52px; padding: 6px 10px; border-radius: 8px; line-height: normal; }
+.footer .footer-partners .partner-tile { display: flex; line-height: 0; width: 120px; height: 52px; padding: 6px 8px; border-radius: 8px; }
 @media (max-width: 640px) {
   .partners-row--landing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 380px; margin: 0 auto; }
   .partners-row--landing .partner-tile { width: auto; height: 74px; }
-  .footer .footer-partners .partner-tile { width: 92px; height: 44px; }
+  .footer-partners .partners-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: 360px; margin: 0 auto; }
+  .footer .footer-partners .partner-tile { width: auto; height: 42px; padding: 4px 5px; }
 }
 @media (prefers-reduced-motion: reduce) { .partner-tile { transition: none; } }
