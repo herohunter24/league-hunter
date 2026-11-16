@@ -1673,6 +1673,12 @@ export default function App() {
 
       {/* ── FOOTER ── */}
       <footer className="footer">
+        {!isHome && PARTNERS.length > 0 && (
+          <div className="footer-partners">
+            <h4>{t.partnersTitle}</h4>
+            <PartnerLogos variant="footer" />
+          </div>
+        )}
         <div className="footer-grid">
           <div className="footer-col footer-col--brand">
             <img className="footer-logo" src={NLS_CREST} alt="NLS Création" />
@@ -1705,12 +1711,6 @@ export default function App() {
             )}
           </div>
         </div>
-        {PARTNERS.length > 0 && (
-          <div className="footer-partners">
-            <h4>{t.partnersFooter}</h4>
-            <PartnerLogos variant="footer" />
-          </div>
-        )}
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} NLS Création · {t.footerPowered} League Hunter</span>
         </div>
