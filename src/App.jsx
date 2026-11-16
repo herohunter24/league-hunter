@@ -1,7 +1,7 @@
 ﻿import { useState, useMemo, useEffect, useRef } from 'react';
 import React from 'react';
 import html2canvas from 'html2canvas';
-import { LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
+import { LEAGUE_ID, NLS_LEAGUE_ID, db, doc, setDoc } from './lib/firebase.js';
 import { STR } from './i18n/strings.js';
 import { TIERS, TIER_ORDER, TIER_COLOR, TIER_GLOW } from './lib/tiers.js';
 import { DEMO_TEAMS, DEMO_PLAYERS, DEMO_GAMES, DEMO_SHOWCASE_PLAYERS, DEMO_ALL_TIERS_PLAYERS } from './lib/demo.js';
@@ -15,6 +15,7 @@ import { PlayerCard } from './components/PlayerCard.jsx';
 import { PlayerModal } from './components/PlayerModal.jsx';
 import { SafeImage, TeamInitials, getSilhouettePng } from './components/SafeImage.jsx';
 import { PARTNERS } from './config/partners.js';
+import { LEAGUE_PHOTOS } from './config/leaguePhotos.js';
 import { NLS_LOGO, NLS_LOGO_WHITE, NLS_CREST, BRAND_NAME, WEBSITE_URL, COPYRIGHT, DEFAULT_LANG,
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
@@ -129,6 +130,7 @@ export default function App() {
     [live, data.meta, data.teams, data.players, data.games]);
 
   const leagueId = LEAGUE_ID ? String(LEAGUE_ID) : '';
+  const isNls = String(LEAGUE_ID || '') === NLS_LEAGUE_ID;
   const leagueName = computeLeagueName(view.meta);
   const season = computeSeason(view.meta);
   const leagueLogoUrl = (view.meta?.logoUrl) || '';
@@ -1193,6 +1195,40 @@ export default function App() {
                   : t.missionP1}
               </div>
             </div>
+            {isNls && (
+              <>
+                <div className="mission-values">
+                  {[[t.val1Name, t.val1Line], [t.val2Name, t.val2Line], [t.val3Name, t.val3Line]].map(([n, l]) => (
+                    <div className="mv-item" key={n}>
+                      <div className="mv-name">{n}</div>
+                      <div className="mv-line">{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mission-stats" key={lang}>
+                  <div className="sec-kicker">{t.missionStatsKicker}</div>
+                  <div className="ms-grid">
+                    {[[12, '', t.statCats], [140, '+', t.statTeams], [1500, '+', t.statYouth], [500, '+', t.statGames], [2, t.statsViewsSuffix, t.statViews]].map(([n, suf, lbl]) => (
+                      <div className="ms-item" key={lbl}>
+                        <span className="ms-num"><span data-count={n}>{n.toLocaleString(lang === 'fr' ? 'fr-CA' : 'en-CA')}</span>{suf && <span>{suf}</span>}</span>
+                        <span className="ms-lbl">{lbl}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="mission-collage" aria-hidden="true">
+                  {LEAGUE_PHOTOS.collage.map((ph, i) => (
+                    <figure className="mc-ph reveal" key={ph.src} style={{ '--as-delay': (i * 150) + 'ms' }}>
+                      <img src={ph.src} alt="" width={ph.w} height={ph.h} loading="lazy" decoding="async" style={{ objectPosition: ph.pos }} />
+                    </figure>
+                  ))}
+                </div>
+                <div className="mission-share">
+                  <span className="msh-title">{t.shareTitle}</span>
+                  <span className="msh-p">{t.shareP}</span>
+                </div>
+              </>
+            )}
           </section>
 
           {PARTNERS.length > 0 && (
@@ -1322,8 +1358,18 @@ export default function App() {
           (ps.showPlayers !== false && ps.showPlayerCards !== false) && ['players', t.navPlayers],
           ps.showStats !== false && ['stats', t.navStats, 'Stats'],
         ].filter(Boolean);
+        const ambCat = effectiveCats.find(c => c.id === selectedCat);
+        const ambPool = (ambCat && parseCatMeta(ambCat).gender === 'f') ? LEAGUE_PHOTOS.f : LEAGUE_PHOTOS.m;
+        const amb = ambPool[[...String(selectedCat)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 0) % ambPool.length];
         return (
           <>
+            {isNls && !isAllStar && (
+              <div className="cat-ambient" aria-hidden="true">
+                <div className="cat-ambient-in">
+                  <img key={amb.src} src={amb.src} alt="" width={amb.w} height={amb.h} decoding="async" style={{ objectPosition: amb.pos }} />
+                </div>
+              </div>
+            )}
             <div className="cat-header">
               <div className="cat-header-inner">
                 <div className="cat-header-title">{catName}</div>

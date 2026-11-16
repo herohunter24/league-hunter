@@ -173,6 +173,28 @@ function cardLogoSrc(leagueId, leagueLogoUrl, step) {
   return null;
 }
 
+// No-photo fallback: faint team-logo watermark behind the silhouette (opacity only — no CSS filter, html2canvas-safe)
+function NoPhotoFallback({ team }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [team?.logoUrl]);
+  return (
+    <>
+      {team?.logoUrl && !failed && (
+        <img
+          src={team.logoUrl}
+          alt=""
+          aria-hidden="true"
+          onError={() => setFailed(true)}
+          style={{ position: 'absolute', top: '50%', left: '50%', width: '88%', height: '88%', transform: 'translate(-50%,-46%)', objectFit: 'contain', opacity: 0.1, pointerEvents: 'none' }}
+        />
+      )}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <PlayerSilhouette />
+      </div>
+    </>
+  );
+}
+
 export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId, leagueLogoUrl = '', leagueName = '', season }) {
   const tier = TIERS[p.tier];
   const team = (teams || []).find(tm => tm.name === p.team);
@@ -209,7 +231,7 @@ export function PlayerCard({ p, lang, t, onOpen, teams, units, isDemo, leagueId,
               src={p.photoUrl}
               alt={p.name}
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }}
-              fallback={<PlayerSilhouette />}
+              fallback={<NoPhotoFallback team={team} />}
             />
           </div>
 
