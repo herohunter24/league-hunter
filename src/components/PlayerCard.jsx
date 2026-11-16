@@ -173,19 +173,109 @@ function cardLogoSrc(leagueId, leagueLogoUrl, step) {
   return null;
 }
 
-// No-photo fallback: faint team-logo watermark behind the silhouette (opacity only — no CSS filter, html2canvas-safe)
+// ── Team-logo watermark (no-photo cards) ──────────────────────────────
+// The logo is processed once on an offscreen canvas into a plain PNG dataURL
+// (background keyed out, monochrome, radial fade) so it reads as a faint texture.
+// No CSS mask/filter is involved → html2canvas-safe. Any failure → no watermark.
+const WM_CACHE = new Map(); // url → dataURL | null (failed) | Promise
+function buildWatermark(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onerror = () => resolve(null);
+    img.onload = () => {
+      try {
+        const S = 256;
+        const c = document.createElement('canvas');
+        c.width = S; c.height = S;
+        const ctx = c.getContext('2d');
+        const r = Math.min(S / img.naturalWidth, S / img.naturalHeight);
+        if (!isFinite(r) || r <= 0) return resolve(null);
+        const w = img.naturalWidth * r, h = img.naturalHeight * r;
+        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+        const id = ctx.getImageData(0, 0, S, S); // throws if the canvas is tainted
+        const d = id.data;
+        // Background colour = opaque corners of the drawn logo area
+        const x0 = Math.round((S - w) / 2), y0 = Math.round((S - h) / 2);
+        const x1 = Math.min(S - 1, Math.round(x0 + w) - 1), y1 = Math.min(S - 1, Math.round(y0 + h) - 1);
+        const corners = [[x0 + 1, y0 + 1], [x1 - 1, y0 + 1], [x0 + 1, y1 - 1], [x1 - 1, y1 - 1]]
+          .map(([x, y]) => (y * S + x) * 4).filter(i => d[i + 3] > 200);
+        if (corners.length >= 2) {
+          const bg = [0, 1, 2].map(k => corners.reduce((a, i) => a + d[i + k], 0) / corners.length);
+          const TOL = 40;
+          const isBg = i => d[i + 3] > 0 && Math.abs(d[i] - bg[0]) <= TOL && Math.abs(d[i + 1] - bg[1]) <= TOL && Math.abs(d[i + 2] - bg[2]) <= TOL;
+          // Flood-fill from the edges inward: interior areas of the same colour survive
+          const seen = new Uint8Array(S * S);
+          const stack = [];
+          const push = (x, y) => {
+            if (x < x0 || x > x1 || y < y0 || y > y1) return;
+            const pi = y * S + x;
+            if (seen[pi]) return;
+            seen[pi] = 1;
+            if (isBg(pi * 4)) stack.push(pi);
+          };
+          for (let x = x0; x <= x1; x++) { push(x, y0); push(x, y1); }
+          for (let y = y0; y <= y1; y++) { push(x0, y); push(x1, y); }
+          while (stack.length) {
+            const pi = stack.pop();
+            d[pi * 4 + 3] = 0;
+            const x = pi % S, y = (pi - x) / S;
+            push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1);
+          }
+        }
+        // Monochrome light silhouette + radial alpha falloff (edges → 0)
+        let visible = 0;
+        for (let y = 0; y < S; y++) {
+          for (let x = 0; x < S; x++) {
+            const i = (y * S + x) * 4;
+            if (!d[i + 3]) continue;
+            const lum = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+            const dist = Math.hypot(x - S / 2, y - S / 2) / (S / 2);
+            const t = Math.min(1, Math.max(0, (1 - dist) / 0.65));
+            const fall = t * t * (3 - 2 * t);
+            d[i] = d[i + 1] = d[i + 2] = 255;
+            d[i + 3] = Math.round(d[i + 3] * (0.45 + 0.55 * lum) * fall);
+            if (d[i + 3] > 8) visible++;
+          }
+        }
+        if (visible < 200) return resolve(null);
+        ctx.putImageData(id, 0, 0);
+        resolve(c.toDataURL('image/png'));
+      } catch { resolve(null); }
+    };
+    img.src = url;
+  });
+}
+function useLogoWatermark(url) {
+  const cached = url ? WM_CACHE.get(url) : null;
+  const [data, setData] = useState(typeof cached === 'string' ? cached : null);
+  useEffect(() => {
+    if (!url) { setData(null); return; }
+    let alive = true;
+    let entry = WM_CACHE.get(url);
+    if (typeof entry === 'string' || entry === null) { setData(entry); return; }
+    if (!entry) {
+      entry = buildWatermark(url).then(res => { WM_CACHE.set(url, res); return res; });
+      WM_CACHE.set(url, entry);
+    }
+    setData(null);
+    entry.then(res => { if (alive) setData(res); });
+    return () => { alive = false; };
+  }, [url]);
+  return data;
+}
+
+// No-photo fallback: faint team-logo texture behind the silhouette
 function NoPhotoFallback({ team }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => { setFailed(false); }, [team?.logoUrl]);
+  const wm = useLogoWatermark(team?.logoUrl || null);
   return (
     <>
-      {team?.logoUrl && !failed && (
+      {wm && (
         <img
-          src={team.logoUrl}
+          src={wm}
           alt=""
           aria-hidden="true"
-          onError={() => setFailed(true)}
-          style={{ position: 'absolute', top: '50%', left: '50%', width: '88%', height: '88%', transform: 'translate(-50%,-46%)', objectFit: 'contain', opacity: 0.1, pointerEvents: 'none' }}
+          style={{ position: 'absolute', top: '56%', left: '50%', width: '70%', height: '70%', transform: 'translate(-50%,-50%)', objectFit: 'contain', opacity: 0.07, pointerEvents: 'none' }}
         />
       )}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
