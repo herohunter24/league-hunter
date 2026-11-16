@@ -18,6 +18,8 @@ import { NLS_LOGO, NLS_LOGO_WHITE, NLS_CREST, BRAND_NAME, WEBSITE_URL, COPYRIGHT
   CONTACT_EMAIL, INSTAGRAM_URL, INSTAGRAM_HANDLE,
   REGISTRATION_URL, TEAM_SHOP_URL, UNIFORM_QUOTE_URL, SET_TOTAL } from './config/league.js';
 import { AlertsModal } from './components/AlertsModal.jsx';
+import { PotmExplainer, PotmCountdown } from './components/PotmExplainer.jsx';
+import { resolvePotmMonth, potmRanking, nextRevealDate, formatMonth } from './lib/playerOfMonth.js';
 import { AlertsManage } from './components/AlertsManage.jsx';
 import { mapsUrl, venueAddress } from './lib/venues.js';
 
@@ -491,9 +493,24 @@ export default function App() {
   };
   const potmData = (view.meta && view.meta.playOfTheMonth) || {};
   const potwData = (view.meta && view.meta.playerOfTheWeek) || {};
+  // Joueur du mois : total du mois (régularité) — voir src/lib/playerOfMonth.js
+  // Le gagnant d'un mois est dévoilé le 1er du mois suivant → compte à rebours
+  const [potmRevealAt, setPotmRevealAt] = useState(() => nextRevealDate());
+  useEffect(() => {
+    const ms = potmRevealAt.getTime() - Date.now();
+    const id = setTimeout(() => setPotmRevealAt(nextRevealDate()), Math.min(Math.max(ms, 0) + 1000, 2147000000));
+    return () => clearTimeout(id);
+  }, [potmRevealAt]);
+  const potmMonth = useMemo(() => resolvePotmMonth(GAMES, potmData.month), [GAMES, potmData.month, potmRevealAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const potmRankFor = (catId) => potmRanking(PLAYERS.filter(p => inCat(p, catId)), GAMES, potmMonth);
+  const topOfMonth = (catId) => { const r = potmRankFor(catId); return r.length ? r[0].p : null; };
+  const potmOverrideFor = (catId) => {
+    const ov = ((potmData && potmData.categories) || {})[catId];
+    return ov && ov.playerId ? (PLAYERS.find(x => String(x.id) === String(ov.playerId)) || null) : null;
+  };
   const potmCards = useMemo(() => effectiveCats
-    .map(c => ({ cat: c, player: resolveSpotlight(potmData, c.id, topByRp) }))
-    .filter(x => x.player), [effectiveCats, PLAYERS, potmData]);
+    .map(c => ({ cat: c, player: resolveSpotlight(potmData, c.id, topOfMonth) }))
+    .filter(x => x.player && (x.player.gp || 0) >= 1), [effectiveCats, PLAYERS, GAMES, potmData, potmMonth]); // eslint-disable-line react-hooks/exhaustive-deps
   const potwPlayer = selectedCat ? resolveSpotlight(potwData, selectedCat, topOfWeek) : null;
 
 
@@ -914,6 +931,7 @@ export default function App() {
 
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [potmListOpen, setPotmListOpen] = useState(false);
+  const [potmHowOpen, setPotmHowOpen] = useState(false);
   const [manageToken, setManageToken] = useState(null);
   const [manageAction, setManageAction] = useState(null);
   useEffect(() => {
@@ -987,6 +1005,8 @@ export default function App() {
                     aria-label={lang === 'fr' ? 'Voir tous les joueurs du mois' : 'See all players of the month'}>
               {t.potmTitle} <span className="potm-label-arrow" aria-hidden="true">›</span>
             </button>
+            <button className="potm-info-btn" onClick={() => setPotmHowOpen(true)}
+                    aria-label={t.potmHowLink} title={t.potmHowLink}>?</button>
             <div className="potm-viewport">
               <div className="potm-marquee" style={{ animationDuration: dur + 's' }}>
                 {validCards.map((x, i) => chip(x, i, false))}
@@ -1003,7 +1023,8 @@ export default function App() {
           <div className="modal-bx potm-list-bx" role="dialog" aria-modal="true">
             <button className="modal-close" onClick={() => setPotmListOpen(false)} aria-label="Fermer">✕</button>
             <div className="sec-kicker">{t.potmTitle}</div>
-            <div className="potm-list-sub">{t.potmSub}</div>
+            <div className="potm-list-sub">{potmMonth ? t.potmSub.replace('{m}', formatMonth(potmMonth, lang)) : t.potmSub.replace(' — {m}', '')}</div>
+            <button className="potm-how-cta" onClick={() => { setPotmListOpen(false); setPotmHowOpen(true); }}>{t.potmHowLink} ›</button>
             <div className="potm-list">
               {potmCards.filter(x => (x.player.gp || 0) >= 1).map((x, i) => (
                 <button key={i} className="potm-list-row"
@@ -1016,6 +1037,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── JOUEUR DU MOIS — comment c'est calculé ── */}
+      {potmHowOpen && (
+        <PotmExplainer lang={lang} month={potmMonth} revealAt={potmRevealAt} cats={effectiveCats}
+          initialCat={selectedCat} rankingFor={potmRankFor} overrideFor={potmOverrideFor}
+          catLabel={c => displayCatName(c.name, t)}
+          onOpenPlayer={pl => { setPotmHowOpen(false); openPlayerModal(pl); }}
+          onClose={() => setPotmHowOpen(false)} />
       )}
 
       {/* ── FIXED PHOTO LAYER (home only) ── */}
@@ -1038,6 +1068,31 @@ export default function App() {
           <button className="hero-cta" style={{ border: 'none', cursor: 'pointer' }} onClick={openExplorer}>
             {t.cta} →
           </button>
+          {isHome && ps.showPlayers !== false && ps.showPlayerCards !== false && (
+            <div className="hero-potm">
+              <div className="hero-potm-title">
+                {potmMonth ? t.potmHeroTitle.replace('{m}', formatMonth(potmMonth, lang)) : t.potmTitle}
+              </div>
+              {potmCards.length > 0 ? (
+                <div className="hero-potm-viewport">
+                  <div className="hero-potm-marquee" style={{ animationDuration: Math.max(18, potmCards.length * 6) + 's' }}>
+                    {[false, true].map(dup => potmCards.map((x, i) => (
+                      <button key={(dup ? 'd' : '') + i} className="hero-potm-card" aria-hidden={dup || undefined} tabIndex={dup ? -1 : undefined}
+                              onClick={() => openPlayerModal(x.player)}>
+                        {x.cat.id !== '__all__' && <span className="hero-potm-cat">{displayCatName(x.cat.name, t)}</span>}
+                        <span className="hero-potm-name">{x.player.name}</span>
+                        {x.player.team && <span className="hero-potm-team">{teamOfPlayer(x.player) && <TeamBadge team={teamOfPlayer(x.player)} size={16} />}<span>{x.player.team}</span></span>}
+                      </button>
+                    )))}
+                  </div>
+                </div>
+              ) : (
+                <div className="hero-potm-teaser">{t.potmFirstReveal}</div>
+              )}
+              <PotmCountdown revealAt={potmRevealAt} lang={lang} />
+              <button className="potm-how-cta hero-potm-how" onClick={() => setPotmHowOpen(true)}>{t.potmHowLink} ›</button>
+            </div>
+          )}
         </div>
         <div ref={scrollCueRef} className="hero-scroll-cue" aria-hidden="true">
           <span className="chev" /><span className="chev" />
@@ -1444,12 +1499,13 @@ export default function App() {
         <div className="sec-kicker">{t.playersKicker}</div>
 
         {(() => {
-          const pmPlayer = resolveSpotlight(potmData, selectedCat, topByRp);
+          const pmPlayer = resolveSpotlight(potmData, selectedCat, topOfMonth);
           if (!pmPlayer || (pmPlayer.gp || 0) < 1) return null;
           return (
             <div style={{ marginBottom: 40 }}>
               <div className="sec-kicker">{t.potmTitle}</div>
-              <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 14px' }}>{t.potmSub}</div>
+              <div className="lsec-sub" style={{ textAlign: 'left', margin: '0 0 8px' }}>{potmMonth ? t.potmSub.replace('{m}', formatMonth(potmMonth, lang)) : t.potmSub.replace(' — {m}', '')}</div>
+              <button className="potm-how-cta" style={{ marginBottom: 14 }} onClick={() => setPotmHowOpen(true)}>{t.potmHowLink} ›</button>
               <div className="potm-card-wrap">
                 <PlayerCard p={pmPlayer} lang={lang} t={t} onOpen={openPlayerModal} teams={TEAMS} units={view.units} leagueId={leagueId} leagueLogoUrl={leagueLogoUrl} leagueName={leagueName} season={season} />
               </div>
@@ -1458,7 +1514,7 @@ export default function App() {
         })()}
 
         {(() => {
-          const pmPlayer = resolveSpotlight(potmData, selectedCat, topByRp);
+          const pmPlayer = resolveSpotlight(potmData, selectedCat, topOfMonth);
           const pmId = pmPlayer && (pmPlayer.gp || 0) >= 1 ? pmPlayer.id : null;
           const ns = normalize(search);
           const filterActive = !!ns || fTeam !== 'all';
