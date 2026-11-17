@@ -26,6 +26,7 @@ import { PotmExplainer, PotmCountdown } from './components/PotmExplainer.jsx';
 import { resolvePotmMonth, potmRanking, nextRevealDate, formatMonth } from './lib/playerOfMonth.js';
 import { AlertsManage } from './components/AlertsManage.jsx';
 import { mapsUrl, venueAddress } from './lib/venues.js';
+import { torontoToday, torontoNowMinutes, addDays, weekStart, timeToMinutes, gameWeekStatus, fmtWeekLabel } from './lib/week.js';
 
 const fmtDate = (d, lang) => new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtDateHeader = (d, lang) => { const s = new Date(d + 'T12:00').toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA', { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
@@ -422,6 +423,7 @@ export default function App() {
 
   const [schedFilter, setSchedFilter] = useState('all');
   const [schedTeam, setSchedTeam]     = useState('all');
+  const [weekStartYmd, setWeekStartYmd] = useState(() => weekStart(torontoToday()));
   const [openGame, setOpenGame]       = useState(null);
   const catTeamNames = useMemo(() => new Set(TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => tm.name)), [TEAMS, selectedCat]);
   const games = useMemo(() => {
@@ -432,7 +434,7 @@ export default function App() {
     if (schedFilter === 'past') g = g.filter(x => x.hs !== null).reverse();
     // « Tous » : prochains matchs en haut (plus proche d'abord), matchs finis en bas (plus récent d'abord)
     if (schedFilter === 'all') {
-      const mins = t => { const m = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(t || ''); if (!m) return 0; let h = +m[1] % 12; if (!m[3] || m[3].toUpperCase() === 'PM') h += (m[3] ? 12 : +m[1] - (+m[1] % 12)); return h * 60 + +m[2]; };
+      const mins = t => timeToMinutes(t) ?? 0;
       const byDateTime = (x, y) => x.date.localeCompare(y.date) || mins(x.time) - mins(y.time);
       const upcoming = g.filter(x => x.hs === null).sort(byDateTime);
       const past = g.filter(x => x.hs !== null).sort((x, y) => byDateTime(y, x));
@@ -441,6 +443,23 @@ export default function App() {
     if (schedTeam !== 'all') g = g.filter(x => x.home === schedTeam || x.away === schedTeam);
     return g;
   }, [schedFilter, schedTeam, GAMES, selectedCat, catTeamNames]);
+  // « Par semaine · toute la ligue » : tous les matchs de toutes les catégories, lun–dim
+  const weekCatIds = useMemo(() => (view.categories || []).map(c => String(c.id)), [view.categories]);
+  const weekInCats = g => !g.categoryId || !weekCatIds.length || weekCatIds.includes(String(g.categoryId));
+  const weekGames = useMemo(() => {
+    const end = addDays(weekStartYmd, 6);
+    const homeName = g => g.home || '';
+    const g = GAMES.filter(x => x.date >= weekStartYmd && x.date <= end && weekInCats(x));
+    const catIdx = x => { const i = weekCatIds.indexOf(String(x.categoryId)); return i < 0 ? 9999 : i; };
+    g.sort((x, y) => x.date.localeCompare(y.date) || (timeToMinutes(x.time) ?? 9999) - (timeToMinutes(y.time) ?? 9999) || catIdx(x) - catIdx(y) || homeName(x).localeCompare(homeName(y)));
+    const grouped = [];
+    const dateMap = new Map();
+    for (const x of g) {
+      if (!dateMap.has(x.date)) { dateMap.set(x.date, []); grouped.push({ date: x.date, items: dateMap.get(x.date) }); }
+      dateMap.get(x.date).push(x);
+    }
+    return grouped;
+  }, [GAMES, weekStartYmd, weekCatIds, TEAMS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [search, setSearch]               = useState('');
   const [fTier, setFTier]                 = useState('all');
@@ -673,6 +692,7 @@ export default function App() {
     setSelectedCat(null);
     setCatSearch('');
     setSchedTeam('all');
+    setSchedFilter('all');
     setFTeam('all');
     setSearch('');
     history.pushState({ nls: 'explorer', g: pickerGender, div: pickerDiv }, '', buildPickerUrl(pickerGender, pickerDiv));
@@ -1487,60 +1507,133 @@ export default function App() {
       {/* ── SCHEDULE ── */}
       {selectedCat && selectedCat !== 'allstar' && activeTab === 'schedule' && ps.showSchedule !== false && (
       <section className="section tab-pane" id="calendrier">
-        <div className="sec-kicker">{t.schedKicker}</div>
-        <div className="sched-filters">
-          {[['all', t.fAll], ['upcoming', t.fUpcoming], ['past', t.fPast]].map(([k, l]) => (
-            <button key={k} className={`chip-btn ${schedFilter === k ? 'active' : ''}`} onClick={() => setSchedFilter(k)}>{l}</button>
-          ))}
-          <select className="filter-select" value={schedTeam} onChange={e => setSchedTeam(e.target.value)}>
-            <option value="all">{t.allTeams}</option>
-            {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
-          </select>
-        </div>
         {(() => {
-          if (!games.length) return <div className="empty-note">{schedFilter === 'upcoming' ? t.noUpcoming : '—'}</div>;
-          const nextGameId = (() => {
-            const upcoming = games.filter(g => g.hs === null);
-            if (!upcoming.length) return null;
-            return [...upcoming].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0]?.id;
-          })();
-          const grouped = [];
-          const dateMap = new Map();
-          for (const g of games) {
-            if (!dateMap.has(g.date)) { dateMap.set(g.date, []); grouped.push({ date: g.date, items: dateMap.get(g.date) }); }
-            dateMap.get(g.date).push(g);
-          }
-          return grouped.map(({ date, items }) => (
-            <div key={date}>
-              <div className="date-group-header">{fmtDateHeader(date, lang)}</div>
-              <div className="games-grid">
-                {items.map(g => {
-                  const played = g.hs !== null;
-                  const homeTeam = TEAMS.find(tm => tm.name === g.home), awayTeam = TEAMS.find(tm => tm.name === g.away);
-                  return (
-                    <div key={g.id} className={`game-card${played ? ' played' : ' upcoming'}`} onClick={() => openGameModal(g)}>
-                      {g.id === nextGameId && <div className="next-game-badge">{t.nextGame}</div>}
-                      <div className="game-date">
-                        <span>{fmtDate(g.date, lang)} · {g.time}</span>
-                        <span>{g.forfeit && <span className="game-pill pill-upcoming" style={{ marginRight: 6 }}>{t.forfeitBadge}</span>}<span className={`game-pill${played ? ' pill-final' : ' pill-upcoming'}`}>{played ? t.final : t.upcoming}</span></span>
-                      </div>
-                      <div className="game-matchup">
-                        <div className="game-team">
-                          <div className="game-team-info"><TeamBadge team={awayTeam} size={24} />{g.away}</div>
-                          {played && <span className={`game-score ${g.as > g.hs ? 'winner' : 'loser'}`}>{g.as}</span>}
-                        </div>
-                        <div className="game-team">
-                          <div className="game-team-info"><TeamBadge team={homeTeam} size={24} />{g.home}</div>
-                          {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
-                        </div>
-                      </div>
-                      {g.venue && <div className="game-venue"><a className="venue-link" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={t.directions}>📍 <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span>{venueAddress(g.venue) && <span className="venue-addr">{venueAddress(g.venue)}</span>}</a></div>}
-                    </div>
-                  );
-                })}
+          const isWeek = schedFilter === 'week';
+          const today = torontoToday();
+          const nowMin = torontoNowMinutes();
+          const teamFor = (name, catId) => TEAMS.find(tm => tm.name === name && (!catId || tm.categoryId === catId)) || TEAMS.find(tm => tm.name === name);
+          const catLabel = g => {
+            const cats = view.categories || [];
+            let c = g.categoryId ? cats.find(x => String(x.id) === String(g.categoryId)) : null;
+            if (!c) { const tm = TEAMS.find(x => x.name === g.home); if (tm && tm.categoryId) c = cats.find(x => String(x.id) === String(tm.categoryId)); }
+            if (!c) return null;
+            return displayCatName(c.name, t) + (c.division ? ' · ' + (/^(diamond|diamant)/i.test(String(c.division)) ? t.divDiamond : t.divGold) : '');
+          };
+          const renderGameCard = (g, { status, catLabel: cl, isNext, week }) => {
+            const played = status === 'final';
+            const homeTeam = week ? teamFor(g.home, g.categoryId) : TEAMS.find(tm => tm.name === g.home);
+            const awayTeam = week ? teamFor(g.away, g.categoryId) : TEAMS.find(tm => tm.name === g.away);
+            const pillCls = played ? ' pill-final' : ' pill-upcoming';
+            const pillTxt = played ? t.final : (status === 'pending' ? t.scorePending : t.upcoming);
+            return (
+              <div key={g.id} className={`game-card${played ? ' played' : ' upcoming'}`} onClick={() => openGameModal(g)}>
+                {isNext && <div className="next-game-badge">{t.nextGame}</div>}
+                <div className="game-date">
+                  <span>{week && !g.time ? fmtDate(g.date, lang) : <>{fmtDate(g.date, lang)} · {g.time}</>}</span>
+                  <span>{g.forfeit && <span className="game-pill pill-upcoming" style={{ marginRight: 6 }}>{t.forfeitBadge}</span>}<span className={`game-pill${pillCls}`}>{pillTxt}</span></span>
+                </div>
+                {cl && <div className="game-cat">{cl}</div>}
+                <div className="game-matchup">
+                  <div className="game-team">
+                    <div className="game-team-info"><TeamBadge team={awayTeam} size={24} />{g.away}</div>
+                    {played && <span className={`game-score ${g.as > g.hs ? 'winner' : 'loser'}`}>{g.as}</span>}
+                  </div>
+                  <div className="game-team">
+                    <div className="game-team-info"><TeamBadge team={homeTeam} size={24} />{g.home}</div>
+                    {played && <span className={`game-score ${g.hs > g.as ? 'winner' : 'loser'}`}>{g.hs}</span>}
+                  </div>
+                </div>
+                {g.venue && <div className="game-venue"><a className="venue-link" href={mapsUrl(g.venue)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={t.directions}>📍 <span className="venue-name">{g.venue}</span><span className="venue-go">{t.directions} ↗</span>{venueAddress(g.venue) && <span className="venue-addr">{venueAddress(g.venue)}</span>}</a></div>}
               </div>
-            </div>
-          ));
+            );
+          };
+
+          const weekView = () => {
+            const thisWeek = weekStart(today);
+            const lastWeek = addDays(thisWeek, -7);
+            const end = addDays(weekStartYmd, 6);
+            let body;
+            if (weekGames.length) {
+              body = weekGames.map(({ date, items }) => (
+                <div key={date}>
+                  <div className="date-group-header">{fmtDateHeader(date, lang)}</div>
+                  <div className="games-grid">
+                    {items.map(g => renderGameCard(g, { status: gameWeekStatus(g, today, nowMin), catLabel: catLabel(g), isNext: false, week: true }))}
+                  </div>
+                </div>
+              ));
+            } else {
+              const pool = GAMES.filter(weekInCats);
+              const earlier = pool.filter(g => g.date < weekStartYmd).reduce((m, g) => (!m || g.date > m ? g.date : m), null);
+              const later = pool.filter(g => g.date > end).reduce((m, g) => (!m || g.date < m ? g.date : m), null);
+              body = (
+                <>
+                  <div className="empty-note">{t.weekEmpty}</div>
+                  {(earlier || later) && (
+                    <div className="sched-filters">
+                      {earlier && <button className="chip-btn" onClick={() => setWeekStartYmd(weekStart(earlier))}>{t.weekJumpPrev}</button>}
+                      {later && <button className="chip-btn" onClick={() => setWeekStartYmd(weekStart(later))}>{t.weekJumpNext}</button>}
+                    </div>
+                  )}
+                </>
+              );
+            }
+            return (
+              <>
+                <div className="week-nav">
+                  <button className="chip-btn week-arrow" aria-label={t.weekPrev} title={t.weekPrev} onClick={() => setWeekStartYmd(addDays(weekStartYmd, -7))}>‹</button>
+                  <div className="week-label">{fmtWeekLabel(weekStartYmd, lang, today, t)}</div>
+                  <button className="chip-btn week-arrow" aria-label={t.weekNext} title={t.weekNext} onClick={() => setWeekStartYmd(addDays(weekStartYmd, 7))}>›</button>
+                </div>
+                <div className="sched-filters">
+                  <button className={`chip-btn ${weekStartYmd === thisWeek ? 'active' : ''}`} onClick={() => setWeekStartYmd(thisWeek)}>{t.weekThis}</button>
+                  <button className={`chip-btn ${weekStartYmd === lastWeek ? 'active' : ''}`} onClick={() => setWeekStartYmd(lastWeek)}>{t.weekLast}</button>
+                </div>
+                {body}
+              </>
+            );
+          };
+
+          const listView = () => {
+            if (!games.length) return <div className="empty-note">{schedFilter === 'upcoming' ? t.noUpcoming : '—'}</div>;
+            const nextGameId = (() => {
+              const upcoming = games.filter(g => g.hs === null);
+              if (!upcoming.length) return null;
+              return [...upcoming].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0]?.id;
+            })();
+            const grouped = [];
+            const dateMap = new Map();
+            for (const g of games) {
+              if (!dateMap.has(g.date)) { dateMap.set(g.date, []); grouped.push({ date: g.date, items: dateMap.get(g.date) }); }
+              dateMap.get(g.date).push(g);
+            }
+            return grouped.map(({ date, items }) => (
+              <div key={date}>
+                <div className="date-group-header">{fmtDateHeader(date, lang)}</div>
+                <div className="games-grid">
+                  {items.map(g => renderGameCard(g, { status: g.hs !== null ? 'final' : 'upcoming', catLabel: null, isNext: g.id === nextGameId, week: false }))}
+                </div>
+              </div>
+            ));
+          };
+
+          return (
+            <>
+              <div className="sec-kicker">{isWeek ? t.weekKicker : t.schedKicker}</div>
+              <div className="sched-filters">
+                {[['all', t.fAll], ['upcoming', t.fUpcoming], ['past', t.fPast], ['week', t.fWeek]].map(([k, l]) => (
+                  <button key={k} className={`chip-btn ${schedFilter === k ? 'active' : ''}`} onClick={() => setSchedFilter(k)}>{l}</button>
+                ))}
+                {!isWeek && (
+                  <select className="filter-select" value={schedTeam} onChange={e => setSchedTeam(e.target.value)}>
+                    <option value="all">{t.allTeams}</option>
+                    {TEAMS.filter(tm => catMatch(tm.categoryId)).map(tm => <option key={tm.id} value={tm.name}>{tm.name}</option>)}
+                  </select>
+                )}
+              </div>
+              {isWeek ? weekView() : listView()}
+            </>
+          );
         })()}
       </section>
       )}
@@ -1759,7 +1852,7 @@ export default function App() {
             <div className="modal-bx">
               <button className="modal-close" onClick={closeGameModal}>✕</button>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 18 }}>
-                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}{g.forfeit && <> · {t.forfeitBadge}</>}
+                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : (gameWeekStatus(g, torontoToday(), torontoNowMinutes()) === 'pending' ? t.scorePending : t.upcoming)}{g.forfeit && <> · {t.forfeitBadge}</>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 16, margin: '22px 0' }}>
                 <div style={{ textAlign: 'center' }}>
