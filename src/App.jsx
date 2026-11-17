@@ -1852,7 +1852,7 @@ export default function App() {
             <div className="modal-bx">
               <button className="modal-close" onClick={closeGameModal}>✕</button>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 18 }}>
-                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : t.upcoming}{g.forfeit && <> · {t.forfeitBadge}</>}
+                {fmtDate(g.date, lang)} · {g.time} — {played ? t.final : (gameWeekStatus(g, torontoToday(), torontoNowMinutes()) === 'pending' ? t.scorePending : t.upcoming)}{g.forfeit && <> · {t.forfeitBadge}</>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 16, margin: '22px 0' }}>
                 <div style={{ textAlign: 'center' }}>
