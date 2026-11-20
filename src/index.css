@@ -1819,3 +1819,9 @@ a.partner-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(
   .footer .footer-partners .partner-tile { width: auto; height: 42px; padding: 4px 5px; }
 }
 @media (prefers-reduced-motion: reduce) { .partner-tile { transition: none; } }
+
+/* Avis important (bandeau temporaire sous l'en-tête) */
+.site-notice { position: relative; z-index: 150; display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; background: #1A1408; border-bottom: 1px solid var(--gold-dim); color: var(--ink, #F2F2F2); font-size: 13px; line-height: 1.45; }
+.site-notice-tag { flex-shrink: 0; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #000; background: var(--gold); border-radius: 4px; padding: 3px 7px; margin-top: 1px; }
+.site-notice-text { min-width: 0; }
+@media (max-width: 600px) { .site-notice { flex-direction: column; gap: 6px; font-size: 12.5px; } }

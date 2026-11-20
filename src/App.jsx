@@ -1026,6 +1026,18 @@ export default function App() {
         </div>
       </div>
 
+      {/* ── AVIS IMPORTANT (temporaire — disparaît automatiquement après la date de fin) ── */}
+      {Date.now() < Date.parse('2026-11-23T05:00:00Z') && (
+        <div className="site-notice" role="status">
+          <span className="site-notice-tag">{lang === 'fr' ? 'Avis important' : 'Important notice'}</span>
+          <span className="site-notice-text">
+            {lang === 'fr'
+              ? "Changements à l'horaire du dimanche 22 novembre en raison d'un problème de terrains : Fusion BF vs Rebels BF (10 h) et Sagesse CM vs NFNL CM (15 h 20) sont déplacés au Cégep Bois-de-Boulogne. Rebels CM vs CSS CM et Level Up CM vs 3KBM CM sont retirés de l'horaire. Vérifie le calendrier avant de te déplacer."
+              : "Schedule changes for Sunday, November 22 due to a court issue: Fusion BF vs Rebels BF (10:00 AM) and Sagesse CM vs NFNL CM (3:20 PM) are moved to Cégep Bois-de-Boulogne. Rebels CM vs CSS CM and Level Up CM vs 3KBM CM are removed from the schedule. Check the schedule before you head out."}
+          </span>
+        </div>
+      )}
+
       {/* ── JOUEUR DU MOIS ticker (défilant) ── */}
       {(ps.showPlayers !== false && ps.showPlayerCards !== false) && (() => {
         const validCards = potmCards.filter(x => (x.player.gp || 0) >= 1);
